@@ -108,7 +108,7 @@ test('release history is chronological, matches the app package and describes sh
   assert.ok(RELEASES[i].date>=RELEASES[i-1].date);
   assert.ok(RELEASES[i].version.localeCompare(RELEASES[i-1].version,undefined,{numeric:true})>0);
  }
- assert.match(RELEASES.at(-1).summary,/location on the map/);
+ assert.match(RELEASES.find(r=>r.version==='0.3.1').summary,/location on the map/);
  const html=fs.readFileSync(new URL('../dist/index.html',import.meta.url),'utf8');assert.match(html,/What’s in this version\?/);assert.doesNotMatch(html,/What’s in this first version\?/);
 });
 test('map list renders distance order, missing-location actions and selected footprint together',()=>{
@@ -123,5 +123,5 @@ test('map list renders distance order, missing-location actions and selected foo
 test('version dialog renders oldest to newest and marks only the current release',()=>{
  const nodes={'release-version':{},'release-history':{}};const context=vm.createContext({$:id=>nodes[id],APP_VERSION,RELEASES,esc:s=>s,date:s=>s});
  vm.runInContext(app.slice(app.indexOf('function renderReleases()'),app.indexOf('function asDataURL(')),context);context.renderReleases();
- const html=nodes['release-history'].innerHTML;assert.ok(html.indexOf('Version 0.2.2')<html.indexOf('Version 0.3.1'));assert.equal((html.match(/release-current/g)||[]).length,1);assert.match(nodes['release-version'].textContent,/0.3.1/);
+ const html=nodes['release-history'].innerHTML;assert.ok(html.indexOf('Version 0.2.2')<html.indexOf(`Version ${APP_VERSION}`));assert.equal((html.match(/release-current/g)||[]).length,1);assert.ok(nodes['release-version'].textContent.includes(APP_VERSION));
 });

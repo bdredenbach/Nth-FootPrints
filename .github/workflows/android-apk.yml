@@ -71,7 +71,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.3.1 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.3.2 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",
@@ -87,8 +87,10 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
-      - name: Add Android save-file bridge
-        run: cp native/android/*.java android/app/src/main/java/com/nthexperience/footprints/
+      - name: Add Android file and widget bridges
+        run: |
+          cp native/android/*.java android/app/src/main/java/com/nthexperience/footprints/
+          node native/prepare-widget.mjs
 
       - name: Set Android version
         run: |

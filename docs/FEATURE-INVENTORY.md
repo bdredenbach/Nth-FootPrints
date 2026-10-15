@@ -29,7 +29,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
-| Android home-screen widget | Planned |
+| Android home-screen widget | Implemented in 0.3.2; latest-visit preview, open-memory and new-footprint shortcuts; physical launcher testing pending |
 | Nearby place/address search | Planned; provider selection required |
 | Downloadable offline maps, integrated routing, turn-by-turn, voice guidance | Planned; provider/data/licensing and implementation needed |
 | KMZ import/export | Omitted at user request |
@@ -40,7 +40,7 @@ The original SVG examples and their notes are explicitly labeled samples. Users 
 Media bytes are kept in base64 data URLs without recompression. This first implementation has a 150 MB backup limit, 20 MB per attachment, and loads the journal in memory. A native file-based media store and streaming archive exporter are required before claiming large collection support. Browser media codec playback varies by platform.
 
 ## Validation
-Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. 80 Node tests pass across data, gestures, metadata, native export orchestration and map-controller logic. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, direct device testing, live tile-loading test or PWA installation test has been performed here. Map controller tests use a fake Leaflet/DOM boundary, without fetching public tiles. Deployment success is checked separately.
+Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. 90 Node tests pass across data, gestures, metadata, native export orchestration and map-controller logic. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, direct device testing, live tile-loading test or PWA installation test has been performed here. Map controller tests use a fake Leaflet/DOM boundary, without fetching public tiles. Deployment success is checked separately.
 
 ## Geotagging behavior
 Photo metadata is read locally. The location preview provides coordinates and an optional external map link; no map request occurs until the user opens it. Existing editor coordinates and the date are unchanged until the user applies the photo location. Original photo date is separately opt-in. Missing or malformed metadata never defaults to the current location. The camera action is explicitly labeled Take photo + locate and requests a fresh device location after a successful attachment. A location error keeps the photo and lets the user enter coordinates manually. Pending location results cannot overwrite later manual edits, an applied photo geotag or another editing session. Save waits for active location requests to finish or for the user to enter coordinates manually.
@@ -106,3 +106,11 @@ Nearest to me uses the existing native/browser device access boundary, then comp
 The footer and dialog now say What's in this version? A chronological, oldest-first release list is sourced from releases.js, covers the known GitHub releases from 0.2.2 through 0.3.1, and marks the current release. Dates/descriptions are based on repository commits. Planned features remain separate. Signing is explicitly deferred at the user's request until testing ends.
 
 80 automated checks cover existing features plus distances across zero/date line/antipodes, filter composition, missing positions, async permission/stale/cancel flows, map picking/offline/cleanup, draft application, linked list rendering, and release ordering/version consistency. Tests use fake map/DOM boundaries; physical Android and real map gesture/layout testing remain necessary.
+
+## 0.3.2 Android widget; multiple photos queued
+
+The native widget uses RemoteViews and private snapshot storage. It shows one latest-visited footprint and the journal count, updates after successful journal writes, and remains available while the app is stopped. It uses a 384 × 240 derived JPEG preview; original photos are unchanged. No GPS or network activity runs in the widget. Snapshot failure cannot roll back a committed journal. Pending widget actions wait for storage and open dialogs. A launcher pin request is not described as successful placement until the user completes the system prompt. Empty state, invalid/deleted shortcuts and preview failures have safe fallbacks. Native compilation and JS boundary checks do not replace launcher/device testing.
+
+The user’s multi-photo specification is recorded in ROADMAP.md as next. Its placement is after the detail coordinates, with right-aligned upload, horizontal browsing of the top photo and persisted selection as the main card image. It is not implemented in this release.
+
+Widget implementation reference: https://developer.android.com/develop/ui/views/appwidgets .

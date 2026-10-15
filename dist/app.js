@@ -7,6 +7,7 @@ import {preparePhotoExport} from './photo-export.js';
 import {createAtlas,hasLocation} from './atlas.js';
 import {createPositionPicker,createNearbyLookup,nearestPlaces,distanceLabel} from './location-tools.js';
 import {RELEASES,APP_VERSION} from './releases.js';
+import {createWidgetSync,createWidgetLaunch} from './widget.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
 let atlas=null,picker=null,pickerRequest=0,nearbyOrigin=null;
 const $=id=>document.getElementById(id);
@@ -35,7 +36,28 @@ function toast(message){$('toast').textContent=message;$('toast').hidden=false;c
 function dbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open('nth-footprints',1);req.onupgradeneeded=()=>req.result.createObjectStore('journal');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Close other FootPrints tabs, then reload.'));});}
 function dbGet(){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readonly'),r=t.objectStore('journal').get('state');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 function dbPut(nextRecords,nextSettings){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put({records:nextRecords,settings:nextSettings},'state');t.oncomplete=resolve;t.onabort=()=>reject(t.error??Error('The journal could not be saved.'));t.onerror=()=>{};});}
-async function commit(nextRecords,nextSettings=settings){nextRecords=withoutStarterSamples(nextRecords);if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{await dbPut(nextRecords,nextSettings);}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;applyTheme();render();}
+async function commit(nextRecords,nextSettings=settings){nextRecords=withoutStarterSamples(nextRecords);if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{await dbPut(nextRecords,nextSettings);}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;applyTheme();render();void widgetSync.refresh(records);}
+const widgetPlugin=device.native?window.NthNative?.FootprintWidget:null;
+const widgetSync=createWidgetSync({plugin:widgetPlugin,onStatus:message=>{$('widget-status').textContent=message;}});
+const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
+ canOpen:()=>storageReady&&!document.querySelector('dialog[open]'),
+ openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),
+ openFootprint:id=>{
+  const record=records.find(r=>r.id===id);
+  if(!record){toast('That footprint is no longer in your journal.');return;}
+  query='';category='All places';$('search').value='';setView('journal');
+  deckIndex=filtered().findIndex(r=>r.id===id);renderDeck(filtered());openDetail(id);
+ },onError:toast
+});
+async function pinWidget(){
+ $('pin-widget').disabled=true;
+ try{
+  await widgetSync.refresh(records);
+  const result=await widgetPlugin.requestPin();
+  $('widget-status').textContent=result.requested?'Finish adding the widget in Android’s home-screen prompt.':'Long-press your Android home screen, choose Widgets, then Nth FootPrints.';
+ }catch{$('widget-status').textContent='Long-press your Android home screen, choose Widgets, then Nth FootPrints.';}
+ finally{$('pin-widget').disabled=false;}
+}
 function applyTheme(){document.documentElement.classList.toggle('night',settings.theme==='night');$('theme').value=settings.theme;}
 function filtered(){return filterRecords(records,{query,category,sort,favorites:view==='favorites'});}
 let deckMotion=0,deckBusy=false,deckAnimations=[];
@@ -358,6 +380,8 @@ async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
  }catch(err){toast(err.message);}
 }
 function wire(){
+ $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=()=>widgetSync.refresh(records);
+ document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('close',()=>queueMicrotask(()=>widgetLaunch.flush())));
  icons();renderReleases();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
@@ -374,6 +398,6 @@ function wire(){
 }
 async function init(){wire();const initial=location.hash.slice(1);if(initial==='places')history.replaceState(null,'','#journal');if(['journal','map','favorites'].includes(initial))view=initial;
  try{db=await dbOpen();const state=await dbGet();if(state){const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);if(records.length!==loaded.length)await dbPut(records,settings);}else{records=seeds;await dbPut(records,settings);}storageReady=true;}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
- applyTheme();render();if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ applyTheme();render();if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 init();
