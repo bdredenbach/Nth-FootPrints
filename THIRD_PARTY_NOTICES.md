@@ -23,3 +23,14 @@ The application calls the Photon public demo service at https://photon.komoot.io
 Photon’s operator welcomes reasonable request volumes, may throttle or ban extensive use, gives no availability guarantee and can change the service without notice. This prototype limits request frequency/results, handles throttling, caches a small number of queries in memory and does not automatically retry. Use a dedicated service or contracted provider before broader distribution. Queries are sent on explicit Search; saved journal records and media are not sent.
 
 Upstream project/policy: https://github.com/komoot/photon . API: https://github.com/komoot/photon/blob/master/docs/api-v1.md .
+
+## USGS Topo offline maps
+
+Map services and data available from U.S. Geological Survey, National Geospatial Program. The National Map services/data are free and public domain. Offline areas download USGS Topo raster tiles; no USGS logo is used. Detailed coverage is U.S.-focused.
+
+Service/source credits: https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer
+Terms: https://www.usgs.gov/faqs/what-are-terms-uselicensing-map-services-and-data-national-map
+
+## fake-indexeddb
+
+Development-only IndexedDB behavioral test implementation, version 6.2.4, Apache-2.0. Not bundled into the app. https://github.com/dumbmatter/fakeIndexedDB

@@ -24,14 +24,15 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Multi-pin atlas | Implemented in 0.3.0; photo thumbnails added in 0.3.4; fit-all, pin-to-memory, list selection, filters, missing-location entries and external directions |
 | Directions | External Google Maps destination link, not integrated navigation |
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
+| Offline map areas | Shipped in 0.3.9: USGS topographic areas, detailed U.S. coverage, progress/cancel/removal, local atlas and picker rendering |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
 | Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v2; v1 imports supported |
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
 | Android home-screen widget | Implemented in 0.3.2; latest-visit preview, open-memory and new-footprint shortcuts; physical launcher testing pending |
-| Nearby place/address search | Planned; provider selection required |
-| Downloadable offline maps, integrated routing, turn-by-turn, voice guidance | Planned; provider/data/licensing and implementation needed |
+| Address/named-business search | Shipped in 0.3.8 using Photon; explicit online queries in the position picker |
+| Worldwide detailed offline maps, integrated routing, turn-by-turn, voice guidance | Still queued; U.S. offline map viewing shipped in 0.3.9 |
 | KMZ import/export | Omitted at user request |
 
 ## Prototype boundaries
@@ -93,7 +94,7 @@ Photo export opens the save picker directly, reusing cancellation, chunked writi
 ## 0.3.0 multi-pin atlas
 Replaced the single-place map iframe with a locally bundled Leaflet 1.9.4 atlas. All valid located footprints in the current search/category view appear together. Zero coordinates are retained, missing/invalid pairs are excluded from pins, and missing-location footprints stay actionable in the list. Pin activation opens the memory; list selection focuses and highlights the matching pin. Fit-all, selected directions, same-coordinate list access and shorter date-line bounds are included. Display longitude adjustments never change stored coordinates. Non-spatial edits preserve the viewport.
 
-Map assets are vendored with Leaflet's BSD-2-Clause license; original Nth footprint icons avoid decoding every full-resolution photo just to draw pins. Sidebar thumbnails load lazily. Map initialization waits for located places, hidden/offline maps detach their tile layer, and destroyed maps detach listeners. Tile failure/connection status leaves saved places available. Background tiles use normal HTTP caching, visible attribution and an identifiable native user agent. No bulk download, tile prefetch or offline-area feature is implemented. The app shell cache includes only bundled same-origin assets. References: https://leafletjs.com/reference.html and https://operations.osmfoundation.org/policies/tiles/ .
+Map assets are vendored with Leaflet's BSD-2-Clause license; original Nth footprint icons avoid decoding every full-resolution photo just to draw pins. Sidebar thumbnails load lazily. Map initialization waits for located places, hidden/offline maps detach their tile layer, and destroyed maps detach listeners. Tile failure/connection status leaves saved places available. Background tiles use normal HTTP caching, visible attribution and an identifiable native user agent. This release had no offline-area feature; 0.3.9 adds bounded USGS packages while OSM remains online-only. The app shell cache includes only bundled same-origin assets. References: https://leafletjs.com/reference.html and https://operations.osmfoundation.org/policies/tiles/ .
 
 The APK workflow also sets the Android version name from package.json and version code from the workflow run number. Permanent signing is not configured yet. The current remaining order is maintained in ROADMAP.md.
 
@@ -162,3 +163,9 @@ The draft map picker includes an address/named-business search form. Searches ru
 Provider: Photon’s public demo, https://photon.komoot.io/api/ . Verified reasonable-use policy and API schema in the upstream documentation. The prototype uses no key or billing arrangement; a dedicated service is needed before high-volume distribution. The endpoint is centralized. Fetch uses omitted credentials, no referrer, no-store, redirect rejection and a 12-second deadline. A 1.5-second minimum request interval, HTTP 429/Retry-After cooldown, transient bounded cache and no automatic retries reduce service load. Responses are bounded to 256 KiB; malformed/out-of-range data is rejected. Stale, cancelled and timed-out responses cannot change current results. No public Nominatim endpoint is queried.
 
 159 Node/Java checks pass. New tests cover normalization, deduplication, coordinate order, formatting, bounded fields, HTML escaping, empty/offline input, explicit requests, no location/media transmission, cache expiry/eviction, throttling, cancellation, late responses, timeout, service errors, body size, draft application, text preservation and moving/closing the pin picker. Two live service probes returned HTTP 200 and wildcard CORS; a real named-business response was processed by the app’s search controller. Native compilation/package verification is additional validation; phone and browser UI interactions need device testing. References: https://github.com/komoot/photon and https://github.com/komoot/photon/blob/master/docs/api-v1.md .
+
+## 0.3.9 offline map areas
+
+USGS Topo raster downloads and a separate Blob-based IndexedDB store support bounded packages around saved places. Areas commit only after their expected tile count is present; interrupted staging is removed on startup. Sequential paced requests, per-tile deadlines, image/size checks, storage limits and cancellation prevent uncontrolled downloads. Back blocks while cleanup or commit completes. Overlapping areas remain independent. Both Leaflet views share a local GridLayer: missing tiles hatch, Town tiles enlarge to Street zoom, stale results are ignored, and object URLs are revoked on unload. Opening a saved area takes precedence over pending automatic map fitting. Journal media and backup format are unchanged.
+
+179 automated checks pass, including actual IndexedDB persistence/recreation and transactional failure paths. Chromium verified the phone-sized manager, completed download, local tile images, offline app reload and persisted area, cancellation and removal without page errors. Live USGS validation downloaded all 17 tiles for a Little Falls area (620,971 bytes). Android airplane-mode, process restart and storage behavior need device testing. Detailed offline coverage outside the United States remains queued.

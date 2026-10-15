@@ -110,3 +110,11 @@ test('saving holds the editor until persistence finishes, then returns to its pa
  const saving=c.savePlace({preventDefault(){}});assert.equal(c.editorSaving,true);assert.equal(calls.length,1);assert.equal(calls[0][0].title,'Updated');await c.savePlace({preventDefault(){}});assert.equal(calls.length,1);
  gate.resolve();await saving;assert.equal(c.editorSaving,false);assert.deepEqual(calls[1],['editor',true]);assert.equal(c.draftBaseline.saved,true);assert.equal(nodes['save-place'].disabled,false);
 });
+
+test('Back safely cancels an offline download and waits for commit or removal',()=>{
+ const f=guardFixture(),route={view:'map',dialogs:[{id:'offline-maps'}]};let cancellations=0;
+ f.c.offlineMaps={phase:'downloading',cancel(){cancellations++;}};
+ assert.equal(f.c.canLeaveNavigation(route,root),false);assert.equal(cancellations,1);assert.match(f.messages.at(-1),/map download safely/);
+ for(const phase of ['committing','removing']){f.c.offlineMaps.phase=phase;assert.equal(f.c.canLeaveNavigation(route,root),false);}
+ f.c.offlineMaps.phase='idle';assert.equal(f.c.canLeaveNavigation(route,root),true);
+});

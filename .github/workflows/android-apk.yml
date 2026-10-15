@@ -35,11 +35,11 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - name: Run project tests
-        run: npm test
-
       - name: Install Capacitor
         run: npm install --package-lock=false
+
+      - name: Run project tests
+        run: npm test
 
       - name: Generate Nth FootPrints app icons
         run: npm run icons
@@ -74,7 +74,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.3.8 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.3.9 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",

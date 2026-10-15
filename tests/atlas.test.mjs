@@ -25,8 +25,8 @@ function element(){
   setAttribute(k,v){this.attributes[k]=v;},classList:{toggle(){}}
  };
 }
-function fixture({thumbnail}={}){
- const container=element(),statuses=[],picked=[],handlers={},network={onLine:true},state={maps:[],tiles:[],groups:[]};
+function fixture({thumbnail,delayed=false}={}){
+ const frames=[],container=element(),statuses=[],picked=[],handlers={},network={onLine:true},state={maps:[],tiles:[],groups:[]};
  const events={addEventListener:(n,f)=>{handlers[n]=f;},removeEventListener:(n,f)=>{if(handlers[n]===f)delete handlers[n];}};
  const L={
   map(){const m={layers:new Set(),views:[],bounds:[],zoom:2,invalidations:0,removed:false,handlers:{},inView:()=>true,
@@ -44,8 +44,8 @@ function fixture({thumbnail}={}){
    getElement(){return this.element;},setZIndexOffset(z){this.z=z;return this;}
   };}
  };
- const atlas=createAtlas({container,L,thumbnail,document:{createElement:element},events,network,frame:cb=>cb(),pinHTML:'<svg>trusted mark</svg>',onPick:id=>picked.push(id),onStatus:s=>statuses.push(s)});
- return{atlas,container,statuses,picked,handlers,network,state};
+ const atlas=createAtlas({container,L,thumbnail,document:{createElement:element},events,network,frame:cb=>delayed?frames.push(cb):cb(),pinHTML:'<svg>trusted mark</svg>',onPick:id=>picked.push(id),onStatus:s=>statuses.push(s)});
+ return{atlas,frames,container,statuses,picked,handlers,network,state};
 }
 test('atlas fits every located footprint, keeps attribution, and pin activation opens the right place',()=>{
  const f=fixture();f.atlas.update([place('first',43,-74),place('second',45,-123),place('missing',null,null)]);
@@ -99,4 +99,10 @@ test('map movement hydrates only new visible photo pins and preserves the viewpo
  map.inView=point=>point[0]===10;map.handlers.moveend();await f.atlas.previewsIdle();assert.deepEqual(calls,[photo,next]);
  const fits=map.bounds.length;map.inView=()=>true;f.atlas.update([place('a',0,0,{photo:next}),place('b',10,10,{photo:next})]);await f.atlas.previewsIdle();assert.equal(map.bounds.length,fits);
  f.atlas.setVisible(false);f.atlas.destroy();
+});
+
+test('opening a saved offline area wins over a pending atlas fit-all frame',()=>{
+ const f=fixture({delayed:true});f.atlas.update([place('a',43,-74),place('b',45,-123)]);
+ const area={center:{lat:43.04,lng:-74.85},maxZoom:15};f.atlas.showArea(area);f.frames[0]();
+ assert.deepEqual(f.state.maps[0].views.at(-1),{point:[43.04,-74.85],zoom:13});assert.equal(f.state.maps[0].bounds.length,0);
 });
