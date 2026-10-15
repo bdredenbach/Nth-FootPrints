@@ -1,4 +1,4 @@
-const CACHE='nth-footprints-shell-v18';
+const CACHE='nth-footprints-shell-v19';
 const SHELL=['./','./index.html','./app.css','./app.js','./model.js','./deck.js','./geotags.js','./device.js','./backup-file.js','./photo-export.js','./atlas.js','./location-tools.js','./navigation.js','./releases.js','./widget.js','./gallery.js','./photo-preview.js','./pin-previews.js','./vendor/leaflet/leaflet.js','./vendor/leaflet/leaflet.css','./manifest.webmanifest','./assets/icon.svg','./assets/icon-192.png','./assets/icon-512.png','./assets/icon-maskable-192.png','./assets/icon-maskable-512.png','./assets/favicon-32.png','./assets/apple-touch-icon.png','./assets/coast.svg','./assets/mountain.svg','./assets/city.svg','./assets/blank.svg'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('nth-footprints-shell-')&&k!==CACHE).map(k=>caches.delete(k)))));});

@@ -7,7 +7,7 @@ import {preparePhotoExport} from './photo-export.js';
 import {createAtlas,hasLocation} from './atlas.js';
 import {createPositionPicker,createNearbyLookup,nearestPlaces,distanceLabel} from './location-tools.js';
 import {RELEASES,APP_VERSION} from './releases.js';
-import {createWidgetSync,createWidgetLaunch} from './widget.js';
+import {createWidgetSync,createWidgetLaunch,createWidgetPreferences} from './widget.js';
 import {photosOf,coverOf,selectPhoto,addPhotos,replacePhoto,removePhoto,readGalleryFiles,createPhotoViewer,bindPhotoSwipe} from './gallery.js';
 import {createNavigation,bindNativeBack,navigationRoute} from './navigation.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
@@ -47,8 +47,8 @@ function changeJournal(transform,preferences=current=>current){const write=journ
 const widgetPlugin=device.native?window.NthNative?.FootprintWidget:null;
 const widgetSync=createWidgetSync({plugin:widgetPlugin,onStatus:message=>{$('widget-status').textContent=message;}});
 const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
- canOpen:()=>storageReady&&!navigation.busy&&!navigation.applying&&!document.querySelector('dialog[open]'),
- openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),
+ canOpen:action=>storageReady&&!navigation.busy&&!navigation.applying&&(!document.querySelector('dialog[open]')||(action?.action==='configure'&&document.querySelector('dialog[open]').id==='settings')),
+ openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),configureWidget:id=>openPreferences(id),
  openFootprint:async id=>{
   const record=records.find(r=>r.id===id);
   if(!record){toast('That footprint is no longer in your journal.');return;}
@@ -56,6 +56,17 @@ const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
   deckIndex=filtered().findIndex(r=>r.id===id);renderDeck(filtered());openDetail(id);
  },onError:toast
 });
+const widgetPreferences=createWidgetPreferences({plugin:widgetPlugin,refresh:()=>widgetSync.refresh(records),onState:renderWidgetPreferences,onStatus:message=>{$('widget-status').textContent=message;}});
+function openPreferences(widgetId=null){show('settings');if(widgetPlugin)void widgetPreferences.load(widgetId);}
+function renderWidgetPreferences({widgets,busy,focusId}){
+ const places=records.slice().sort((a,b)=>a.title.localeCompare(b.title));
+ $('widget-list').innerHTML=widgets.length?widgets.map((widget,i)=>{
+  const missing=widget.recordId&&!places.some(r=>r.id===widget.recordId),id=`widget-choice-${widget.widgetId}`;
+  return `<div class="widget-choice ${widget.widgetId===focusId?'widget-target':''}"><label for="${id}">Widget ${i+1}</label><select id="${id}" ${busy?'disabled':''}><option value="" ${widget.recordId?'':'selected'}>Latest visit · follows your journal</option>${missing?`<option value="${esc(widget.recordId)}" selected disabled>Footprint no longer in journal</option>`:''}${places.map(r=>`<option value="${esc(r.id)}" ${r.id===widget.recordId?'selected':''}>${esc(r.title)} · ${esc(date(r.visited))}</option>`).join('')}</select><button class="secondary" data-widget-save="${widget.widgetId}" ${busy?'disabled':''}>Save choice</button></div>`;
+ }).join(''):`<p class="field-help">${busy?'Loading your widgets…':'Add a widget to your home screen, then tap Choose on it to set a footprint.'}</p>`;
+ $('widget-list').querySelectorAll('[data-widget-save]').forEach(button=>{button.onclick=()=>{const id=Number(button.dataset.widgetSave),recordId=$(`widget-choice-${id}`).value;if(!recordId||records.some(r=>r.id===recordId))void widgetPreferences.select(id,recordId);};});
+ if(focusId&&!busy){const select=$(`widget-choice-${focusId}`);select?.closest('.widget-choice').scrollIntoView({block:'nearest'});select?.focus({preventScroll:true});}
+}
 async function pinWidget(){
  $('pin-widget').disabled=true;
  try{
@@ -204,6 +215,7 @@ async function applyNavigation(route,previous){
    if(!$('editor').open||editId!==item.recordId)await openEditor(item.recordId);
   }else if(item.id==='pin-picker'){if(!$('pin-picker').open)openPicker();}
   else if(item.id==='backup'){if(!$('backup').open)openBackup();}
+  else if(item.id==='settings'){if(!$('settings').open)openPreferences();}
   else if(!$(item.id).open)show(item.id);
  }
 }
@@ -509,7 +521,7 @@ async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
  }catch(err){toast(err.message);}
 }
 function wire(){
- $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=()=>widgetSync.refresh(records);
+ $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=async()=>{await widgetSync.refresh(records);await widgetPreferences.load();};
  document.querySelectorAll('dialog').forEach(dialog=>{
   dialog.addEventListener('cancel',event=>{event.preventDefault();close(dialog.id);});
   dialog.addEventListener('close',()=>{if(!closingDialogs.delete(dialog.id)&&!dialog.open)cleanupDialog(dialog.id);if(!navigation.busy)widgetLaunch.flush();});
@@ -521,7 +533,7 @@ function wire(){
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';const next=removePhoto({photos:draftPhotos,coverIndex:draftCover});draftPhotos=next.photos;draftCover=next.coverIndex;draftPhoto=next.photo;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
  $('backup-open').onclick=openBackup;$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{if($('backup').dataset.kind==='photo'){close('backup');return;}$('transfer').hidden=true;$('backup').classList.remove('transfer-active');};
- $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await changeJournal(current=>current,()=>({theme:e.target.value}));}catch(err){applyTheme();toast(err.message);}};
+ $('settings-open').onclick=()=>openPreferences();$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await changeJournal(current=>current,()=>({theme:e.target.value}));}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
 
  bindVerticalDeck($('deck'),{canMove:()=>!deckBusy&&filtered().length>1,move:moveDeck,preview:previewDeck,reset:resetDeck});

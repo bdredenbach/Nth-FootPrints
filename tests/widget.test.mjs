@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {widgetRecord,widgetThumbnail,createWidgetSync,createWidgetLaunch} from '../dist/widget.js';
+import {widgetRecord,widgetThumbnail,createWidgetSync,createWidgetLaunch,createWidgetPreferences} from '../dist/widget.js';
 const place=(id,visited='2026-10-15',photo=null)=>({id,title:id,visited,updatedAt:'2026-10-15T12:00:00Z',photo,category:'Travel',address:'',notes:''});
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 test('widget uses the latest visit, keeps the full journal count and leaves source records intact',async()=>{
@@ -73,4 +73,62 @@ test('app mirrors only completed journal writes; a failed database transaction n
  vm.runInContext(app.slice(app.indexOf('async function commit('),app.indexOf('const widgetPlugin=')),context);
  await assert.rejects(context.commit([place('lost')]),/disk/);assert.deepEqual(calls,[]);
  fail=false;await context.commit([place('saved')]);assert.equal(calls[0][0].id,'saved');
+});
+
+test('independent widgets mirror latest and unique pinned footprints only, without changing originals',async()=>{
+ const records=[place('latest',undefined,'new-image'),place('old','2026-10-01','old-image'),place('unused','2026-09-01','unused-image')],before=structuredClone(records),calls=[],decoded=[];
+ const sync=createWidgetSync({plugin:{getWidgets:async()=>({widgets:[{widgetId:10,recordId:'old'},{widgetId:20,recordId:null},{widgetId:30,recordId:'old'}]}),updateSnapshot:async s=>calls.push(s)},thumbnail:async s=>{decoded.push(s);return 'preview:'+s;}});
+ await sync.refresh(records);assert.deepEqual(decoded,['new-image','old-image']);assert.deepEqual(calls[0].records.map(r=>r.id),['latest','old']);assert.equal(calls[0].record.id,'latest');assert.equal(calls[0].count,3);assert.deepEqual(records,before);
+});
+test('pinned footprints remain chosen when newer visits arrive and cover changes refresh only changed previews',async()=>{
+ const calls=[],decoded=[];const sync=createWidgetSync({plugin:{getWidgets:async()=>({widgets:[{widgetId:1,recordId:'pinned'}]}),updateSnapshot:async s=>calls.push(s)},thumbnail:async s=>{decoded.push(s);return 'preview:'+s;}});
+ const pin=place('pinned','2026-09-01','original');await sync.refresh([pin]);await sync.refresh([pin,place('new',undefined,'new')]);await sync.refresh([{...pin,photo:'cover-2'},place('new',undefined,'new')]);
+ assert.equal(calls[1].record.id,'new');assert.equal(calls[1].records.find(r=>r.id==='pinned').thumbnail,'preview:original');assert.equal(calls[2].records.find(r=>r.id==='pinned').thumbnail,'preview:cover-2');assert.deepEqual(decoded,['original','new','cover-2']);
+});
+test('deletion clears a pinned preview without substituting latest, and restore makes the same ID available',async()=>{
+ const calls=[];const pin=place('pinned','2026-09-01','image'),latest=place('latest');const sync=createWidgetSync({plugin:{getWidgets:async()=>({widgets:[{widgetId:1,recordId:'pinned'}]}),updateSnapshot:async s=>calls.push(s)},thumbnail:async()=> 'preview'});
+ await sync.refresh([pin,latest]);await sync.refresh([latest]);assert.deepEqual(calls[1].records.map(r=>r.id),['latest']);await sync.refresh([]);assert.deepEqual(calls[2],{count:0,record:null,records:[]});await sync.refresh([pin]);assert.equal(calls[3].records[0].id,'pinned');
+});
+test('changing a selection during preview generation leaves the newest configuration snapshot last',async()=>{
+ const gate=deferred(),calls=[];let recordId='first';const sync=createWidgetSync({plugin:{getWidgets:async()=>({widgets:[{widgetId:1,recordId}]}),updateSnapshot:async s=>calls.push(s)},thumbnail:async src=>src==='slow'?gate.promise:'preview'});
+ const records=[place('latest'),place('first','2026-01-01','slow'),place('second','2026-01-02','fast')];const saving=sync.refresh(records);await new Promise(r=>setImmediate(r));recordId='second';sync.refresh(records);gate.resolve('stale');await saving;
+ assert.equal(calls.length,1);assert.deepEqual(calls[0].records.map(r=>r.id),['latest','second']);
+});
+test('failed pinned photos use a placeholder, retry later, and a widget-list error does not overwrite native state',async()=>{
+ let fail=true,listFails=false;const calls=[];const sync=createWidgetSync({plugin:{getWidgets:async()=>{if(listFails)throw Error('failed');return {widgets:[{widgetId:1,recordId:'pin'}]};},updateSnapshot:async s=>calls.push(s)},thumbnail:async()=>{if(fail)throw Error('photo');return 'preview';}});
+ const records=[place('pin',undefined,'image')];await sync.refresh(records);assert.equal(calls[0].records[0].thumbnail,null);fail=false;await sync.refresh(records);assert.equal(calls[1].records[0].thumbnail,'preview');listFails=true;assert.equal(await sync.refresh([]),false);assert.equal(calls.length,2);
+});
+test('preferences save the targeted instance and can independently return it to latest mode',async()=>{
+ const configs=[{widgetId:1,recordId:'old'},{widgetId:2,recordId:'other'}],calls=[],states=[];
+ const prefs=createWidgetPreferences({plugin:{getWidgets:async()=>({widgets:structuredClone(configs)}),setSelection:async({widgetId,recordId})=>{configs.find(w=>w.widgetId===widgetId).recordId=recordId;calls.push(widgetId);}},refresh:async()=>calls.push('refresh'),onState:s=>states.push(s)});
+ await prefs.load(2);assert.equal(states.at(-1).focusId,2);await prefs.select(2,'new');assert.equal(configs[0].recordId,'old');assert.equal(configs[1].recordId,'new');await prefs.select(2,'');assert.equal(configs[1].recordId,null);assert.deepEqual(calls,[2,'refresh',2,'refresh']);assert.equal(states.at(-1).busy,false);
+});
+test('preferences wait for durable selection before refreshing and reject overlapping saves',async()=>{
+ const gate=deferred(),calls=[];const prefs=createWidgetPreferences({plugin:{getWidgets:async()=>({widgets:[{widgetId:1,recordId:null}]}),setSelection:async args=>{calls.push(args);await gate.promise;}},refresh:async()=>calls.push('refresh')});
+ const saved=prefs.select(1,'one');await prefs.select(1,'two');assert.equal(calls.length,1);gate.resolve();await saved;assert.equal(calls[1],'refresh');
+});
+test('preferences reload after a rejected native save and report preview refresh failure accurately',async()=>{
+ const states=[],messages=[];let fail=true;const prefs=createWidgetPreferences({plugin:{getWidgets:async()=>({widgets:[{widgetId:1,recordId:'original'}]}),setSelection:async()=>{if(fail)throw Error('That widget has been removed.');}},refresh:async()=>false,onState:s=>states.push(s),onStatus:s=>messages.push(s)});
+ await prefs.select(1,'changed');assert.equal(states.at(-1).widgets[0].recordId,'original');assert.match(messages[0],/removed/);fail=false;await prefs.select(1,'changed');assert.match(messages.at(-1),/Preview could not refresh/);
+});
+test('widget configuration waits behind an open editor and only accepts a positive numeric instance ID',async()=>{
+ let event,action={action:'configure',widgetId:21},blocked=true;const opened=[];
+ const launch=createWidgetLaunch({plugin:{addListener:async(_,fn)=>{event=fn;},takeLaunchAction:async()=>action},canOpen:()=>!blocked,configureWidget:id=>opened.push(id)});
+ await launch.start();assert.deepEqual(opened,[]);blocked=false;launch.flush();assert.deepEqual(opened,[21]);for(const widgetId of [-1,0,'21',1.5]){action={action:'configure',widgetId};await event();}assert.deepEqual(opened,[21]);
+});
+test('preferences identify a removed widget and keep loading errors retryable',async()=>{
+ let fail=true;const messages=[],states=[];const prefs=createWidgetPreferences({plugin:{getWidgets:async()=>{if(fail)throw Error('unavailable');return {widgets:[]};}},onStatus:s=>messages.push(s),onState:s=>states.push(s)});
+ await prefs.load(12);assert.equal(states.at(-1).busy,false);assert.match(messages[0],/Could not load/);fail=false;await prefs.load(12);assert.match(messages.at(-1),/removed/);
+});
+test('actual preferences controls escape footprint labels, show missing selections and save the correct widget',()=>{
+ const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),buttons=[],saved=[],nodes={'widget-list':{innerHTML:'',querySelectorAll:()=>buttons},'widget-choice-4':{value:'safe',closest:()=>({scrollIntoView(){}}),focus(){}}};
+ const context=vm.createContext({$:id=>nodes[id],records:[place('safe'),{...place('other'),title:'<img src=x onerror=bad>'}],esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),date:s=>s,widgetPreferences:{select:(...args)=>saved.push(args)}});
+ buttons.push({dataset:{widgetSave:'4'}});vm.runInContext(app.slice(app.indexOf('function renderWidgetPreferences('),app.indexOf('async function pinWidget(')),context);
+ context.renderWidgetPreferences({widgets:[{widgetId:4,recordId:'gone'}],busy:false,focusId:null});assert.match(nodes['widget-list'].innerHTML,/Footprint no longer in journal/);assert.match(nodes['widget-list'].innerHTML,/&lt;img/);assert.doesNotMatch(nodes['widget-list'].innerHTML,/<img/);buttons[0].onclick();assert.deepEqual(saved,[[4,'safe']]);nodes['widget-choice-4'].value='deleted';buttons[0].onclick();assert.equal(saved.length,1);
+});
+test('configure shortcut can focus existing Preferences while other widget actions remain queued',async()=>{
+ const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),opened=[];let event,action={action:'configure',widgetId:5},dialog={id:'settings'};
+ const c=vm.createContext({createWidgetLaunch,widgetPlugin:{addListener:async(_,fn)=>{event=fn;},takeLaunchAction:async()=>action},storageReady:true,navigation:{busy:false,applying:false},document:{querySelector:()=>dialog},openPreferences:id=>opened.push(id),toast(){}});
+ vm.runInContext(app.slice(app.indexOf('const widgetLaunch='),app.indexOf('const widgetPreferences='))+'\nglobalThis.launch=widgetLaunch;',c);
+ await c.launch.start();assert.deepEqual(opened,[5]);action={action:'configure',widgetId:6};dialog={id:'editor'};await event();assert.deepEqual(opened,[5]);dialog=null;c.launch.flush();assert.deepEqual(opened,[5,6]);
 });

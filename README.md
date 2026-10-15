@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.3.6**.
+A personal travel journal by Nth Experience. Prototype **0.3.7**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -49,7 +49,7 @@ Automated checks cover backup round trips, merge behavior, vertical gesture hand
 - `docs/BACKUP-FORMAT.md`: the versioned portable backup contract.
 - `tests/`: Node tests and small original, generated image fixtures.
 
-The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Independently selected widget locations, online address/business search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
+The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Online address/business search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
 
@@ -105,7 +105,7 @@ Open a footprint and find **Upload more photos** below the coordinates, aligned 
 
 New `.nthbackup` files use format version 2 so all gallery images and the selected cover survive transfer. Version 1 backups still restore. Older app releases reject version 2 files. The archive includes each original image once, without recompression.
 
-Independent widget locations are queued next. See docs/ROADMAP.md.
+Independent widget locations shipped in 0.3.7. See docs/ROADMAP.md.
 
 ## Photo map pins (0.3.4)
 
@@ -127,4 +127,14 @@ Android Back, browser Back/Forward, Escape and dialog close controls share the s
 
 Unsaved editor changes require confirmation before discarding. Back waits during a footprint save or the final file/database commit of a transfer, and requests safe cancellation during cancellable transfers. Browser history can reopen saved footprints and clean editor drafts; deleted history targets show a message. Forward never repeats a backup export or restore. The browser reload/close prompt protects active drafts/transfers when supported. Unsaved drafts are not persisted across process destruction.
 
-129 automated checks cover navigation history, nested dialogs, repeated Back, dirty drafts, asynchronous saves, transfer protections and existing gallery/map/widget behavior. Android compilation and package checks complement these; physical Back gestures, keyboard dismissal, browser dialogs and launcher resume still need device testing. Independent widget locations are next.
+129 automated checks cover navigation history, nested dialogs, repeated Back, dirty drafts, asynchronous saves, transfer protections and existing gallery/map/widget behavior. Android compilation and package checks complement these; physical Back gestures, keyboard dismissal, browser dialogs and launcher resume still need device testing. Independent widget locations shipped in 0.3.7.
+
+## Independent widget locations (0.3.7)
+
+Add multiple Android home-screen widgets. Tap **Choose** on each widget, select a saved footprint in Preferences, and tap **Save choice**. That widget is highlighted in the list. Each instance keeps its own choice; **Latest visit** remains available and is the default for new and existing unconfigured widgets. Tap the widget photo to open that memory, or **New footprint** to create another. You can also manage every instance under Preferences and use Refresh widgets after adding or removing widgets.
+
+Selections are stored by Android widget ID in private native preferences and survive app/provider recreation. Android restore remaps old widget IDs to new IDs. Deleting an instance removes only its choice. Deleting a pinned footprint leaves a placeholder asking for another choice, without silently showing another location; restoring the same footprint ID makes it available again. Choices are device home-screen settings and are not part of the portable journal backup.
+
+Only latest and explicitly pinned records receive derived native photo previews. Preview work is sequential and reused through a 32-entry cache; every RemoteViews update contains one bounded image for one widget. Save, delete, restore and cover changes refresh the snapshots. Configure shortcuts wait behind editors/transfers and can focus Preferences when it is already open.
+
+142 automated checks pass, including execution of the real Java provider and plugin against Android API fakes to check per-instance content, tap targets, persistence, deletion and restore-ID collisions. APK compilation/package checks are additional validation. Physical home-screen layout, resize, process restart and launcher restore still require device testing. Next: online address and business search, with a provider/key arrangement to select first.

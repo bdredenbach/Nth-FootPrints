@@ -2,9 +2,11 @@
 <resources>
     <string name="widget_brand">NTH FOOTPRINTS</string>
     <string name="widget_label">Nth FootPrints</string>
-    <string name="widget_description">Your latest visited footprint and a shortcut to add a new memory</string>
+    <string name="widget_description">A chosen footprint or your latest visit, with shortcuts to choose and add memories</string>
     <string name="widget_open">Open Nth FootPrints</string>
     <string name="widget_empty">Your next story starts here.</string>
     <string name="widget_add">+ New footprint</string>
     <string name="widget_count_initial">Your journal</string>
+    <string name="widget_choose">Choose</string>
+    <string name="widget_choose_description">Choose the footprint for this widget</string>
 </resources>
