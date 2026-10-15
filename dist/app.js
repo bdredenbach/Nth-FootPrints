@@ -33,7 +33,7 @@ function applyTheme(){document.documentElement.classList.toggle('night',settings
 function filtered(){return filterRecords(records,{query,category,sort,favorites:view==='favorites'});}
 let deckMotion=0,deckBusy=false,deckAnimations=[];
 function cancelDeckMotion(){deckMotion++;deckBusy=false;deckAnimations.forEach(a=>a.cancel());deckAnimations=[];}
-function photoCard(r,index,total,layer=0){return `<button class="photo-card ${layer?'deck-rear deck-layer-'+layer:'deck-front'}" ${layer?'tabindex="-1" aria-hidden="true"':`data-detail="${esc(r.id)}" aria-label="Open ${esc(r.title)}. ${index+1} of ${total} places. Swipe up or down to browse."`}><img class="card-image" src="${art(r)}" alt="${layer?'':esc(photoAlt(r))}" draggable="false"><strong>${esc(r.title)}</strong><span class="card-caption"><span>${esc(date(r.visited))}</span><span>${String(index+1).padStart(2,'0')} / ${String(total).padStart(2,'0')} places</span></span></button>`;}
+function photoCard(r,index,total,layer=0){return `<button class="photo-card ${layer?'deck-rear deck-layer-'+layer:'deck-front'}" ${layer?'tabindex="-1" aria-hidden="true"':`data-detail="${esc(r.id)}" aria-label="Open ${esc(r.title)}. ${total-index} of ${total} places. Swipe up or down to browse."`}><img class="card-image" src="${art(r)}" alt="${layer?'':esc(photoAlt(r))}" draggable="false"><strong>${esc(r.title)}</strong><span class="card-caption"><span>${esc(date(r.visited))}</span><span>${String(total-index).padStart(2,'0')} / ${String(total).padStart(2,'0')} places</span></span></button>`;}
 function updateRearCards(step=1){const items=filtered();document.querySelectorAll('#deck .deck-rear').forEach((el,i)=>{const index=wrappedIndex(deckIndex,(i+1)*step,items.length);el.outerHTML=photoCard(items[index],index,items.length,i+1);});}
 function previewDeck(dy){if(deckBusy)return;const front=$('deck').querySelector('.deck-front');if(!front)return;const direction=dy<0?1:-1;if($('deck').dataset.direction!==String(direction)){updateRearCards(direction);$('deck').dataset.direction=String(direction);}front.style.transform=dragTransform(dy);$('deck').classList.add('dragging');}
 function resetDeck(){const front=$('deck').querySelector('.deck-front');$('deck').classList.remove('dragging');if(front&&!deckBusy)front.style.transform='';}
@@ -51,10 +51,10 @@ function render(){
  icons();
 }
 function renderDeck(items){
- const r=items[deckIndex];$('deck-count').textContent=`${String(deckIndex+1).padStart(2,'0')} / ${String(items.length).padStart(2,'0')}`;
+ const r=items[deckIndex];$('deck-count').textContent=`${String(items.length-deckIndex).padStart(2,'0')} / ${String(items.length).padStart(2,'0')}`;
  $('deck').classList.remove('dragging');$('deck').dataset.direction='1';
  $('deck').innerHTML=[...Array(Math.min(items.length,3))].map((_,layer)=>{const index=wrappedIndex(deckIndex,layer,items.length);return photoCard(items[index],index,items.length,layer);}).join('');
- $('deck-status').textContent=`${r.title}. Place ${deckIndex+1} of ${items.length}.`;
+ $('deck-status').textContent=`${r.title}. Place ${items.length-deckIndex} of ${items.length}.`;
  $('previous').disabled=items.length<2;$('next').disabled=items.length<2;
 
 }
