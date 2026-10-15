@@ -1,5 +1,6 @@
 export const APP = 'nth-footprints';
-export const VERSION = 1;
+export const VERSION = 2;
+export const MAX_PHOTOS = 30;
 export const CATEGORIES = ['Travel','Nature','Dining','Culture','Everyday','Other'];
 export const MAX_BACKUP = 150 * 1024 * 1024;
 export const SAMPLE_TIMESTAMP = '2026-10-01T12:00:00.000Z';
@@ -34,23 +35,33 @@ export function validateRecord(r) {
   const url=text(r.url??'',2048,'website');
   if(url && !/^https?:\/\//i.test(url)) throw Error('Websites must start with https:// or http://.');
   if(url) {try {new URL(url);} catch {throw Error('Invalid website.');}}
+  const gallery={};let photo=media(r.photo,'image');
+  if(r.photos!==undefined){
+    if(!Array.isArray(r.photos)||r.photos.length>MAX_PHOTOS)throw Error(`Use up to ${MAX_PHOTOS} photos per footprint.`);
+    const photos=r.photos.map(value=>{const image=media(value,'image');if(!image)throw Error('Invalid gallery photo.');return image;});
+    const coverIndex=r.coverIndex??0;
+    if(!Number.isInteger(coverIndex)||coverIndex<0||coverIndex>=Math.max(1,photos.length))throw Error('Invalid main photo selection.');
+    photo=photos[coverIndex]??null;gallery.photos=photos;gallery.coverIndex=coverIndex;
+  }
   return {id,title,category:r.category,favorite:r.favorite,rating:r.rating,visited,lat,lng,updatedAt,
     address:text(r.address??'',500,'address'),notes:text(r.notes??'',20000,'notes'),phone:text(r.phone??'',80,'phone'),url,
-    photo:media(r.photo,'image'),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
+    photo,...gallery,audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
 }
+export function backupRecord(record){const r=validateRecord(record);if(r.photos)delete r.photo;return r;}
 export function validateSettings(s={}) {
  if(!s || typeof s!=='object' || (s.theme && !['paper','night'].includes(s.theme))) throw Error('Invalid settings.');
  return {theme:s.theme??'paper'};
 }
 export function makeBackup(records, settings={theme:'paper'}) {
- return {app:APP,formatVersion:VERSION,createdAt:new Date().toISOString(),records:records.map(validateRecord),settings:validateSettings(settings)};
+ return {app:APP,formatVersion:VERSION,createdAt:new Date().toISOString(),records:records.map(backupRecord),settings:validateSettings(settings)};
 }
 export function parseBackup(raw) {
  if(typeof raw!=='string'||raw.length>MAX_BACKUP) throw Error('Backup is too large for this prototype (150 MB maximum).');
  let b;try{b=JSON.parse(raw);}catch{throw Error('This file is not a readable Nth FootPrints backup.');}
  if(b?.app!==APP) throw Error('Choose a Nth FootPrints backup. Backups from other Nth apps cannot be restored here.');
- if(b.formatVersion!==VERSION) throw Error('This backup version is not supported. Your saved places have not changed.');
+ if(![1,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
  if(!Array.isArray(b.records)||b.records.length>10000) throw Error('Invalid place collection.');
+ if(b.formatVersion===1&&b.records.some(r=>r&&typeof r==='object'&&('photos'in r||'coverIndex'in r)))throw Error('Photo galleries require backup version 2.');
  const records=b.records.map(validateRecord), ids=new Set(records.map(r=>r.id));
  if(ids.size!==records.length) throw Error('Backup contains duplicate place IDs.');
  return {records,settings:validateSettings(b.settings)};

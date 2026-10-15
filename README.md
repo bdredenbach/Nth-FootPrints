@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.3.2**.
+A personal travel journal by Nth Experience. Prototype **0.3.3**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -85,7 +85,7 @@ Map & directions displays all located footprints in the current search/category 
 
 The Leaflet library, styles and original footprint icons are bundled locally. Map background tiles need internet and carry visible OpenStreetMap attribution. Offline or failed tiles leave your saved pins and place list available. There are no offline map downloads or tile prefetch jobs. Tile requests occur only while the map is visible; ordinary browser HTTP caching is respected. Android's user agent identifies Nth FootPrints. The APK version name now follows package.json, and its version code follows the workflow run number. Persistent signing is deferred until testing is finished.
 
-90 automated checks pass, including coordinate/date-line handling, marker selection/filtering, hidden/offline behavior, tile failures and cleanup. Real Leaflet touch/layout/provider behavior still needs phone testing. Third-party notices are in THIRD_PARTY_NOTICES.md.
+104 automated checks pass, including coordinate/date-line handling, marker selection/filtering, hidden/offline behavior, tile failures and cleanup. Real Leaflet touch/layout/provider behavior still needs phone testing. Third-party notices are in THIRD_PARTY_NOTICES.md.
 
 ## Location tools and version history (0.3.1)
 
@@ -99,4 +99,10 @@ In Map & directions, **Nearest to me** requests a current position and sorts the
 
 In the APK, open **Preferences → Add home-screen widget**, or long-press your home screen and choose **Widgets → Nth FootPrints**. The widget shows your latest visited footprint and journal count. Tap the image/title to open that footprint, or **New footprint** to open a new editor. Save/delete/restore refresh it; Preferences also has a manual refresh. All widget copies show the same latest visit. A small derived preview is stored privately for the launcher; original photos, coordinates and backups are unchanged. Widget shortcuts wait until open dialogs close to avoid losing drafts. The website has no Android widget controls.
 
-Multiple photos per footprint are next: upload controls below the coordinates, horizontal detail-photo browsing, and persistence of the selected photo as the main journal image. That feature is queued, not part of 0.3.2.
+## Multiple photos per footprint (0.3.3)
+
+Open a footprint and find **Upload more photos** below the coordinates, aligned to the right. Select JPG, PNG, WebP or GIF photos. Swipe left/right over the large photo, use its arrows, or choose a thumbnail; the viewed photo is saved as the main journal image and appears in Favorites and the widget. Additional imports leave the location and visit date unchanged. In Edit, choose a thumbnail to replace/remove that photo without losing the others. Export Photo saves the selected original. Up to 30 photos per footprint and 20 MB each; backups retain the 150 MB total limit.
+
+New `.nthbackup` files use format version 2 so all gallery images and the selected cover survive transfer. Version 1 backups still restore. Older app releases reject version 2 files. The archive includes each original image once, without recompression.
+
+Photo map pins, an original launcher icon, backward navigation and independent widget locations are queued next. See docs/ROADMAP.md.

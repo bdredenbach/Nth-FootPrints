@@ -17,7 +17,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Photo Journal | Vertical full-collection stack with search/category filters; descriptions open with the memory |
 | Journal filters, favorites, six categories, text search and sorting | Implemented across the journal and map views |
 | Create/edit/delete with date, rating, address, notes, phone, website | Implemented |
-| One original photo attachment per place | Implemented, 20 MB limit |
+| Original photo gallery per place | Implemented in 0.3.3, up to 30 photos, 20 MB each; persisted main image, horizontal browsing and per-photo export |
 | One voice note per place, recording or audio upload | Implemented, requires browser microphone support/permission, 20 MB limit |
 | GPS capture and manual coordinates | Implemented, requires location permission for capture; Take photo + locate pairs a new camera attachment with a fresh location fix |
 | Photo geotagging | Read embedded GPS from JPEG/PNG/WebP EXIF; preview and explicitly apply coordinates; optional original visit date; re-read existing saved photos |
@@ -25,7 +25,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Directions | External Google Maps destination link, not integrated navigation |
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
-| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v1 |
+| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v2; v1 imports supported |
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
@@ -40,7 +40,7 @@ The original SVG examples and their notes are explicitly labeled samples. Users 
 Media bytes are kept in base64 data URLs without recompression. This first implementation has a 150 MB backup limit, 20 MB per attachment, and loads the journal in memory. A native file-based media store and streaming archive exporter are required before claiming large collection support. Browser media codec playback varies by platform.
 
 ## Validation
-Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. 90 Node tests pass across data, gestures, metadata, native export orchestration and map-controller logic. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, direct device testing, live tile-loading test or PWA installation test has been performed here. Map controller tests use a fake Leaflet/DOM boundary, without fetching public tiles. Deployment success is checked separately.
+Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. 104 Node tests pass across data, gestures, metadata, native export orchestration and map-controller logic. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, direct device testing, live tile-loading test or PWA installation test has been performed here. Map controller tests use a fake Leaflet/DOM boundary, without fetching public tiles. Deployment success is checked separately.
 
 ## Geotagging behavior
 Photo metadata is read locally. The location preview provides coordinates and an optional external map link; no map request occurs until the user opens it. Existing editor coordinates and the date are unchanged until the user applies the photo location. Original photo date is separately opt-in. Missing or malformed metadata never defaults to the current location. The camera action is explicitly labeled Take photo + locate and requests a fresh device location after a successful attachment. A location error keeps the photo and lets the user enter coordinates manually. Pending location results cannot overwrite later manual edits, an applied photo geotag or another editing session. Save waits for active location requests to finish or for the user to enter coordinates manually.
@@ -114,3 +114,11 @@ The native widget uses RemoteViews and private snapshot storage. It shows one la
 The user’s multi-photo specification is recorded in ROADMAP.md as next. Its placement is after the detail coordinates, with right-aligned upload, horizontal browsing of the top photo and persisted selection as the main card image. It is not implemented in this release.
 
 Widget implementation reference: https://developer.android.com/develop/ui/views/appwidgets .
+
+## 0.3.3 photo galleries
+
+Additional uploads are placed after the detail coordinates, aligned right. Original photo arrays retain a selected cover index; the existing photo field is a derived selected-photo alias for journal/cards/widgets/export. Legacy single-photo records are supported without rewriting their media. The editor retains additional images while replacing or removing the selected photo. Gallery imports are atomic per batch and never automatically apply image GPS. Late/cancelled reads cannot attach to another detail page. Horizontal gestures leave vertical scrolling available; arrows, keyboard and thumbnails provide alternatives.
+
+Rapid cover changes coalesce and persist in order. Other record/settings/restore changes use a serialized mutation queue so a cover write cannot overwrite a concurrent favorite or restore. Database failures roll back the viewed cover and report the error. Backups and photo exports wait for pending cover writes. Backup format 2 includes each gallery original once and the selected cover index; v1 backups remain readable and older apps reject v2. See BACKUP-FORMAT.md.
+
+104 automated checks pass, including real photo-fixture byte round trips, malformed gallery rejection, legacy import, cover selection/export/widget coupling, pending-write export, queued concurrent changes, photo removal/replacement, cancelled uploads and horizontal gesture handling. HTML/assets and native bridge preparation are checked separately. No browser visual QA was possible because the local browser binary is unavailable; layout, Android multi-select file picking and gestures still need a phone test.

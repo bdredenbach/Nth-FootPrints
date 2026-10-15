@@ -1,17 +1,29 @@
-# Nth FootPrints portable backup v1
+# Nth FootPrints portable backup v2
 
-User-facing actions: **Back Up Journal**, **Restore Journal**, and **Export** on an individual footprint. Files use `.nthbackup`, following Nth Reader's portable-collection pattern. The extension does not imply cross-app compatibility.
+User-facing actions are **Backup & restore → Create backup → Save backup…** and **Restore**. **Export Photo** saves an image, separately from full-journal backup. Files use `.nthbackup`; this does not imply compatibility with other Nth apps.
 
-The first version is a UTF-8 JSON document, not KMZ and not a ZIP container:
+The backup is UTF-8 JSON, not KMZ or a ZIP container:
 
 ```json
-{"app":"nth-footprints","formatVersion":1,"createdAt":"ISO timestamp","settings":{"theme":"paper"},"records":[]}
+{"app":"nth-footprints","formatVersion":2,"createdAt":"ISO timestamp","settings":{"theme":"paper"},"records":[]}
 ```
 
-Each place includes a stable ID, title, category, visit date, 0–5 rating, favorite flag, address, optional paired latitude/longitude, notes, phone, HTTP(S) website, update timestamp, optional original image/audio data URLs, and optional original bundled sample illustration key. Original photo/audio bytes are not recompressed. No HTC media is included. No access tokens or user account credentials are exported.
+Each place includes a stable ID, title, category, visit date, 0–5 rating, favorite flag, address, optional paired latitude/longitude, notes, phone, HTTP(S) website, update timestamp, optional original image/audio data URLs, and optional bundled sample illustration key. No HTC media or credentials are included. Photos/audio are not recompressed.
 
-Restore reads and validates the complete backup before any write. It rejects foreign app IDs, unknown format versions, malformed records, duplicate IDs, unsupported media URLs, unsafe website schemes, invalid dates and invalid coordinate pairs. The preview reports new footprints, newer revisions and entries already current. Restore merges by stable ID: incoming wins only when its update timestamp is newer; unrelated existing places stay. Theme restoration is optional and unchecked by default. The merge is committed in one IndexedDB transaction; storage errors leave the previous state intact. Progress is shown and cancellation is available during preparation. The final database transaction is brief and cannot be cancelled after it starts.
+Gallery records store `photos`, an ordered array of original image data URLs, and `coverIndex`, a zero-based main-photo selection. An empty array uses index zero. The selected image is derived into `photo` in app state for cards/widgets/export; this alias is omitted from gallery backups so the same original is not stored twice. Legacy single-photo records can still use `photo` without gallery fields.
 
-Individual export uses the same container with one record. A deleted footprint may return if an older backup containing it is imported later; v1 has no deletion tombstones. Imports from other Nth apps are rejected. Backups are unencrypted and contain private place and media information; the backup UI explains they are portable files.
+## Compatibility
 
-Prototype limits: 150 MB per backup, 20 MB per attachment, 10,000 imported records. JSON/base64 has memory overhead, so this is a foundation rather than the final large-library transfer implementation. Future archive versions should store unchanged binary media alongside a manifest, support sequential transfer and checksums, and include an explicit migration path from v1. No cross-app format compatibility is claimed without inspecting the other apps' actual schemas.
+Version 2 readers accept version 1 single-photo backups and version 2 backups. Gallery fields in a file labeled version 1 are rejected. Older app releases reject version 2 backups instead of silently discarding extra photos. Normal database loading validates and preserves both legacy and gallery records without changing original media.
+
+## Restore and save behavior
+
+Restore validates the entire file before any write, rejecting foreign app IDs, unsupported versions, malformed records, duplicate IDs, invalid image arrays/cover selections, unsafe website schemes, invalid dates and incomplete/out-of-range coordinates. The preview reports new places, newer revisions and already-current entries. Incoming records replace matching IDs only when their update timestamp is newer; unrelated existing places stay. Theme restoration is optional. The merge commits in one IndexedDB transaction; errors preserve the existing state. Preparation can be cancelled; a started commit cannot.
+
+Gallery uploads read every selected file before one commit. A cancelled/invalid batch attaches nothing. A cover selection updates the record revision and saves automatically. Backup and Export Photo wait for pending cover writes. Journal mutations serialize so gallery, favorite, restore and settings updates preserve one another.
+
+Android saves through its document picker and bounded acknowledged chunks. Progress reaches success only after stream closure. Cancel/write failure attempts to delete the incomplete newly created document and reports cleanup failure. No broad storage permission is added.
+
+## Limits
+
+150 MB per full backup, 20 MB per attachment in upload flows, 30 photos per footprint and 10,000 imported records. JPG, PNG, WebP and GIF photos are supported. Base64 JSON and in-memory media retain prototype overhead; a binary media store and streaming archive remain on the roadmap. Backups are unencrypted. Deleted footprints may return when restoring older backups because neither format has deletion tombstones. No cross-app compatibility is claimed.
