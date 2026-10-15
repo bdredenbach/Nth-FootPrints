@@ -1,4 +1,4 @@
-import {APP,VERSION,CATEGORIES,MAX_BACKUP,validateRecord,validateSettings,parseBackup,mergeRecords,filterRecords} from './model.js';
+import {APP,VERSION,CATEGORIES,MAX_BACKUP,validateRecord,validateSettings,parseBackup,mergeRecords,filterRecords,SAMPLE_TIMESTAMP,isSampleRecord as isDemo,withoutStarterSamples} from './model.js';
 import {bindVerticalDeck,wrappedIndex,dragTransform} from './deck.js';
 import {readPhotoMetadata} from './geotags.js';
 const $=id=>document.getElementById(id);
@@ -8,13 +8,12 @@ const icon=(name)=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths
 function icons(root=document){root.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=icon(e.dataset.icon));}
 let db,records=[],settings={theme:'paper'},view='journal',category='All places',query='',sort='newest',deckIndex=0,mapId=null,storageReady=false;
 let editId=null,draftPhoto=null,draftAudio=null,draftArt=null,recording=null,recordStream=null,recordChunks=[],recordSession=0,transferToken=0,transferRunning=false,pendingRestore=null;
-const SEEDTIME='2026-10-01T12:00:00.000Z';
+const SEEDTIME=SAMPLE_TIMESTAMP;
 const seeds=[
 {id:'demo-coast',title:'Cannon Beach',address:'Oregon Coast, United States',category:'Nature',visited:'2026-09-22',rating:5,favorite:true,lat:45.8918,lng:-123.9615,notes:'Salt in the air. Sand in our shoes. Nowhere else we needed to be.\n\nWe stayed until the last of the light disappeared behind the rock.',sampleArt:'coast'},
 {id:'demo-mountain',title:'A morning at Moraine Lake',address:'Banff National Park, Canada',category:'Travel',visited:'2026-08-14',rating:5,favorite:true,lat:51.3217,lng:-116.186,notes:'The lake was still enough to hold the mountains. We spoke quietly, as if we might wake them.',sampleArt:'mountain'},
 {id:'demo-city',title:'Lost in Alfama',address:'Lisbon, Portugal',category:'Culture',visited:'2026-06-08',rating:4,favorite:false,lat:38.7111,lng:-9.1294,notes:'A wrong turn, a warm pastry, and a street we never wanted to leave. The best afternoon had no itinerary.',sampleArt:'city'}
 ].map(r=>({...r,updatedAt:SEEDTIME,photo:null,audio:null,phone:'',url:''}));
-const isDemo=r=>r.id.startsWith('demo-')&&r.updatedAt===SEEDTIME;
 const date=s=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(s+'T12:00:00Z'));
 const today=()=>{const n=new Date();return new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().slice(0,10);};
 const art=r=>r.photo??`assets/${r.sampleArt??'blank'}.svg`;
@@ -27,7 +26,7 @@ function toast(message){$('toast').textContent=message;$('toast').hidden=false;c
 function dbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open('nth-footprints',1);req.onupgradeneeded=()=>req.result.createObjectStore('journal');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Close other FootPrints tabs, then reload.'));});}
 function dbGet(){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readonly'),r=t.objectStore('journal').get('state');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 function dbPut(nextRecords,nextSettings){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put({records:nextRecords,settings:nextSettings},'state');t.oncomplete=resolve;t.onabort=()=>reject(t.error??Error('The journal could not be saved.'));t.onerror=()=>{};});}
-async function commit(nextRecords,nextSettings=settings){if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{await dbPut(nextRecords,nextSettings);}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;applyTheme();render();}
+async function commit(nextRecords,nextSettings=settings){nextRecords=withoutStarterSamples(nextRecords);if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{await dbPut(nextRecords,nextSettings);}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;applyTheme();render();}
 function applyTheme(){document.documentElement.classList.toggle('night',settings.theme==='night');$('theme').value=settings.theme;}
 function filtered(){return filterRecords(records,{query,category,sort,favorites:view==='favorites'});}
 let deckMotion=0,deckBusy=false,deckAnimations=[];
@@ -41,7 +40,6 @@ function render(){
  $('fav-count').textContent=records.filter(r=>r.favorite).length;
  document.querySelectorAll('[data-view]').forEach(e=>{e.classList.toggle('active',e.dataset.view===view);e.setAttribute('aria-current',e.dataset.view===view?'page':'false');});
  $('filters').innerHTML=['All places',...CATEGORIES].map(c=>`<button class="${category===c?'active':''}" data-category="${esc(c)}" aria-pressed="${category===c}">${esc(c)}</button>`).join('');
- $('sample-banner').hidden=!records.some(isDemo);
  const items=filtered();deckIndex=Math.min(Math.max(0,deckIndex),Math.max(0,items.length-1));
  $('journal-view').hidden=view!=='journal'||!items.length;$('favorites-view').hidden=view!=='favorites'||!items.length;$('map-view').hidden=view!=='map';$('empty').hidden=items.length>0||view==='map';
  const hasFilter=query||category!=='All places';$('empty-title').textContent=hasFilter?'No footprints here just yet.':view==='favorites'?'Keep your favorites close.':'Your next story starts here.';$('empty-copy').textContent=hasFilter?'Try another search or category.':view==='favorites'?'Tap the heart on a footprint to collect it here.':'Save a place, a photo, and a little of how it felt.';
@@ -213,16 +211,15 @@ function wire(){
  $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;
  $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await commit(records,{theme:e.target.value});}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
- $('clear-samples').onclick=async()=>{if(!confirm('Remove the untouched sample memories? Your own footprints and edited samples will stay.'))return;try{await commit(records.filter(r=>!isDemo(r)));toast('A fresh journal, ready for you.');}catch(e){toast(e.message);}};
+
  $('editor').addEventListener('cancel',()=>stopRecording(true));$('editor').addEventListener('close',()=>{editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;syncSave();$('audio-preview').pause();stopRecording(true);});$('details').addEventListener('close',()=>{$('details').querySelectorAll('audio').forEach(a=>a.pause());});$('backup').addEventListener('cancel',e=>{if(restoreCommit)e.preventDefault();else cancelTransfer();});
  bindVerticalDeck($('deck'),{canMove:()=>!deckBusy&&filtered().length>1,move:moveDeck,preview:previewDeck,reset:resetDeck});
  document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;if(view==='journal'&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();moveDeck(e.key==='ArrowUp'?1:-1);}});
  document.querySelector('.brand').onclick=e=>{e.preventDefault();setView('journal');};
- // Backup and preferences remain accessible above the bottom bar on small screens.
- const mobileActions=document.createElement('div');mobileActions.className='mobile-tools';mobileActions.innerHTML=`<button class="text-button" id="mobile-backup">${icon('archive')}Backup & restore</button><button class="text-button" id="mobile-settings">${icon('settings')}Preferences</button>`;$('sample-banner').before(mobileActions);$('mobile-backup').onclick=()=>$('backup-open').click();$('mobile-settings').onclick=()=>$('settings-open').click();
+
 }
 async function init(){wire();const initial=location.hash.slice(1);if(initial==='places')history.replaceState(null,'','#journal');if(['journal','map','favorites'].includes(initial))view=initial;
- try{db=await dbOpen();const state=await dbGet();if(state){records=state.records.map(validateRecord);settings=validateSettings(state.settings);}else{records=seeds;await dbPut(records,settings);}storageReady=true;}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
+ try{db=await dbOpen();const state=await dbGet();if(state){const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);if(records.length!==loaded.length)await dbPut(records,settings);}else{records=seeds;await dbPut(records,settings);}storageReady=true;}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
  applyTheme();render();if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 init();

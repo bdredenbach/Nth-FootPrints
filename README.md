@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.2.2**.
+A personal travel journal by Nth Experience. Prototype **0.2.3**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -19,7 +19,8 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 - Search, category filters and sorting.
 - Browser-local IndexedDB storage and app-shell caching.
 - Portable app-specific `.nthbackup` export/restore for places, media and preferences. No KMZ.
-- Original illustrated sample memories and two appearance themes.
+- Original illustrated starter memories that clear automatically when you save a personal footprint; edited examples are kept.
+- Backup & Restore and Preferences above search, with two appearance themes.
 
 ## Run locally
 
@@ -39,7 +40,7 @@ Node.js 20+:
 npm test
 ```
 
-There are 27 automated checks covering backup round trips, merge behavior, vertical gesture handling including capture changes from photo/caption targets, and geotag parsing. Phone camera/GPS behavior and visual animation still require device testing.
+There are 30 automated checks covering backup round trips, merge behavior, vertical gesture handling including capture changes from photo/caption targets, and geotag parsing. Phone camera/GPS behavior and visual animation still require device testing.
 
 ## Project layout
 

@@ -2,6 +2,14 @@ export const APP = 'nth-footprints';
 export const VERSION = 1;
 export const CATEGORIES = ['Travel','Nature','Dining','Culture','Everyday','Other'];
 export const MAX_BACKUP = 150 * 1024 * 1024;
+export const SAMPLE_TIMESTAMP = '2026-10-01T12:00:00.000Z';
+const SAMPLE_IDS = new Set(['demo-coast','demo-mountain','demo-city']);
+export const isSampleRecord = record => SAMPLE_IDS.has(record.id) && record.updatedAt === SAMPLE_TIMESTAMP;
+// Preserve edited examples; clear only untouched starters once a personal place exists.
+export function withoutStarterSamples(records) {
+ return records.some(record => !SAMPLE_IDS.has(record.id)) ? records.filter(record => !isSampleRecord(record)) : records;
+}
+
 const text = (v, max, key) => { if (typeof v !== 'string' || v.length > max) throw Error(`Invalid ${key}.`); return v; };
 const media = (v, kind) => {
   if(v == null || v === '') return null;
