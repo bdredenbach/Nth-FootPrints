@@ -2,6 +2,7 @@ import {APP,VERSION,CATEGORIES,MAX_BACKUP,validateRecord,validateSettings,parseB
 import {bindVerticalDeck,wrappedIndex,dragTransform} from './deck.js';
 import {readPhotoMetadata} from './geotags.js';
 import {createDeviceAccess,cameraCancelled} from './device.js';
+import {saveBackupFile,transferCancelled} from './backup-file.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,6 +22,7 @@ const today=()=>{const n=new Date();return new Date(n.getTime()-n.getTimezoneOff
 const art=r=>r.photo??`assets/${r.sampleArt??'blank'}.svg`;
 const photoAlt=r=>r.photo?`Photograph of ${r.title}`:r.sampleArt?`Original illustration for ${r.title}`:'No photograph added yet';
 let restoreCommit=false,pendingMedia=0,micPending=false,cameraPending=false;
+let pendingExport=null,exportSaving=false,exportCommit=false,transferAbort=null,activeReader=null;
 let editorSession=0,photoReadVersion=0,gpsRequestVersion=0,pendingPhotoMetadata=null,locationPending=false;
 function syncSave(){ $('save-place').disabled=micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording';for(const id of ['take-photo','photo-file','remove-photo'])$(id).disabled=cameraPending; }
 let toastTimer;
@@ -88,7 +90,7 @@ async function moveDeck(step,{drag=0}={}){
 }
 function setView(next){cancelDeckMotion();view=next;deckIndex=0;history.replaceState(null,'','#'+next);render();}
 function show(id){$(id).showModal();}
-function close(id){if(id==='backup'&&restoreCommit)return;if(id==='editor')stopRecording(true);if(id==='backup'){cancelTransfer();pendingRestore=null;}$ (id).close();}
+function close(id){if(id==='backup'&&(restoreCommit||exportCommit))return;if(id==='editor')stopRecording(true);if(id==='backup'){cancelTransfer();pendingRestore=null;}$ (id).close();}
 function openDetail(id){const r=records.find(x=>x.id===id);if(!r)return;
  $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><img class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}"><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div><p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${r.lat!==null?`<p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p>`:''}<div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}">${icon('edit')}Edit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export="${esc(r.id)}">${icon('download')}Export</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}">${icon('trash')}</button></div></div>`;
  if(!$('details').open)show('details');
@@ -164,32 +166,94 @@ async function savePlace(e){e.preventDefault();if(micPending||pendingMedia>0||lo
  }catch(e){$('editor-error').textContent=e.message;}finally{save.disabled=false;}
 }
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
-function cancelTransfer(){if(restoreCommit)return;if(transferRunning){transferToken++;transferRunning=false;$('transfer').hidden=true;$('backup-status').textContent='Cancelled. Your journal has not changed.';}$('export-all').disabled=false;$('backup-file').disabled=false;}
-function beginTransfer(label){const token=++transferToken;transferRunning=true;$('transfer').hidden=false;$('transfer-label').textContent=label;$('transfer-progress').value=0;$('backup-status').textContent='';$('export-all').disabled=true;$('backup-file').disabled=true;return token;}
-function checkToken(token){if(token!==transferToken)throw Error('CANCELLED');}
-function finishTransfer(token,message){if(token!==transferToken)return;transferRunning=false;$('transfer').hidden=true;$('export-all').disabled=false;$('backup-file').disabled=false;$('backup-status').textContent=message;}
+const fileSize=n=>n<1024*1024?`${(n/1024).toFixed(1)} KB`:`${(n/1024/1024).toFixed(1)} MB`;
+function transferProgress(value,label,detail=''){
+ $('transfer-progress').value=value;$('transfer-percent').textContent=`${Math.round(value)}%`;
+ if(label)$('transfer-label').textContent=label;if(detail)$('transfer-detail').textContent=detail;
+}
+function cancelTransfer(){
+ if(restoreCommit||exportCommit||!transferRunning)return;
+ transferAbort?.abort();activeReader?.abort();
+ if(pendingExport&&!exportSaving){finishTransfer(transferToken,'Cancelled. Your journal has not changed.',false,true);return;}
+ $('cancel-transfer').disabled=true;$('transfer-label').textContent='Cancelling safely…';
+}
+function beginTransfer(label){
+ const token=++transferToken;transferAbort=new AbortController();transferRunning=true;pendingExport=null;
+ $('transfer').hidden=false;$('transfer').dataset.state='working';$('transfer').setAttribute('aria-busy','true');
+ $('transfer-title').textContent=label;$('transfer-file').textContent='';$('transfer-detail').textContent='';
+ $('save-backup').hidden=true;$('dismiss-transfer').hidden=true;$('cancel-transfer').hidden=false;$('cancel-transfer').disabled=false;
+ transferProgress(0,label);$('backup-status').textContent='';$('export-all').disabled=true;$('backup-file').disabled=true;return token;
+}
+function checkToken(token){if(token!==transferToken||transferAbort?.signal.aborted)throw Error('CANCELLED');}
+function finishTransfer(token,message,success=true,cancelled=false){
+ if(token!==transferToken)return;transferRunning=false;pendingExport=null;
+ $('transfer').setAttribute('aria-busy','false');$('transfer').dataset.state=cancelled?'cancelled':success?'success':'error';
+ $('transfer-title').textContent=cancelled?'Transfer cancelled':success?'Complete':'Transfer could not finish';
+ if(success)transferProgress(100);$('transfer-label').textContent=message;$('backup-status').textContent=message;
+ $('save-backup').hidden=true;$('cancel-transfer').hidden=true;$('dismiss-transfer').hidden=false;
+ $('export-all').disabled=false;$('backup-file').disabled=false;
+}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function exportBackup(id=null){
+ if(transferRunning)return;
  if($('details').open)$('details').close();if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
- const token=beginTransfer('Preparing your backup…');const items=id?records.filter(r=>r.id===id):[...records];
- try{const chunks=['{"app":'+JSON.stringify(APP)+',"formatVersion":'+VERSION+',"createdAt":'+JSON.stringify(new Date().toISOString())+',"settings":'+JSON.stringify(settings)+',"records":['];let size=chunks[0].length;
- for(let i=0;i<items.length;i++){await tick();checkToken(token);const part=(i?',':'')+JSON.stringify(validateRecord(items[i]));size+=part.length;if(size>MAX_BACKUP)throw Error('This journal exceeds the prototype’s 150 MB backup limit. Export individual footprints from their memory pages.');chunks.push(part);$('transfer-label').textContent=`Packing ${i+1} of ${items.length} footprints…`;$('transfer-progress').value=Math.round((i+1)/items.length*95);}
- chunks.push(']}');await tick();checkToken(token);const blob=new Blob(chunks,{type:'application/json'});if(blob.size>MAX_BACKUP)throw Error('Backup exceeds the 150 MB prototype limit. Export individual footprints instead.');
- download(blob,`Nth-FootPrints-${id?'memory-':''}${today()}.nthbackup`);$('transfer-progress').value=100;finishTransfer(token,'Backup download started. Keep the file somewhere safe.');
- }catch(e){if(e.message!=='CANCELLED')finishTransfer(token,e.message);}
+ const token=beginTransfer('Create a backup');const items=id?records.filter(r=>r.id===id):[...records];
+ const name=`Nth-FootPrints-${id?'memory-':''}${today()}.nthbackup`;$('transfer-file').textContent=name;
+ try{
+  const chunks=['{"app":'+JSON.stringify(APP)+',"formatVersion":'+VERSION+',"createdAt":'+JSON.stringify(new Date().toISOString())+',"settings":'+JSON.stringify(settings)+',"records":['];let size=chunks[0].length;
+  for(let i=0;i<items.length;i++){
+   await tick();checkToken(token);const record=validateRecord(items[i]),part=(i?',':'')+JSON.stringify(record);size+=part.length;
+   if(size>MAX_BACKUP)throw Error('This journal exceeds the 150 MB backup limit. Export individual footprints from their memory pages.');
+   chunks.push(part);transferProgress(Math.round((i+1)/items.length*50),`Packing “${record.title}”`,`${i+1} of ${items.length} footprints · photos and voice notes included`);
+  }
+  chunks.push(']}');await tick();checkToken(token);const blob=new Blob(chunks,{type:'application/json'});
+  if(blob.size>MAX_BACKUP)throw Error('Backup exceeds the 150 MB limit. Export individual footprints instead.');
+  pendingExport={blob,name,token,count:items.length};
+  transferProgress(50,'Your backup is ready to save.',`${items.length} footprints · ${fileSize(blob.size)} · originals and preferences included`);
+  $('transfer').setAttribute('aria-busy','false');$('save-backup').hidden=false;$('save-backup').disabled=false;
+ }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
+}
+async function savePreparedBackup(){
+ if(!pendingExport||exportSaving)return;const {blob,name,token}=pendingExport;
+ exportSaving=true;$('save-backup').disabled=true;$('transfer').setAttribute('aria-busy','true');
+ try{
+  checkToken(token);
+  const result=await saveBackupFile(blob,name,{
+   native:device.native,plugin:window.NthNative?.BackupFiles,
+   picker:window.showSaveFilePicker?.bind(window),download,signal:transferAbort.signal,
+   onProgress:({phase,written,total})=>{
+    if(token!==transferToken)return;
+    if(phase==='choosing')transferProgress(50,'Choose where to save your .nthbackup file.');
+    else if(phase==='finalizing')transferProgress(99,'Finishing your backup…');
+    else transferProgress(50+written/total*49,'Saving your backup…',`${fileSize(written)} of ${fileSize(total)} written`);
+   },
+   onCommit:()=>{exportCommit=true;$('cancel-transfer').disabled=true;}
+  });
+  finishTransfer(token,result.confirmed?`Saved ${result.name} (${fileSize(result.bytes)}). Your backup is ready.`:'Backup handed to your browser. Check Downloads and confirm the file is there.');
+  if(!result.confirmed)$('transfer-title').textContent='Download requested';
+ }catch(error){finishTransfer(token,transferCancelled(error)?'Cancelled. Your journal has not changed.':error.message,false,transferCancelled(error));}
+ finally{exportSaving=false;exportCommit=false;$('cancel-transfer').disabled=false;}
 }
 async function inspectBackup(file){
- if(!file)return;if(file.size>MAX_BACKUP){$('backup-status').textContent='Choose a backup smaller than 150 MB for this prototype.';return;}
- $('restore-preview').hidden=true;pendingRestore=null;const token=beginTransfer('Reading your backup…');const reader=new FileReader();
- reader.onprogress=e=>{if(e.lengthComputable&&token===transferToken)$('transfer-progress').value=Math.round(e.loaded/e.total*85);};
- try{const raw=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('The backup could not be read.'));reader.onabort=()=>reject(Error('CANCELLED'));reader.readAsText(file);});await tick();checkToken(token);$('transfer-label').textContent='Checking places and attachments…';const parsed=parseBackup(raw);await tick();checkToken(token);pendingRestore=parsed;const m=mergeRecords(records,parsed.records);
- $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> newer versions · <b>${m.kept}</b> already up to date</p><p>Your existing places stay. Only newer versions of matching footprints are updated.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance preferences</label><button class="primary" id="confirm-restore">Restore footprints</button>`;$('restore-preview').hidden=false;finishTransfer(token,'Backup checked. Nothing has changed yet.');
- }catch(e){if(e.message!=='CANCELLED')finishTransfer(token,e.message);}finally{$('backup-file').value='';}
+ if(!file||transferRunning)return;if(file.size>MAX_BACKUP){$('backup-status').textContent='Choose a backup smaller than 150 MB for this prototype.';return;}
+ $('restore-preview').hidden=true;pendingRestore=null;const token=beginTransfer('Read a backup');const reader=new FileReader();activeReader=reader;$('transfer-file').textContent=file.name;
+ reader.onprogress=e=>{if(e.lengthComputable&&token===transferToken)transferProgress(Math.round(e.loaded/e.total*85),'Reading your backup…',`${fileSize(e.loaded)} of ${fileSize(e.total)} read`);};
+ try{
+  const raw=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('The backup could not be read.'));reader.onabort=()=>reject(Error('CANCELLED'));reader.readAsText(file);});
+  await tick();checkToken(token);transferProgress(90,'Checking places and attachments…');const parsed=parseBackup(raw);await tick();checkToken(token);pendingRestore=parsed;const m=mergeRecords(records,parsed.records);
+  $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> newer versions · <b>${m.kept}</b> already up to date</p><p>Your existing places stay. Only newer versions of matching footprints are updated.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance preferences</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
+  $('restore-preview').hidden=false;finishTransfer(token,'Backup checked. Nothing has changed yet.');
+ }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
+ finally{if(activeReader===reader)activeReader=null;$('backup-file').value='';}
 }
-async function restoreBackup(){if(!pendingRestore)return;const incoming=pendingRestore,withSettings=$('restore-settings').checked;const token=beginTransfer('Preparing your journal…');$('confirm-restore').disabled=true;
- try{for(let i=0;i<incoming.records.length;i++){await tick();checkToken(token);$('transfer-label').textContent=`Preparing footprint ${i+1} of ${incoming.records.length}…`;$('transfer-progress').value=Math.round((i+1)/incoming.records.length*90);}
- checkToken(token);const merged=mergeRecords(records,incoming.records);restoreCommit=true;$('cancel-transfer').disabled=true;await commit(merged.records,withSettings?incoming.settings:settings);pendingRestore=null;$('restore-preview').hidden=true;finishTransfer(token,`Restored: ${merged.added} added, ${merged.updated} updated. Your journal is ready.`);toast('Your memories are here.');
- }catch(e){if(e.message!=='CANCELLED')finishTransfer(token,e.message);}finally{restoreCommit=false;$('cancel-transfer').disabled=false;if($('confirm-restore'))$('confirm-restore').disabled=false;}
+async function restoreBackup(){
+ if(!pendingRestore||transferRunning)return;const incoming=pendingRestore,withSettings=$('restore-settings').checked,token=beginTransfer('Restore your journal');$('confirm-restore').disabled=true;
+ try{
+  for(let i=0;i<incoming.records.length;i++){await tick();checkToken(token);transferProgress(Math.round((i+1)/incoming.records.length*90),`Preparing footprint ${i+1} of ${incoming.records.length}…`);}
+  checkToken(token);const merged=mergeRecords(records,incoming.records);restoreCommit=true;$('cancel-transfer').disabled=true;transferProgress(95,'Saving your restored journal…');
+  await commit(merged.records,withSettings?incoming.settings:settings);pendingRestore=null;$('restore-preview').hidden=true;finishTransfer(token,`Restored: ${merged.added} added, ${merged.updated} updated. Your journal is ready.`);toast('Your memories are here.');
+ }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
+ finally{restoreCommit=false;$('cancel-transfer').disabled=false;if($('confirm-restore'))$('confirm-restore').disabled=false;}
 }
 async function finishCameraPhoto(file,session){
  if(session!==editorSession||!$('editor').open)return;
@@ -231,11 +295,11 @@ function wire(){
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';draftPhoto=null;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
- $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;
+ $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{$('transfer').hidden=true;};
  $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await commit(records,{theme:e.target.value});}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
 
- $('editor').addEventListener('cancel',()=>stopRecording(true));$('editor').addEventListener('close',()=>{editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;syncSave();$('audio-preview').pause();stopRecording(true);});$('details').addEventListener('close',()=>{$('details').querySelectorAll('audio').forEach(a=>a.pause());});$('backup').addEventListener('cancel',e=>{if(restoreCommit)e.preventDefault();else cancelTransfer();});
+ $('editor').addEventListener('cancel',()=>stopRecording(true));$('editor').addEventListener('close',()=>{editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;syncSave();$('audio-preview').pause();stopRecording(true);});$('details').addEventListener('close',()=>{$('details').querySelectorAll('audio').forEach(a=>a.pause());});$('backup').addEventListener('cancel',e=>{if(restoreCommit||exportCommit)e.preventDefault();else cancelTransfer();});
  bindVerticalDeck($('deck'),{canMove:()=>!deckBusy&&filtered().length>1,move:moveDeck,preview:previewDeck,reset:resetDeck});
  document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;if(view==='journal'&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();moveDeck(e.key==='ArrowUp'?1:-1);}});
  document.querySelector('.brand').onclick=e=>{e.preventDefault();setView('journal');};

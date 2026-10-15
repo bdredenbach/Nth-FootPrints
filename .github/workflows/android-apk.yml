@@ -86,6 +86,9 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
+      - name: Add Android save-file bridge
+        run: cp native/android/*.java android/app/src/main/java/com/nthexperience/footprints/
+
       - name: Declare device permissions
         run: |
           python3 - <<'PY'
