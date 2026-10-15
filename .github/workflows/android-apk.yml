@@ -41,6 +41,9 @@ jobs:
       - name: Install Capacitor
         run: npm install --package-lock=false
 
+      - name: Generate Nth FootPrints app icons
+        run: npm run icons
+
       - name: Prepare bundled app
         run: |
           node --input-type=module <<'NODE'
@@ -71,7 +74,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.3.4 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.3.5 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",
@@ -87,7 +90,7 @@ jobs:
       - name: Create Android project
         run: npx cap add android
 
-      - name: Add Android file and widget bridges
+      - name: Add Android file, widget and icon resources
         run: |
           cp native/android/*.java android/app/src/main/java/com/nthexperience/footprints/
           node native/prepare-widget.mjs

@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.3.4**.
+A personal travel journal by Nth Experience. Prototype **0.3.5**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -49,7 +49,7 @@ Automated checks cover backup round trips, merge behavior, vertical gesture hand
 - `docs/BACKUP-FORMAT.md`: the versioned portable backup contract.
 - `tests/`: Node tests and small original, generated image fixtures.
 
-The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. An original app icon, backward navigation, independently selected widget locations, online address/business search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
+The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Backward navigation, independently selected widget locations, online address/business search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
 
@@ -105,10 +105,18 @@ Open a footprint and find **Upload more photos** below the coordinates, aligned 
 
 New `.nthbackup` files use format version 2 so all gallery images and the selected cover survive transfer. Version 1 backups still restore. Older app releases reject version 2 files. The archive includes each original image once, without recompression.
 
-An original launcher icon, backward navigation and independent widget locations are queued next. See docs/ROADMAP.md.
+Backward navigation and independent widget locations are queued next. See docs/ROADMAP.md.
 
 ## Photo map pins (0.3.4)
 
 Map pins now show each footprint’s selected main photo in a small square. Tap to open its memory; the footprint icon remains for places with no usable photo. Pins refresh when the main photo changes. Local 96 × 96 previews are generated one at a time for visible pins and cached within a fixed limit, leaving original photos and backups intact. Filters, selected outlines, same-location list access and directions remain available. The map background still requires internet; previews use local attached photos.
 
-114 automated checks pass. Android map appearance, touch interaction and photo rendering still need device testing. The original app icon is next in the queue.
+114 automated checks pass. Android map appearance, touch interaction and photo rendering still need device testing. Backward navigation is next in the queue.
+
+## Original app icon (0.3.5)
+
+The app now has its own icon: a brass footprint inside a warm-paper instant-photo frame on forest green, with a small compass glint. Android includes adaptive color and monochrome themed variants, round/legacy density assets, and matching browser/PWA/Apple touch icons. Launcher shape and wallpaper tint are controlled by Android and your launcher.
+
+Source artwork is native/icon-design.json. After installing development dependencies, run npm run icons to regenerate both Android and web assets. The Android workflow runs this step automatically before bundling and copies the icon resources with the existing native resource preparation. The generated Capacitor launcher icons are replaced by the Nth assets.
+
+114 automated behavior checks pass. Icon verification checks legacy sizes, XML references, opaque maskable backgrounds and foreground/monochrome safe-area bounds; color and themed masks were visually inspected. Physical launcher appearance and icon cache refresh remain to be tested.
