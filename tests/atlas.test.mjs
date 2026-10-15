@@ -25,11 +25,12 @@ function element(){
   setAttribute(k,v){this.attributes[k]=v;},classList:{toggle(){}}
  };
 }
-function fixture(){
+function fixture({thumbnail}={}){
  const container=element(),statuses=[],picked=[],handlers={},network={onLine:true},state={maps:[],tiles:[],groups:[]};
  const events={addEventListener:(n,f)=>{handlers[n]=f;},removeEventListener:(n,f)=>{if(handlers[n]===f)delete handlers[n];}};
  const L={
-  map(){const m={layers:new Set(),views:[],bounds:[],zoom:2,invalidations:0,removed:false,
+  map(){const m={layers:new Set(),views:[],bounds:[],zoom:2,invalidations:0,removed:false,handlers:{},inView:()=>true,
+   on(name,fn){this.handlers[name]=fn;return this;},getBounds(){return {contains:this.inView};},
    setView(point,zoom){this.views.push({point,zoom});this.zoom=zoom;return this;},
    getZoom(){return this.zoom;},fitBounds(points,options){this.bounds.push({points,options});return this;},
    hasLayer(layer){return this.layers.has(layer);},removeLayer(layer){this.layers.delete(layer);return this;},
@@ -43,7 +44,7 @@ function fixture(){
    getElement(){return this.element;},setZIndexOffset(z){this.z=z;return this;}
   };}
  };
- const atlas=createAtlas({container,L,document:{createElement:element},events,network,frame:cb=>cb(),pinHTML:'<svg>trusted mark</svg>',onPick:id=>picked.push(id),onStatus:s=>statuses.push(s)});
+ const atlas=createAtlas({container,L,thumbnail,document:{createElement:element},events,network,frame:cb=>cb(),pinHTML:'<svg>trusted mark</svg>',onPick:id=>picked.push(id),onStatus:s=>statuses.push(s)});
  return{atlas,container,statuses,picked,handlers,network,state};
 }
 test('atlas fits every located footprint, keeps attribution, and pin activation opens the right place',()=>{
@@ -79,4 +80,23 @@ test('tile failures remain visible until retry; destroying detaches listeners an
 test('place titles stay in accessible attributes and never become map icon HTML',()=>{
  const f=fixture(),title='<img src=x onerror=alert(1)>';f.atlas.update([place('a',0,0,{title})]);const m=f.state.groups[0].members[0];
  assert.equal(m.element.attributes['aria-label'],'Open footprint: '+title);assert.equal(m.options.icon.html.innerHTML,'<svg>trusted mark</svg>');
+});
+test('photo pins use bounded selected-cover previews and keep memory selection/accessibility intact',async()=>{
+ const calls=[],original='data:image/png;base64,AQID',selected='data:image/jpeg;base64,BAUG',small='data:image/jpeg;base64,BwgJ';
+ const f=fixture({thumbnail:async source=>{calls.push(source);return small;}});
+ f.atlas.update([place('photo',43,-74,{photo:original,photos:[original,selected],coverIndex:1,title:'<b>Photo</b>'}),place('no-photo',44,-75)]);
+ await f.atlas.previewsIdle();assert.deepEqual(calls,[selected]);
+ const [photo,empty]=f.state.groups[0].members,face=photo.options.icon.html,image=face.children[0];
+ assert.equal(image.src,small);assert.equal(image.alt,'');assert.equal(image.draggable,false);assert.equal(empty.options.icon.html.children.length,0);
+ assert.equal(photo.element.attributes['aria-label'],'Open footprint: <b>Photo</b>');photo.handlers.click();assert.deepEqual(f.picked,['photo']);assert.equal(photo.z,1000);
+ image.onerror();assert.equal(face.innerHTML,'<svg>trusted mark</svg>');
+});
+test('map movement hydrates only new visible photo pins and preserves the viewport on cover changes',async()=>{
+ const calls=[],photo='data:image/png;base64,AQID',next='data:image/png;base64,BAUG',small='data:image/jpeg;base64,BwgJ';
+ const f=fixture({thumbnail:async source=>{calls.push(source);return small;}});
+ f.atlas.update([place('a',0,0)]);const map=f.state.maps[0];map.inView=point=>point[0]===0;
+ f.atlas.update([place('a',0,0,{photo}),place('b',10,10,{photo:next})]);await f.atlas.previewsIdle();assert.deepEqual(calls,[photo]);
+ map.inView=point=>point[0]===10;map.handlers.moveend();await f.atlas.previewsIdle();assert.deepEqual(calls,[photo,next]);
+ const fits=map.bounds.length;map.inView=()=>true;f.atlas.update([place('a',0,0,{photo:next}),place('b',10,10,{photo:next})]);await f.atlas.previewsIdle();assert.equal(map.bounds.length,fits);
+ f.atlas.setVisible(false);f.atlas.destroy();
 });

@@ -1,19 +1,22 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.3.3**.
+GitHub is authoritative. Current prototype: **0.3.4**.
 
-Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, and multiple photos per footprint with persisted main-photo selection.
+Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, and photo thumbnail map pins.
 
 ## Remaining order
 
-1. **Photo thumbnails on map pins (next).** Show the footprint’s selected main photo in a small square marker, using bounded thumbnail previews and a footprint-icon fallback for no photo/failed preview. Retain pin selection, filtering, same-location access, attribution and accessible place names.
-2. **Original app icon.** Create Nth FootPrints branding for the Android launcher: adaptive foreground/background, a monochrome variant, and matching browser/PWA icons. Replace the generated Capacitor launcher icon.
-3. **Backward navigation.** Android Back should unwind the current view: dismiss the top dialog/pin picker first, respect active-transfer commit rules, return from editing to the originating footprint where appropriate, return from secondary tabs to the journal, and only then leave the app. Include browser navigation/history behavior. This interpretation follows the user’s request and remains to be implemented/tested.
-4. **Independent widgets / different locations.** Let each Android widget instance choose a different saved footprint, preserve that selection by widget ID, support changing the selection, and handle deleted selected places. Latest-visit mode remains available. Current widgets all show the latest visit.
-5. **Online address and business search (provider dependency).** Select a provider, usage limits and key/proxy arrangement before adding external address/POI discovery; preserve manual coordinates. No public Nominatim search endpoint is bundled or queried.
-6. **Offline map packages.** Choose an offline-capable provider/data license, package format, storage limits and download/removal flow. The current public OSM raster tile service is for interactive online viewing and will not be used for bulk offline packages.
-7. **Integrated navigation.** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
-8. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+1. **Original app icon (next).** Create Nth FootPrints branding for the Android launcher: adaptive foreground/background, a monochrome variant, and matching browser/PWA icons. Replace the generated Capacitor launcher icon.
+2. **Backward navigation.** Android Back should unwind the current view: dismiss the top dialog/pin picker first, respect active-transfer commit rules, return from editing to the originating footprint where appropriate, return from secondary tabs to the journal, and only then leave the app. Include browser navigation/history behavior. This interpretation follows the user’s request and remains to be implemented/tested.
+3. **Independent widgets / different locations.** Let each Android widget instance choose a different saved footprint, preserve that selection by widget ID, support changing the selection, and handle deleted selected places. Latest-visit mode remains available. Current widgets all show the latest visit.
+4. **Online address and business search (provider dependency).** Select a provider, usage limits and key/proxy arrangement before adding external address/POI discovery; preserve manual coordinates. No public Nominatim search endpoint is bundled or queried.
+5. **Offline map packages.** Choose an offline-capable provider/data license, package format, storage limits and download/removal flow. The current public OSM raster tile service is for interactive online viewing and will not be used for bulk offline packages.
+6. **Integrated navigation.** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
+7. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+
+## Photo map pins shipped in 0.3.4
+
+Map pins show the selected main photo in a 44 px square face; places without a usable photo retain the footprint icon. Each local derived preview is 96 × 96 JPEG, generated one at a time only for pins inside the current map viewport. Panning requests newly visible previews; a 48-entry cache reuses recent images and prunes filtered/deleted/changed originals. Hidden/destroyed maps cancel pending work and ignore stale results. Preview errors preserve the icon; selected outlines, pin-to-memory activation, list access for overlapping locations, coordinates, attribution and directions are retained. Photo changes do not refit an otherwise unchanged map. Originals and backup data are unchanged; preview generation does not upload images. Physical-device map/photo/gesture testing remains necessary.
 
 ## Multiple photos shipped in 0.3.3
 

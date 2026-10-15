@@ -1,22 +1,11 @@
 import {filterRecords} from './model.js';
+import {createPhotoPreview as widgetThumbnail} from './photo-preview.js';
+export {widgetThumbnail};
 
 // Mirror one small, derived preview. Original media stays in the journal.
 export function widgetRecord(records){
  const r=filterRecords(records,{sort:'newest'})[0];
  return r?{id:r.id,title:r.title,visited:r.visited,sample:!r.photo&&!!r.sampleArt,source:r.photo??(r.sampleArt?`assets/${r.sampleArt}.svg`:null)}:null;
-}
-export async function widgetThumbnail(source,{ImageClass=globalThis.Image,document=globalThis.document}={}){
- if(!source)return null;
- const image=new ImageClass();
- await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('Photo preview unavailable.'));image.src=source;});
- if(!image.naturalWidth||!image.naturalHeight)throw Error('Photo preview unavailable.');
- const canvas=document.createElement('canvas');canvas.width=384;canvas.height=240;
- const ctx=canvas.getContext('2d');if(!ctx)throw Error('Photo preview unavailable.');
- const scale=Math.max(canvas.width/image.naturalWidth,canvas.height/image.naturalHeight);
- const w=image.naturalWidth*scale,h=image.naturalHeight*scale;
- ctx.fillStyle='#f5f2e9';ctx.fillRect(0,0,canvas.width,canvas.height);
- ctx.drawImage(image,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
- return canvas.toDataURL('image/jpeg',.8);
 }
 export function createWidgetSync({plugin,thumbnail=widgetThumbnail,onStatus=()=>{}}={}){
  let pending=null,running=null,revision=0,cachedSource,cachedThumbnail;

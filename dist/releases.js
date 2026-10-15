@@ -1,4 +1,4 @@
-export const APP_VERSION='0.3.3';
+export const APP_VERSION='0.3.4';
 // Shipped GitHub releases, oldest first. Backup schema versions are separate.
 export const RELEASES=[
  {version:'0.2.2',date:'2026-10-15',summary:'First GitHub prototype: vertical photo stack, three tabs, local place editing, photos, voice notes, favorites, categories, photo GPS inspection, maps, directions and Nth backups. GitHub Pages entry added.'},
@@ -12,5 +12,6 @@ export const RELEASES=[
  {version:'0.3.0',date:'2026-10-15',summary:'Multi-pin atlas for all located footprints, linked pin selection, search and category filters, Show all pins, and map connection feedback.'},
  {version:'0.3.1',date:'2026-10-15',summary:'Choose or correct a draft location on the map. Sort saved places by distance from your current location. Added this chronological version history.'},
  {version:'0.3.2',date:'2026-10-15',summary:'Android home-screen widget with the latest visited footprint, a photo-to-memory shortcut, and New footprint. Automatic refresh after saving, deleting or restoring. Multiple-photo galleries are next in the queue.'},
- {version:'0.3.3',date:'2026-10-15',summary:'Multiple original photos per footprint. Upload below the coordinates, swipe left/right or use thumbnails, and keep the viewed photo as the main journal image. Photo export follows that selection. Gallery backups include every photo and cover choice, with support for restoring earlier backups.'}
+ {version:'0.3.3',date:'2026-10-15',summary:'Multiple original photos per footprint. Upload below the coordinates, swipe left/right or use thumbnails, and keep the viewed photo as the main journal image. Photo export follows that selection. Gallery backups include every photo and cover choice, with support for restoring earlier backups.'},
+ {version:'0.3.4',date:'2026-10-15',summary:'Map pins now show the selected main photo in a small square, with a footprint fallback. Local previews load for visible pins, refresh after cover changes, and keep the map’s filters, selection and directions.'}
 ];
