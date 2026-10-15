@@ -58,3 +58,6 @@ Removed the entire introductory heading block (eyebrow, slogan, subtitle and atl
 GitHub main is the authoritative source from this release onward; updates are deployed through its GitHub Pages build. Removed the sample explanation and manual Remove samples control. Backup & Restore and Preferences now share one static toolbar above search on all screen sizes, with the duplicate mobile row removed.
 
 Saving a personal footprint automatically removes untouched starter records in the same IndexedDB transaction. Cancelled or invalid edits do not commit changes. Edited starter records are preserved. Loading older journals or restoring backups with personal records also clears untouched starters; deleting the last personal footprint does not reseed the journal. Starter identification uses the three known example IDs and original update timestamp, so unrelated entries are never removed based on their title or illustration alone.
+
+## 0.2.4 compact journal action row
+Removed the top header containing “Your world, collected.” and moved New Footprint to the left of Backup & Restore and Preferences in the existing row above search. The row wraps on narrow displays rather than clipping controls. The New Footprint button keeps its existing action and element ID; no saved journal data or gesture logic changed.
