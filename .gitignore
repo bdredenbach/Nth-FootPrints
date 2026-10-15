@@ -1,0 +1,9 @@
+node_modules/
+.openai/
+.sites*/
+.env
+.env.*
+!.env.example
+*.nthbackup
+.DS_Store
+Thumbs.db
