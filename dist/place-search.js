@@ -1,0 +1,73 @@
+// Prototype provider. Replace this one endpoint with a dedicated Photon service before wider distribution.
+export const SEARCH_ENDPOINT='https://photon.komoot.io/api/';
+const MAX_RESPONSE=256*1024;
+const clean=(value,max=160)=>typeof value==='string'?value.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max):'';
+const copy=value=>value.map(r=>({...r,position:{...r.position}}));
+export function samePlacePoint(a,b){return !!a&&!!b&&Math.abs(a.lat-b.lat)<.000001&&Math.abs(((a.lng-b.lng+540)%360)-180)<.000001;}
+export function placeResults(payload){
+ if(!payload||!Array.isArray(payload.features))throw Error('Search returned unreadable results. Try again later.');
+ const results=[],seen=new Set();
+ for(const feature of payload.features.slice(0,200)){
+  const xy=feature?.geometry?.coordinates,p=feature?.properties;
+  if(feature?.geometry?.type!=='Point'||!Array.isArray(xy)||!p||typeof p!=='object')continue;
+  const [lng,lat]=xy;if(typeof lat!=='number'||!Number.isFinite(lat)||Math.abs(lat)>90||typeof lng!=='number'||!Number.isFinite(lng)||Math.abs(lng)>180)continue;
+  const street=[clean(p.housenumber,40),clean(p.street)].filter(Boolean).join(' ');
+  const components=[street,clean(p.district),clean(p.city)||clean(p.locality),clean(p.county),clean(p.state),clean(p.postcode,40),clean(p.country)];
+  const unique=components.filter((v,i,all)=>v&&all.findIndex(x=>x.toLowerCase()===v.toLowerCase())===i);
+  const address=unique.join(', ').slice(0,500),name=clean(p.name)||street||clean(p.city)||clean(p.locality)||clean(p.country);
+  if(!name&&!address)continue;
+  const key=typeof p.osm_type==='string'&&/^[NWR]$/.test(p.osm_type)&&/^[0-9]+$/.test(String(p.osm_id))?p.osm_type+p.osm_id:`${name.toLowerCase()}|${lat.toFixed(6)}|${lng.toFixed(6)}`;
+  if(seen.has(key))continue;seen.add(key);
+  results.push({name:name||address.slice(0,160),address,position:{lat,lng:lng===180?-180:lng}});
+  if(results.length===5)break;
+ }
+ return results;
+}
+async function readResults(response){
+ const declared=Number(response.headers?.get('Content-Length'));
+ if(declared>MAX_RESPONSE)throw Error('Search returned too much data. Try a more specific address.');
+ let text='';
+ if(response.body?.getReader){
+  const reader=response.body.getReader(),decoder=new TextDecoder();let size=0;
+  try{while(true){const part=await reader.read();if(part.done)break;size+=part.value.byteLength;if(size>MAX_RESPONSE){await reader.cancel();throw Error('Search returned too much data. Try a more specific address.');}text+=decoder.decode(part.value,{stream:true});}text+=decoder.decode();}
+  finally{reader.releaseLock();}
+ }else{text=await response.text();if(new TextEncoder().encode(text).length>MAX_RESPONSE)throw Error('Search returned too much data. Try a more specific address.');}
+ try{return placeResults(JSON.parse(text));}catch(error){if(error instanceof SyntaxError)throw Error('Search returned unreadable results. Try again later.');throw error;}
+}
+export function createPlaceSearch({fetcher=globalThis.fetch,network=globalThis.navigator,now=Date.now,timeoutMs=12000,minInterval=1500,onState=()=>{}}={}){
+ let token=0,active=null,busy=false,results=[],status='',nextAllowed=0;const cache=new Map();
+ function emit(){onState({busy,results:copy(results),status});}
+ function cancel(){token++;active?.abort();active=null;busy=false;results=[];status='';emit();}
+ return {cancel,result:index=>Number.isInteger(index)&&index>=0&&index<results.length?copy([results[index]])[0]:null,
+  async search(raw){
+   cancel();const request=token,query=clean(raw,1000);
+   if(query.length<3||query.length>200){status='Enter 3–200 characters, including a town or city.';emit();return;}
+   if(network?.onLine===false){status='Offline. Choose a spot manually or enter coordinates in the editor.';emit();return;}
+   const key=query.toLocaleLowerCase(),saved=cache.get(key);
+   if(saved&&saved.until>now()){results=copy(saved.results);status=results.length?'Choose a result to preview it on the map.':'No places found. Try adding the town, city or street.';emit();return;}
+   if(now()<nextAllowed){status=`Please wait ${Math.max(1,Math.ceil((nextAllowed-now())/1000))} seconds before searching again.`;emit();return;}
+   nextAllowed=now()+minInterval;busy=true;status='Searching for places…';emit();
+   const controller=new AbortController();active=controller;let timedOut=false,timer,aborted;
+   const interrupted=new Promise((_,reject)=>{aborted=()=>reject(Object.assign(Error('Search cancelled.'),{name:'AbortError'}));controller.signal.addEventListener('abort',aborted,{once:true});});
+   timer=setTimeout(()=>{timedOut=true;controller.abort();},timeoutMs);
+   try{
+    const url=new URL(SEARCH_ENDPOINT);url.searchParams.set('q',query);url.searchParams.set('limit','5');url.searchParams.set('lang','en');
+    const perform=async()=>{
+     const response=await fetcher(url.href,{signal:controller.signal,mode:'cors',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',headers:{Accept:'application/json'}});
+     if(response.status===429){
+      if(request!==token)throw Object.assign(Error('Search cancelled.'),{name:'AbortError'});
+      const value=response.headers?.get('Retry-After'),seconds=value&&/^\d+$/.test(value)?Number(value):value?(Date.parse(value)-now())/1000:60;
+      nextAllowed=now()+Math.min(300,Math.max(2,Number.isFinite(seconds)?seconds:60))*1000;
+      throw Error('Search is busy. Please wait a little before trying again, or choose a spot manually.');
+     }
+     if(!response.ok)throw Error('Place search is unavailable right now. Try again later or choose a spot manually.');
+     return readResults(response);
+    };
+    const found=await Promise.race([perform(),interrupted]);if(request!==token)return;
+    results=found;cache.delete(key);cache.set(key,{results:copy(found),until:now()+5*60*1000});while(cache.size>10)cache.delete(cache.keys().next().value);
+    status=results.length?'Choose a result to preview it on the map.':'No places found. Try adding the town, city or street.';
+   }catch(error){if(request!==token)return;results=[];status=timedOut?'Search timed out. Try again or choose a spot manually.':error.name==='AbortError'?'Search cancelled.':error instanceof TypeError?'Could not connect to place search. Check your connection or choose a spot manually.':error.message;}
+   finally{clearTimeout(timer);controller.signal.removeEventListener('abort',aborted);if(request===token){active=null;busy=false;emit();}}
+  }
+ };
+}

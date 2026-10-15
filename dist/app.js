@@ -10,10 +10,12 @@ import {RELEASES,APP_VERSION} from './releases.js';
 import {createWidgetSync,createWidgetLaunch,createWidgetPreferences} from './widget.js';
 import {photosOf,coverOf,selectPhoto,addPhotos,replacePhoto,removePhoto,readGalleryFiles,createPhotoViewer,bindPhotoSwipe} from './gallery.js';
 import {createNavigation,bindNativeBack,navigationRoute} from './navigation.js';
+import {createPlaceSearch,samePlacePoint} from './place-search.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
-let atlas=null,picker=null,pickerRequest=0,nearbyOrigin=null;
+let atlas=null,picker=null,pickerRequest=0,nearbyOrigin=null,pickerPlace=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const placeSearch=createPlaceSearch({onState:renderPlaceSearch});
 const paths={footprint:'M15 21c-2 0-3-2-3-5 0-2 1-5 3-5s4 3 4 5c0 3-2 5-4 5Z M15 7c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M9 10c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M7 14c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z',stack:'M4 7 12 3l8 4-8 4-8-4Z M4 12l8 4 8-4 M4 17l8 4 8-4',list:'M9 6h12 M9 12h12 M9 18h12 M3 6h1 M3 12h1 M3 18h1',map:'m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z M9 3v16 M15 5v16',heart:'M20 5c-2-2-5-2-8 1-3-3-6-3-8-1-3 3-1 6 1 8l7 7 7-7c2-2 4-5 1-8Z',archive:'M4 9h16v12H4V9Z M3 3h18v6H3V3Z M9 13h6',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M10 3h4l1 3 3 1 3 2v4l-3 1-1 3-2 4h-4l-1-3-3-1-4-2v-4l3-1 1-3 3-4Z',plus:'M12 5v14 M5 12h14',search:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M15 15l6 6',compass:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z m-6-3-2 4-4 2 2-4 4-2Z',arrowUp:'M12 19V5 M6 11l6-6 6 6',arrowDown:'M12 5v14 M6 13l6 6 6-6',arrowLeft:'M19 12H5 M11 6l-6 6 6 6',arrowRight:'M5 12h14 M13 6l6 6-6 6',location:'M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 0 1 14 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',close:'m6 6 12 12 M18 6 6 18',camera:'M3 7h4l2-3h6l2 3h4v14H3V7Z M16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3 M8 22h8',download:'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',edit:'m15 4 5 5-12 12H3v-5L15 4Z M12 7l5 5',external:'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',navigation:'m21 3-6 18-4-8-8-4L21 3Z',trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7'};
 const icon=(name)=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]??paths.compass}"/></svg>`;
 function icons(root=document){root.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=icon(e.dataset.icon));}
@@ -302,13 +304,13 @@ function setDraftPosition(point,message){
  $('lat').value=point.lat.toFixed(6);$('lng').value=point.lng.toFixed(6);
  $('location-status').textContent=message;
 }
-function closePicker(){pickerRequest++;picker?.destroy();picker=null;$('picker-locate').disabled=false;}
+function closePicker(){pickerRequest++;placeSearch.cancel();pickerPlace=null;picker?.destroy();picker=null;$('picker-locate').disabled=false;}
 function openPicker(){
  if(!$('editor').open)return;
  gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();closePicker();
- $('picker-error').textContent='';show('pin-picker');
+ $('picker-error').textContent='';$('place-query').value='';$('picker-fill-details').checked=true;show('pin-picker');
  picker=createPositionPicker({container:$('position-map'),L:window.L,initial:draftPosition(),
-  onChange:point=>{pickerRequest++;$('picker-locate').disabled=false;$('apply-position').disabled=!point;$('position-coordinates').textContent=point?`${point.lat.toFixed(6)}°, ${point.lng.toFixed(6)}°`:'Move or tap the map to choose a location.';},
+  onChange:point=>{if(pickerPlace&&!samePlacePoint(point,pickerPlace.position))pickerPlace=null;renderPickerPlace();pickerRequest++;$('picker-locate').disabled=false;$('apply-position').disabled=!point;$('position-coordinates').textContent=point?`${point.lat.toFixed(6)}°, ${point.lng.toFixed(6)}°`:'Move or tap the map to choose a location.';},
   onStatus:({state,message})=>{$('picker-status').textContent=message;$('picker-retry').hidden=state!=='error';}
  });
 }
@@ -322,9 +324,30 @@ async function locatePicker(){
   if(request===pickerRequest&&picker===instance)$('picker-error').textContent='Could not get your location. Turn on device Location and allow access, or choose a spot manually.';
  }finally{if(request===pickerRequest)$('picker-locate').disabled=false;}
 }
+function renderPlaceSearch({busy,results,status}){
+ $('place-search-button').disabled=busy;$('place-search-cancel').hidden=!busy;$('place-search-status').textContent=status;
+ $('place-results').innerHTML=results.map((result,i)=>`<li><button type="button" data-place-result="${i}"><strong>${esc(result.name)}</strong><span>${esc(result.address||`${result.position.lat.toFixed(6)}°, ${result.position.lng.toFixed(6)}°`)}</span><small>Preview on map</small></button></li>`).join('');
+ $('place-results').querySelectorAll('[data-place-result]').forEach(button=>{button.onclick=()=>previewPlace(Number(button.dataset.placeResult));});
+}
+function renderPickerPlace(){
+ $('picker-place').textContent=pickerPlace?`Previewing ${pickerPlace.name}. Check the pin, then choose Use this spot.`:'';
+ $('picker-details-option').hidden=!pickerPlace;
+}
+function previewPlace(index){
+ if(!$('pin-picker').open||!$('editor').open||!picker)return;
+ const result=placeSearch.result(index);if(!result)return;
+ pickerPlace=result;
+ if(!picker.setPosition(result.position)){pickerPlace=null;$('place-search-status').textContent='The map could not preview that place. You can enter its coordinates manually.';}
+ renderPickerPlace();$('position-map').scrollIntoView({block:'center',behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});$('position-map').focus({preventScroll:true});
+}
+function searchPlaces(event){event?.preventDefault();if(!$('pin-picker').open)return;$('place-query').blur();void placeSearch.search($('place-query').value);}
 function applyPicker(){
  const point=picker?.getPosition();if(!point||!$('editor').open)return;
  setDraftPosition(point,'Location chosen on the map. Save the footprint to keep it.');
+ if(pickerPlace&&samePlacePoint(point,pickerPlace.position)&&$('picker-fill-details').checked){
+  if(!$('title').value.trim())$('title').value=pickerPlace.name;
+  if(!$('address').value.trim())$('address').value=pickerPlace.address;
+ }
  close('pin-picker',{force:true});
 }
 function renderReleases(){
@@ -528,7 +551,7 @@ function wire(){
  });
  window.addEventListener('beforeunload',event=>{if(editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning){event.preventDefault();event.returnValue='';}});
  if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
- icons();renderReleases();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
+ icons();renderReleases();$('place-search-form').onsubmit=searchPlaces;$('place-query').oninput=()=>placeSearch.cancel();$('place-search-cancel').onclick=()=>placeSearch.cancel();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';const next=removePhoto({photos:draftPhotos,coverIndex:draftCover});draftPhotos=next.photos;draftCover=next.coverIndex;draftPhoto=next.photo;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});

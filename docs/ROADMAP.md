@@ -1,15 +1,22 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.3.7**.
+GitHub is authoritative. Current prototype: **0.3.8**.
 
-Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, and independent widget locations.
+Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, and online address/named-business search.
 
 ## Remaining order
 
-1. **Online address and business search (next; provider dependency).** Select a provider, usage limits and key/proxy arrangement before adding external address/POI discovery; preserve manual coordinates. No public Nominatim search endpoint is bundled or queried.
-2. **Offline map packages.** Choose an offline-capable provider/data license, package format, storage limits and download/removal flow. The current public OSM raster tile service is for interactive online viewing and will not be used for bulk offline packages.
-3. **Integrated navigation.** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
-4. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+1. **Offline map packages (next; provider/data dependency).** Choose an offline-capable provider/data license, package format, storage limits and download/removal flow. The current public OSM raster tile service is for interactive online viewing and will not be used for bulk offline packages.
+2. **Integrated navigation.** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
+3. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+
+## Address and named-business search shipped in 0.3.8
+
+Choose a location now supports explicit Photon searches for an address or named place/business, preferably including the town or city. Select a result to preview on the map, then Use this spot applies its coordinates to the draft. Optional empty-field filling preserves existing names/addresses; moving the pin clears the result metadata, while Cancel/Back leaves the editor alone. Full Save is still required.
+
+The no-key Photon public demo is used for modest prototype traffic under its reasonable-use policy. Requests have a five-result limit, 1.5-second minimum interval, Retry-After handling, no automatic retry and a 12-second timeout. Up to ten recent queries are cached only in memory for five minutes. No credentials, GPS bias, journal or media are sent. UI attribution names Photon/OpenStreetMap. Service availability and OSM business coverage are limited; a dedicated service or contracted provider remains necessary before broad distribution. Public Nominatim endpoints are not used.
+
+159 automated checks pass. Live address/place and named-business requests returned HTTP 200 with CORS for web and Android origins; the actual search controller normalized the business response. Physical Android/browser keyboard, preview and Back interaction still need testing.
 
 ## Independent widget locations shipped in 0.3.7
 
