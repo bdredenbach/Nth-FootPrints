@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.2.9**.
+A personal travel journal by Nth Experience. Prototype **0.3.0**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -15,7 +15,7 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 - Record or attach a voice note.
 - Preview and apply embedded photo GPS from supported JPEG, PNG and WebP files; optionally use the photo date.
 - Take photo + locate, current-device GPS capture and manual coordinates.
-- Individual OpenStreetMap views and external directions.
+- A multi-pin atlas for located footprints, search/category filters, pin-to-memory opening, fit-all and external directions.
 - Search, category filters and sorting.
 - Browser-local IndexedDB storage and app-shell caching.
 - Portable app-specific `.nthbackup` export/restore for places, media and preferences. No KMZ.
@@ -24,7 +24,7 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 
 ## Run locally
 
-The browser application uses static ES modules without third-party runtime dependencies. The APK workflow installs the pinned Capacitor camera/location plugins and bundles their bridge. Serve `dist/` over localhost or HTTPS, for example:
+The browser application uses static ES modules with a locally bundled Leaflet 1.9.4 map library; it does not load JavaScript from a CDN. The APK workflow installs the pinned Capacitor camera/location plugins and bundles their bridge. Serve `dist/` over localhost or HTTPS, for example:
 
 ```sh
 python3 -m http.server 8000 --directory dist
@@ -49,7 +49,7 @@ Automated checks cover backup round trips, merge behavior, vertical gesture hand
 - `docs/BACKUP-FORMAT.md`: the versioned portable backup contract.
 - `tests/`: Node tests and small original, generated image fixtures.
 
-The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Native widgets, a multi-pin atlas, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. Geotags are saved with footprint records; original photo bytes are preserved.
+The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Native widgets, nearby search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
 
@@ -78,3 +78,11 @@ Restore uses the same progress panel and retains the validation/merge preview be
 ## Export Photo (0.2.9)
 
 A footprint's detail button is now **Export Photo**. It opens the save picker for the attached image itself, retaining its original JPEG, PNG, WebP or GIF bytes and embedded metadata. The filename uses the place name and visit date. Footprints without an attached photo disable the action. Android uses the native document picker with an image MIME type; the website uses an image save picker or download. The progress dialog reports photo saving and cancellation. Full journal .nthbackup exports remain under Backup & restore. Footprint coordinates are not newly embedded in photo EXIF.
+
+## Multi-pin atlas (0.3.0)
+
+Map & directions displays all located footprints in the current search/category view. Tap a footprint pin to open its photo/details, or select a place in the list to focus its pin and reveal directions. Show all pins fits the collection again. Entries without coordinates stay in the list with an Add a location action. Pins at the same coordinates remain separate and can be selected through the list. Trips crossing the date line fit around the shorter longitude arc.
+
+The Leaflet library, styles and original footprint icons are bundled locally. Map background tiles need internet and carry visible OpenStreetMap attribution. Offline or failed tiles leave your saved pins and place list available. There are no offline map downloads or tile prefetch jobs. Tile requests occur only while the map is visible; ordinary browser HTTP caching is respected. Android's user agent identifies Nth FootPrints. The APK version name now follows package.json, and its version code follows the workflow run number. Persistent signing is still the next update-safety task.
+
+67 automated checks pass, including coordinate/date-line handling, marker selection/filtering, hidden/offline behavior, tile failures and cleanup. Real Leaflet touch/layout/provider behavior still needs phone testing. Third-party notices are in THIRD_PARTY_NOTICES.md.

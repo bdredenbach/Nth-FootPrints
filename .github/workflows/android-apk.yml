@@ -71,6 +71,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
+            appendUserAgent: " NthFootPrints/0.3.0 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",
@@ -88,6 +89,19 @@ jobs:
 
       - name: Add Android save-file bridge
         run: cp native/android/*.java android/app/src/main/java/com/nthexperience/footprints/
+
+      - name: Set Android version
+        run: |
+          python3 - <<'PYVERSION'
+          import json, os, re
+          from pathlib import Path
+          version = json.loads(Path("package.json").read_text())["version"]
+          code = int(os.environ["GITHUB_RUN_NUMBER"])
+          path = Path("android/app/build.gradle")
+          source = re.sub(r"versionCode\s+\d+", f"versionCode {code}", path.read_text())
+          source = re.sub(r'versionName\s+"[^"\n]+"', f'versionName "{version}"', source)
+          path.write_text(source)
+          PYVERSION
 
       - name: Declare device permissions
         run: |

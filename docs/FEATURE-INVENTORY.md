@@ -1,7 +1,7 @@
 # Nth FootPrints — prototype update, 0.2
 
 ## Product direction
-An original Nth Experience travel journal inspired by the functional ideas of HTC Footprints and HTC Locations. Warm paper, forest-green navigation, brass accents, original illustrated sample memories, layered photo cards. No HTC code or artwork is included in the app. Android is the intended eventual packaged platform; this first build is a private browser prototype of the UI and data flows, not an APK.
+An original Nth Experience travel journal inspired by the functional ideas of HTC Footprints and HTC Locations. Warm paper, forest-green navigation, brass accents, original illustrated sample memories, layered photo cards. No HTC code or artwork is included in the app. The current prototype is a static browser app and a Capacitor Android test APK, maintained in GitHub.
 
 ## Reference evidence
 The supplied HtcFootprints.apk.zip and HtcFootprintsWidget.apk.zip are APK containers (356 and 77 archive entries respectively). Inspected filenames/layouts include camera capture, detail/edit screens, media panels, voice-record dialog, search, sorting, map display, import/export, navigation, phone and URL controls, categories and favorites. File names indicate intended controls; they do not prove complete runtime behavior.
@@ -14,32 +14,33 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Capability | Status |
 |---|---|
 | Instant-photo deck with vertical swipe, mouse drag/wheel and Up/Down keys | Implemented, 3D lift-and-tip transition with reduced-motion fallback |
-| All Places | Stationary, viewport-fitted full-collection stack; no grid, search/filter toolbar or detail panel on this page |
-| Journal filters, favorites, six categories, text search and sorting | Implemented; All Places always includes the full collection |
+| Photo Journal | Vertical full-collection stack with search/category filters; descriptions open with the memory |
+| Journal filters, favorites, six categories, text search and sorting | Implemented across the journal and map views |
 | Create/edit/delete with date, rating, address, notes, phone, website | Implemented |
 | One original photo attachment per place | Implemented, 20 MB limit |
 | One voice note per place, recording or audio upload | Implemented, requires browser microphone support/permission, 20 MB limit |
 | GPS capture and manual coordinates | Implemented, requires location permission for capture; Take photo + locate pairs a new camera attachment with a fresh location fix |
 | Photo geotagging | Read embedded GPS from JPEG/PNG/WebP EXIF; preview and explicitly apply coordinates; optional original visit date; re-read existing saved photos |
-| Individual coordinate map | OpenStreetMap embedded map, needs network |
+| Multi-pin atlas | Implemented in 0.3.0; fit-all, pin-to-memory, list selection, filters, missing-location entries and external directions |
 | Directions | External Google Maps destination link, not integrated navigation |
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
 | Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v1 |
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
-| Native Android package, widget | Planned |
-| Full multi-pin atlas, nearby place search | Planned |
+| Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
+| Android home-screen widget | Planned |
+| Nearby place/address search | Planned; provider selection required |
 | Downloadable offline maps, integrated routing, turn-by-turn, voice guidance | Planned; provider/data/licensing and implementation needed |
 | KMZ import/export | Omitted at user request |
 
 ## Prototype boundaries
-The original SVG examples and their notes are explicitly labeled samples. Users can remove untouched samples without removing their own places or edited samples. No reverse geocoding, embedded EXIF writing, cloud sync, account system, map tile downloads or routing engine is implemented. Photos and voice notes remain local to the journal unless the user exports them. Opening an external map sends the selected coordinates to that map service. The private prototype is owner-only through Sites hosting.
+The original SVG examples and their notes are explicitly labeled samples. Users can remove untouched samples without removing their own places or edited samples. No reverse geocoding, embedded EXIF writing, cloud sync, account system, map tile downloads or routing engine is implemented. Photos and voice notes remain local to the journal unless the user exports them. Opening an external map sends the selected coordinates to that map service. GitHub Pages serves the public browser app; journal data remains local to its browser/app storage.
 
 Media bytes are kept in base64 data URLs without recompression. This first implementation has a 150 MB backup limit, 20 MB per attachment, and loads the journal in memory. A native file-based media store and streaming archive exporter are required before claiming large collection support. Browser media codec playback varies by platform.
 
 ## Validation
-Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. Nineteen tests pass across backup/data, gesture control and photo metadata. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, device testing, microphone/GPS testing, map loading test or PWA installation test has been performed. Deployment success is checked separately.
+Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. 67 Node tests pass across data, gestures, metadata, native export orchestration and map-controller logic. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, direct device testing, live tile-loading test or PWA installation test has been performed here. Map controller tests use a fake Leaflet/DOM boundary, without fetching public tiles. Deployment success is checked separately.
 
 ## Geotagging behavior
 Photo metadata is read locally. The location preview provides coordinates and an optional external map link; no map request occurs until the user opens it. Existing editor coordinates and the date are unchanged until the user applies the photo location. Original photo date is separately opt-in. Missing or malformed metadata never defaults to the current location. The camera action is explicitly labeled Take photo + locate and requests a fresh device location after a successful attachment. A location error keeps the photo and lets the user enter coordinates manually. Pending location results cannot overwrite later manual edits, an applied photo geotag or another editing session. Save waits for active location requests to finish or for the user to enter coordinates manually.
@@ -88,3 +89,10 @@ The shared dialog now retains the operation, filename, footprint being packed, c
 Replaced the detail dialog's individual-backup Export action with Export Photo. The action decodes the stored image data URL to a typed Blob without resizing, recompressing or adding overlays. Existing metadata and original bytes are retained; the journal's separate coordinates are not newly written into EXIF. Native saving now allows a strict filename/extension list for backups and supported photo types and selects the matching MIME type. Browser save filters also use the image's extension and MIME type. Sample illustrations and footprints with no photo disable this action.
 
 Photo export opens the save picker directly, reusing cancellation, chunked writing, progress and confirmed completion. Whole-journal backups are unchanged. Tests cover real JPEG/PNG/WebP fixture bytes, GIF preservation, filenames, missing photos, browser picker options and photo-dialog routing.
+
+## 0.3.0 multi-pin atlas
+Replaced the single-place map iframe with a locally bundled Leaflet 1.9.4 atlas. All valid located footprints in the current search/category view appear together. Zero coordinates are retained, missing/invalid pairs are excluded from pins, and missing-location footprints stay actionable in the list. Pin activation opens the memory; list selection focuses and highlights the matching pin. Fit-all, selected directions, same-coordinate list access and shorter date-line bounds are included. Display longitude adjustments never change stored coordinates. Non-spatial edits preserve the viewport.
+
+Map assets are vendored with Leaflet's BSD-2-Clause license; original Nth footprint icons avoid decoding every full-resolution photo just to draw pins. Sidebar thumbnails load lazily. Map initialization waits for located places, hidden/offline maps detach their tile layer, and destroyed maps detach listeners. Tile failure/connection status leaves saved places available. Background tiles use normal HTTP caching, visible attribution and an identifiable native user agent. No bulk download, tile prefetch or offline-area feature is implemented. The app shell cache includes only bundled same-origin assets. References: https://leafletjs.com/reference.html and https://operations.osmfoundation.org/policies/tiles/ .
+
+The APK workflow also sets the Android version name from package.json and version code from the workflow run number. Permanent signing is not configured yet. The current remaining order is maintained in ROADMAP.md.

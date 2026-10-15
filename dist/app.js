@@ -4,7 +4,9 @@ import {readPhotoMetadata} from './geotags.js';
 import {createDeviceAccess,cameraCancelled} from './device.js';
 import {saveBackupFile,transferCancelled} from './backup-file.js';
 import {preparePhotoExport} from './photo-export.js';
+import {createAtlas,hasLocation} from './atlas.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
+let atlas=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={footprint:'M15 21c-2 0-3-2-3-5 0-2 1-5 3-5s4 3 4 5c0 3-2 5-4 5Z M15 7c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M9 10c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M7 14c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z',stack:'M4 7 12 3l8 4-8 4-8-4Z M4 12l8 4 8-4 M4 17l8 4 8-4',list:'M9 6h12 M9 12h12 M9 18h12 M3 6h1 M3 12h1 M3 18h1',map:'m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z M9 3v16 M15 5v16',heart:'M20 5c-2-2-5-2-8 1-3-3-6-3-8-1-3 3-1 6 1 8l7 7 7-7c2-2 4-5 1-8Z',archive:'M4 9h16v12H4V9Z M3 3h18v6H3V3Z M9 13h6',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M10 3h4l1 3 3 1 3 2v4l-3 1-1 3-2 4h-4l-1-3-3-1-4-2v-4l3-1 1-3 3-4Z',plus:'M12 5v14 M5 12h14',search:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M15 15l6 6',compass:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z m-6-3-2 4-4 2 2-4 4-2Z',arrowUp:'M12 19V5 M6 11l6-6 6 6',arrowDown:'M12 5v14 M6 13l6 6 6-6',arrowLeft:'M19 12H5 M11 6l-6 6 6 6',arrowRight:'M5 12h14 M13 6l6 6-6 6',location:'M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 0 1 14 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',close:'m6 6 12 12 M18 6 6 18',camera:'M3 7h4l2-3h6l2 3h4v14H3V7Z M16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3 M8 22h8',download:'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',edit:'m15 4 5 5-12 12H3v-5L15 4Z M12 7l5 5',external:'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',navigation:'m21 3-6 18-4-8-8-4L21 3Z',trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7'};
@@ -62,15 +64,22 @@ function renderDeck(items){
 
 }
 function directions(r){return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(r.lat!==null?`${r.lat},${r.lng}`:r.address||r.title)}`;}
+function renderMapList(items){
+ if(!items.some(r=>r.id===mapId&&hasLocation(r)))mapId=null;
+ const pinned=items.filter(hasLocation),missing=items.length-pinned.length;
+ $('atlas-count').textContent=`${pinned.length} pinned ${pinned.length===1?'place':'places'}${missing?` · ${missing} without a location`:''}`;
+ $('fit-places').disabled=!pinned.length;
+ $('map-list').innerHTML=items.length?items.map(r=>`<button class="map-place ${r.id===mapId?'selected':''}" ${hasLocation(r)?`data-map="${esc(r.id)}" aria-pressed="${r.id===mapId}" aria-label="Show ${esc(r.title)} on map"`:`data-edit="${esc(r.id)}" aria-label="Add location to ${esc(r.title)}"`}><img src="${art(r)}" alt="" loading="lazy"><span><strong>${esc(r.title)}</strong><small>${esc(r.address||r.category)}</small>${hasLocation(r)?'':'<small class="map-missing">Add a location</small>'}</span></button>`).join(''):'<p class="field-help">No places match this view.</p>';
+ const r=pinned.find(r=>r.id===mapId);$('map-selection').hidden=!r;
+ $('map-selection').innerHTML=r?`<strong>${esc(r.title)}</strong><div class="detail-actions"><button class="secondary" data-detail="${esc(r.id)}">Open footprint</button><a class="primary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">Directions ${icon('external')}</a></div>`:'';
+}
 function renderMap(items){
- const pinned=items.filter(r=>r.lat!==null);if(!pinned.some(r=>r.id===mapId))mapId=pinned[0]?.id??null;
- $('map-list').innerHTML=pinned.length?pinned.map(r=>`<button class="map-place ${r.id===mapId?'selected':''}" data-map="${esc(r.id)}"><img src="${art(r)}" alt=""><span><strong>${esc(r.title)}</strong><small>${esc(r.address||r.category)}</small></span></button>`).join(''):'<p class="field-help">Add coordinates to a footprint to see it here.</p>';
- const r=pinned.find(r=>r.id===mapId);
- if(!r){$('map-content').innerHTML='<div class="map-placeholder">A whole world of memories.<br>Add a location to begin.</div>';return;}
- const delta=.025,bbox=[Math.max(-180,r.lng-delta),Math.max(-90,r.lat-delta),Math.min(180,r.lng+delta),Math.min(90,r.lat+delta)].join(',');
- const url=`https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${r.lat}%2C${r.lng}`;
- $('map-content').innerHTML=`<iframe title="Map of ${esc(r.title)}" src="${url}" loading="lazy" referrerpolicy="no-referrer"></iframe>`;
- $('map-list').insertAdjacentHTML('beforeend',`<div class="detail-actions"><button class="secondary" data-detail="${esc(r.id)}">Open memory</button><a class="primary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">Directions ${icon('external')}</a></div>`);
+ renderMapList(items);
+ if(!atlas)atlas=createAtlas({container:$('map-content'),L:window.L,pinHTML:icon('footprint'),
+  onPick:id=>{mapId=id;renderMapList(filtered());openDetail(id);},
+  onStatus:({state,message})=>{$('map-status').textContent=message;$('retry-map').hidden=state!=='error';}
+ });
+ atlas.update(items,{selectedId:mapId});
 }
 async function moveDeck(step,{drag=0}={}){
  const items=filtered();if(deckBusy||items.length<2||view!=='journal')return;
@@ -89,7 +98,7 @@ async function moveDeck(step,{drag=0}={}){
  deckIndex=wrappedIndex(deckIndex,step,items.length);deckAnimations.forEach(a=>a.cancel());deckAnimations=[];deckBusy=false;renderDeck(items);
  if(focused)$('deck').querySelector('.deck-front')?.focus({preventScroll:true});
 }
-function setView(next){cancelDeckMotion();view=next;deckIndex=0;history.replaceState(null,'','#'+next);render();}
+function setView(next){cancelDeckMotion();if(next!=='map')atlas?.setVisible(false);view=next;deckIndex=0;history.replaceState(null,'','#'+next);render();}
 function show(id){$(id).showModal();}
 function close(id){if(id==='backup'&&(restoreCommit||exportCommit))return;if(id==='editor')stopRecording(true);if(id==='backup'){cancelTransfer();pendingRestore=null;}$ (id).close();}
 function openDetail(id){const r=records.find(x=>x.id===id);if(!r)return;
@@ -297,11 +306,11 @@ async function useLocation({capture=false}={}){
 async function toggleFavorite(id){const r=records.find(x=>x.id===id);if(!r)return;await commit(records.map(x=>x.id===id?{...x,favorite:!x.favorite,updatedAt:new Date().toISOString()}:x));if($('details').open)openDetail(id);}
 async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and its attached photo and voice note?`))return;await commit(records.filter(x=>x.id!==id));$('details').close();toast('Footprint deleted.');}
 async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
- try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){openDetail(b.dataset.detail);return;}if(b.dataset.edit){openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;renderMap(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
+ try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){openDetail(b.dataset.detail);return;}if(b.dataset.edit){openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
  }catch(err){toast(err.message);}
 }
 function wire(){
- icons();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
+ icons();$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';draftPhoto=null;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
