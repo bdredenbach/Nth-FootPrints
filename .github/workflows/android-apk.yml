@@ -1,0 +1,118 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Run project tests
+        run: npm test
+
+      - name: Install Capacitor
+        run: >
+          npm install --no-save --package-lock=false
+          @capacitor/core@8.0.0
+          @capacitor/cli@8.0.0
+          @capacitor/android@8.0.0
+
+      - name: Prepare bundled app
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            cpSync,
+            readFileSync,
+            writeFileSync
+          } from "node:fs";
+
+          cpSync("dist", "native-web", { recursive: true });
+
+          const path = "native-web/app.js";
+          const source = readFileSync(path, "utf8");
+          const registration =
+            "if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});";
+
+          writeFileSync(path, source.replace(registration, ""));
+
+          writeFileSync("capacitor.config.json", JSON.stringify({
+            appId: "com.nthexperience.footprints",
+            appName: "Nth FootPrints",
+            webDir: "native-web"
+          }, null, 2));
+          NODE
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Declare device permissions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          source = path.read_text()
+
+          permissions = [
+              "CAMERA",
+              "RECORD_AUDIO",
+              "ACCESS_FINE_LOCATION",
+              "ACCESS_COARSE_LOCATION",
+          ]
+
+          for permission in permissions:
+              entry = (
+                  '<uses-permission android:name="android.permission.'
+                  + permission + '" />\n'
+              )
+              source = source.replace(
+                  "</manifest>", entry + "</manifest>"
+              )
+
+          path.write_text(source)
+          PY
+
+      - name: Install Android SDK packages
+        run: >
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "platforms;android-36"
+          "build-tools;36.0.0"
+
+      - name: Build test APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Name the APK
+        run: >
+          cp android/app/build/outputs/apk/debug/app-debug.apk
+          Nth-FootPrints-debug.apk
+
+      - name: Upload downloadable APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: Nth-FootPrints-debug
+          path: Nth-FootPrints-debug.apk
+          if-no-files-found: error
+          retention-days: 14
