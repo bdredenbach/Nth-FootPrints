@@ -179,10 +179,10 @@ function cancelTransfer(){
 }
 function beginTransfer(label){
  const token=++transferToken;transferAbort=new AbortController();transferRunning=true;pendingExport=null;
- $('transfer').hidden=false;$('transfer').dataset.state='working';$('transfer').setAttribute('aria-busy','true');
+ $('backup').classList.add('transfer-active');$('transfer').hidden=false;$('transfer').dataset.state='working';$('transfer').setAttribute('aria-busy','true');
  $('transfer-title').textContent=label;$('transfer-file').textContent='';$('transfer-detail').textContent='';
  $('save-backup').hidden=true;$('dismiss-transfer').hidden=true;$('cancel-transfer').hidden=false;$('cancel-transfer').disabled=false;
- transferProgress(0,label);$('backup-status').textContent='';$('export-all').disabled=true;$('backup-file').disabled=true;return token;
+ transferProgress(0,label);$('backup-status').textContent='';$('export-all').disabled=true;$('backup-file').disabled=true;$('transfer').scrollIntoView?.({block:'nearest'});return token;
 }
 function checkToken(token){if(token!==transferToken||transferAbort?.signal.aborted)throw Error('CANCELLED');}
 function finishTransfer(token,message,success=true,cancelled=false){
@@ -295,7 +295,7 @@ function wire(){
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';draftPhoto=null;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
- $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{$('transfer').hidden=true;};
+ $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;$('transfer').hidden=true;$('backup').classList.remove('transfer-active');}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{$('transfer').hidden=true;$('backup').classList.remove('transfer-active');};
  $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await commit(records,{theme:e.target.value});}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
 

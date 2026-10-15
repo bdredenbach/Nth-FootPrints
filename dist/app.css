@@ -60,3 +60,5 @@ body{padding-left:var(--app-safe-left);padding-right:var(--app-safe-right)}
 .transfer-panel{margin-top:22px;padding:20px;border:1px solid var(--line);border-radius:7px;background:var(--surface)}
 .transfer-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.transfer-heading h3{margin:0;font:22px Georgia,serif}.transfer-heading output{font-size:13px;font-variant-numeric:tabular-nums;color:var(--muted)}
 .transfer-file{font-size:12px;overflow-wrap:anywhere;color:var(--muted);margin:12px 0}.transfer-panel label{font-size:12px;line-height:1.6;display:block}.transfer-panel progress{display:block;width:100%;height:12px;margin:13px 0;accent-color:var(--green)}.transfer-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}.transfer-panel[data-state="error"]{border-color:#a05a43}.transfer-panel[data-state="success"]{border-color:var(--green)}
+
+.transfer-active .backup-card,.transfer-active .intro-copy,.transfer-active .backup-footnote{display:none}
