@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.3.9**.
+A personal travel journal by Nth Experience. Prototype **0.4.0**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -11,6 +11,7 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 ## Included
 
 - Three tabs: Photo Journal, Map & Directions, and Favorites.
+- Trips & journeys with covers, automatic dates, chronological stops, searchable membership selection, and journal/map filtering.
 - Create, edit and delete footprints with an original photo, visit date, category, rating, notes, website and phone number.
 - Record or attach a voice note.
 - Preview and apply embedded photo GPS from supported JPEG, PNG and WebP files; optionally use the photo date.
@@ -164,3 +165,13 @@ Unfinished editor work is retained locally with field values, favorite, gallery/
 Journal Save and matching draft cleanup commit together. Failed saves retain recovery. Explicit discard removes the draft and its media. If the original record changed or disappeared, the recovered draft saves as a new footprint. Recovery uses local device storage outside backups; it cannot survive uninstall/clear-data or recreate an unfinished voice recording/file read or a camera image Android never returns. Larger saved-media collections and streamed backups remain next.
 
 The icon now reads Nth where the lower dash was, across Android and web variants. 204 automated checks pass plus Chromium recovery scenarios; physical Android camera/process-death and launcher testing remain necessary. Integrated navigation is skipped by user choice; Directions retains its external map handoff.
+
+## Trips & journeys (0.4.0)
+
+Use **Trips & journeys** above the journal to create a trip and select its saved footprints. Save the selection, choose any stop as the cover, and browse the trip or view its pins on the map. Dates follow the earliest and latest visit. The trip selector works across all three tabs and combines with the existing search/category filters. New footprints default to the selected trip; the editor also allows membership in several journeys. Deleting a journey keeps its footprints and photos.
+
+Trip metadata and memberships save atomically. Full backups now use format 3 with original media, covers and trip deletion markers; format 1/2 backups still import. App versions before 0.4.0 reject format 3. Recovery drafts retain trip selections and can still read older drafts. Limits: 20 journeys per footprint and 1,000 journey entries including deletion markers. Existing media/backup limits apply.
+
+All ten proposed journal features are approved. Return visits comes next, followed by anniversary memories, batch import, timeline/calendar, exploration stats, geotagged export copies, tags/smart collections, memory cards/trip PDFs and opt-in proximity reminders. See [the working queue](docs/ROADMAP.md) for scope, current status and the carried-forward media/backup and global offline-map work.
+
+218 automated checks pass; mobile/desktop Chromium checked the complete trip workflow, restart recovery, fresh backup restore and removal without photo loss. Android device testing remains necessary.

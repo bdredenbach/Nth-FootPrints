@@ -106,7 +106,7 @@ test('widget launch reports asynchronous navigation failures without an unhandle
 test('saving holds the editor until persistence finishes, then returns to its parent without prompting',async()=>{
  const gate=deferred(),calls=[],nodes={'editor-error':{},'save-place':{},favorite:{checked:false},'place-form':{}};
  const c=vm.createContext({$:id=>nodes[id],editorSaving:false,micPending:false,pendingMedia:0,locationPending:false,cameraPending:false,recording:null,FormData:class{get(name){return name==='title'?'Updated':'';}},validateRecord:r=>r,editId:'one',draftPhoto:null,draftPhotos:[],draftCover:0,draftAudio:null,draftArt:null,changeJournal:async transform=>{calls.push(transform([{id:'one',title:'Old'}]));await gate.promise;},editorSnapshot:()=>({saved:true}),draftBaseline:null,close:(id,options)=>calls.push([id,options.force]),filtered:()=>[{id:'one'}],deckIndex:0,render(){},toast(){}});
- c.saveEditorRecord=transform=>c.changeJournal(transform);c.scheduleDraft=()=>{};
+ c.saveEditorRecord=transform=>c.changeJournal(transform);c.scheduleDraft=()=>{};c.selectedDraftTrips=()=>[];
  vm.runInContext(app.slice(app.indexOf('async function savePlace('),app.indexOf('const tick=')),c);
  const saving=c.savePlace({preventDefault(){}});assert.equal(c.editorSaving,true);assert.equal(nodes['place-form'].inert,true);assert.equal(calls.length,1);assert.equal(calls[0][0].title,'Updated');await c.savePlace({preventDefault(){}});assert.equal(calls.length,1);
  gate.resolve();await saving;assert.equal(c.editorSaving,false);assert.deepEqual(calls[1],['editor',true]);assert.equal(c.draftBaseline.saved,true);assert.equal(nodes['save-place'].disabled,false);assert.equal(nodes['place-form'].inert,false);

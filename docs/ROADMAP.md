@@ -1,13 +1,38 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.3.10**.
+GitHub is authoritative. Current prototype: **0.4.0**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
-## Remaining order
+## Approved journal feature roadmap
 
-1. **Larger collections and streamed backups (next).** Move saved journal media out of in-memory base64 state and stream backup archives. Editor/camera draft recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections are not recoverable.
-2. **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
+Brad approved all ten ideas on October 15, 2026. Deliver one tested feature release at a time, continuing the existing phone-testing cadence. This is the approved product queue; queued does not mean shipped.
+
+1. **Trips & journeys — shipped in 0.4.0.** Group existing/new footprints into journeys, choose a cover, keep a description, derive dates, browse chronological stops and filter the atlas.
+2. **Return visits — next.** Separate dated visits to the same place, with their own notes/photos, while retaining one place identity.
+3. **On this day memories.** An optional anniversary card, with notifications optional rather than assumed.
+4. **Photo batch import.** Read supported embedded dates/locations, propose groupings and let the user review before saving.
+5. **Timeline and calendar.** Browse memories by date, month and journey.
+6. **Exploration map and statistics.** Visited countries/states/places, milestones and personal exploration summaries.
+7. **Geotag exported photo copies.** Write the footprint coordinates into a new exported copy; preserve the saved original.
+8. **Personal tags and smart collections.** Flexible labels and saved filters beyond the current fixed categories.
+9. **Shareable memory cards and trip books.** Export a card or PDF with a deliberate location/privacy choice.
+10. **Opt-in proximity memories.** A “you’ve been here before” reminder, with explicit permission/settings and practical battery/privacy limits.
+
+## Existing engineering queue
+
+- **Larger collections and streamed backups.** Move saved journal media out of in-memory base64 state and stream backup archives. Recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections remain outside recovery.
+- **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
+
+## Trips & journeys shipped in 0.4.0
+
+Trips & journeys opens from the journal tools without changing the three main tabs. Create a name/description, select existing footprints using a searchable list, and save the selection explicitly. A footprint can belong to several journeys (up to 20). The footprint editor also offers trip membership and defaults a new footprint to the active trip filter. A chosen stop supplies the journey cover; its current main photo follows gallery edits. The fallback uses the first photographed stop, or the first stop if no photos exist. Dates derive from the first/last visit, and the stop list is chronological. Browse footprints and View on map clear unrelated search/category filters and select the journey; the trip selector then composes with the existing search, categories, Favorites and sorting.
+
+Deleting a journey retains every footprint and attachment. Removed journeys retain lightweight deletion markers so restoring an older backup cannot revive them. Footprint removal/membership changes repair unavailable covers. Trip metadata, memberships and preferences save together in one journal transaction, using the shared serialized write queue. Failed writes preserve the previous state. Journey forms guard unsaved changes, block editing during writes and follow Android/browser Back. Editing a footprint inside a journey retains the journey underneath.
+
+Full `.nthbackup` format 3 contains journeys, deletion markers, memberships, original gallery/audio and preferences. Formats 1 and 2 still import; older app versions reject format 3. Restore merges journey metadata separately by its update time, then removes references to deleted/missing journeys and repairs covers. Up to 1,000 journey entries including deletion markers; existing 10,000-backup-record, 30-photo and 150 MB limits remain. Recovery draft metadata version 2 includes selected journey IDs; previous version 1 drafts still resume. Recovery drafts and offline tiles remain outside journal backups.
+
+218 automated Node/Java/IndexedDB checks pass. Chromium mobile and desktop checks cover creation, member selection through searches, date range/cover, map filtering, unsaved form guards, editor membership after restart, original-photo backup/fresh restore, deletion without media loss, restoring an older backup and reload. No page errors occurred. Physical Android checks remain for this release.
 
 ## Skipped by user choice
 

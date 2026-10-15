@@ -63,7 +63,7 @@ const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 function backupDialog(save){
  const nodes=Object.fromEntries(['details','backup','restore-preview','transfer','transfer-title','transfer-file','transfer-detail','save-backup','dismiss-transfer','cancel-transfer','transfer-progress','transfer-percent','transfer-label','backup-status','export-all','backup-file','backup-heading','backup-eyebrow'].map(id=>[id,{hidden:true,open:id==='backup',textContent:'',dataset:{},classList:{add(){},remove(){}},setAttribute(){}}]));
  const r=validateRecord({id:'place',title:'Our first place 🌲',category:'Nature',visited:'2026-10-15',rating:4,favorite:false,lat:0,lng:0,notes:'Saved original',address:'',phone:'',url:'',photo:null,audio:null,sampleArt:null,updatedAt:'2026-10-15T13:00:00Z'});
- const state=vm.createContext({$:id=>nodes[id],APP,VERSION,MAX_BACKUP,validateRecord,backupRecord,parseBackup,Blob,AbortController,setTimeout,records:[r],settings:{theme:'paper'},transferToken:0,transferRunning:false,transferAbort:null,pendingExport:null,pendingRestore:null,exportSaving:false,exportCommit:false,restoreCommit:false,activeReader:null,galleryWrites:Promise.resolve(),journalWrites:Promise.resolve(),device:{native:true},window:{NthNative:{BackupFiles:{}}},today:()=> '2026-10-15',preparePhotoExport,saveBackupFile:save,transferCancelled,show:()=>{}});
+ const state=vm.createContext({$:id=>nodes[id],journeys:[],APP,VERSION,MAX_BACKUP,validateRecord,backupRecord,parseBackup,Blob,AbortController,setTimeout,records:[r],settings:{theme:'paper'},transferToken:0,transferRunning:false,transferAbort:null,pendingExport:null,pendingRestore:null,exportSaving:false,exportCommit:false,restoreCommit:false,activeReader:null,galleryWrites:Promise.resolve(),journalWrites:Promise.resolve(),device:{native:true},window:{NthNative:{BackupFiles:{}}},today:()=> '2026-10-15',preparePhotoExport,saveBackupFile:save,transferCancelled,show:()=>{}});
  vm.runInContext(source.slice(source.indexOf('const tick=()=>'),source.indexOf('async function finishCameraPhoto(')),state);return {state,nodes};
 }
 test('dialog prepares a valid backup at 50%, and confirms 100% only after saving',async()=>{
@@ -81,7 +81,7 @@ test('backup waits for a pending cover save and contains all gallery photos exac
  let finish;const {state}=backupDialog(async()=>({}));
  state.galleryWrites=new Promise(resolve=>{finish=()=>{state.records=[validateRecord({...state.records[0],photos:['data:image/png;base64,AQID','data:image/jpeg;base64,BAUG'],coverIndex:1})];resolve();};});
  const exporting=state.exportBackup();assert.equal(state.pendingExport,null);finish();await exporting;
- const raw=await state.pendingExport.blob.text(),backup=JSON.parse(raw);assert.equal(backup.formatVersion,2);assert.equal('photo'in backup.records[0],false);assert.equal(parseBackup(raw).records[0].photo,'data:image/jpeg;base64,BAUG');assert.equal(backup.records[0].photos.length,2);
+ const raw=await state.pendingExport.blob.text(),backup=JSON.parse(raw);assert.equal(backup.formatVersion,VERSION);assert.equal('photo'in backup.records[0],false);assert.equal(parseBackup(raw).records[0].photo,'data:image/jpeg;base64,BAUG');assert.equal(backup.records[0].photos.length,2);
 });
 
 test('Export Photo opens an image save operation directly and keeps backup format separate',async()=>{

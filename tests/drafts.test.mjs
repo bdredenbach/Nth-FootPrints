@@ -106,7 +106,7 @@ test('lifecycle wiring checkpoints before backgrounding and forwards native rest
 });
 test('actual journal writer uses the same transaction to remove its saved draft',async()=>{
  const f=await fixture(),r=f.controller();r.begin('draft-1');await r.flush(snapshot());
- const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),c=vm.createContext({db:f.db,clearDraftInTransaction});
+ const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),c=vm.createContext({journeys:[],db:f.db,clearDraftInTransaction});
  vm.runInContext(app.slice(app.indexOf('function dbPut('),app.indexOf('async function commit(')),c);await c.dbPut([{id:'kept'}],{theme:'paper'},'draft-1');assert.equal(await f.store.read(),null);assert.equal((await journalRead(f.db)).records[0].id,'kept');
 });
 

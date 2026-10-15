@@ -1,8 +1,9 @@
+import {validateJourneys,reconcileJourneys} from '../dist/journeys.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {validateRecord,makeBackup,parseBackup,backupRecord,MAX_PHOTOS} from '../dist/model.js';
+import {validateRecord,makeBackup,parseBackup,backupRecord,MAX_PHOTOS,VERSION} from '../dist/model.js';
 import {photosOf,coverOf,selectPhoto,addPhotos,replacePhoto,removePhoto,readGalleryFiles,createPhotoViewer,bindPhotoSwipe,horizontalStep} from '../dist/gallery.js';
 import {preparePhotoExport} from '../dist/photo-export.js';
 import {widgetRecord} from '../dist/widget.js';
@@ -23,7 +24,7 @@ test('gallery validation derives the cover and rejects malformed lists, images a
 test('version 2 backup stores each gallery photo once and restores every byte and cover choice',async()=>{
  const photos=['photo-gps.jpg','photo-gps.png','photo-gps.webp'].map((name,i)=>`data:image/${['jpeg','png','webp'][i]};base64,${fs.readFileSync(new URL('fixtures/'+name,import.meta.url)).toString('base64')}`);
  const original=validateRecord(place({photos,coverIndex:2})),backup=makeBackup([original]);
- assert.equal(backup.formatVersion,2);assert.equal('photo' in backup.records[0],false);
+ assert.equal(backup.formatVersion,VERSION);assert.equal('photo' in backup.records[0],false);
  const restored=parseBackup(JSON.stringify(backup)).records[0];assert.deepEqual(restored,original);
  assert.equal(widgetRecord([restored]).source,photos[2]);
  const exported=preparePhotoExport(restored);assert.equal(exported.mimeType,'image/webp');assert.deepEqual(Buffer.from(await exported.blob.arrayBuffer()),fs.readFileSync(new URL('fixtures/photo-gps.webp',import.meta.url)));
@@ -75,7 +76,7 @@ test('horizontal photo gestures ignore vertical scrolling, diagonal drags and sh
 });
 test('serialized record changes preserve a gallery selection alongside favorite and settings edits',async()=>{
  const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),first=deferred();let calls=0;
- const context=vm.createContext({records:[addPhotos(place(),[b])],settings:{theme:'paper'},commit:async(rows,settings)=>{if(++calls===1)await first.promise;context.records=rows;context.settings=settings;}});
+ const context=vm.createContext({journeys:[],records:[addPhotos(place(),[b])],settings:{theme:'paper'},commit:async(rows,settings)=>{if(++calls===1)await first.promise;context.records=rows;context.settings=settings;}});
  vm.runInContext(app.slice(app.indexOf('let journalWrites='),app.indexOf('const widgetPlugin=')),context);
  const photo=context.changeJournal(rows=>rows.map(r=>selectPhoto(r,1))),favorite=context.changeJournal(rows=>rows.map(r=>({...r,favorite:true}))),theme=context.changeJournal(rows=>rows,()=>({theme:'night'}));
  first.resolve();await Promise.all([photo,favorite,theme]);assert.equal(context.records[0].photo,b);assert.equal(context.records[0].favorite,true);assert.equal(context.settings.theme,'night');

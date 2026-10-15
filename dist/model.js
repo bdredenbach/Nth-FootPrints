@@ -1,5 +1,6 @@
+import {recordJourneyIds,validateJourneys,checkJourneyLinks} from './journeys.js';
 export const APP = 'nth-footprints';
-export const VERSION = 2;
+export const VERSION = 3;
 export const MAX_PHOTOS = 30;
 export const CATEGORIES = ['Travel','Nature','Dining','Culture','Everyday','Other'];
 export const MAX_BACKUP = 150 * 1024 * 1024;
@@ -45,26 +46,29 @@ export function validateRecord(r) {
   }
   return {id,title,category:r.category,favorite:r.favorite,rating:r.rating,visited,lat,lng,updatedAt,
     address:text(r.address??'',500,'address'),notes:text(r.notes??'',20000,'notes'),phone:text(r.phone??'',80,'phone'),url,
-    photo,...gallery,audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
+    photo,...gallery,...(r.tripIds!==undefined?{tripIds:recordJourneyIds(r.tripIds)}:{}),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
 }
 export function backupRecord(record){const r=validateRecord(record);if(r.photos)delete r.photo;return r;}
 export function validateSettings(s={}) {
  if(!s || typeof s!=='object' || (s.theme && !['paper','night'].includes(s.theme))) throw Error('Invalid settings.');
  return {theme:s.theme??'paper'};
 }
-export function makeBackup(records, settings={theme:'paper'}) {
- return {app:APP,formatVersion:VERSION,createdAt:new Date().toISOString(),records:records.map(backupRecord),settings:validateSettings(settings)};
+export function makeBackup(records, settings={theme:'paper'},journeys=[]) {
+ const rows=records.map(backupRecord),trips=validateJourneys(journeys);checkJourneyLinks(rows,trips);
+ return {app:APP,formatVersion:VERSION,createdAt:new Date().toISOString(),records:rows,settings:validateSettings(settings),journeys:trips};
 }
 export function parseBackup(raw) {
  if(typeof raw!=='string'||raw.length>MAX_BACKUP) throw Error('Backup is too large for this prototype (150 MB maximum).');
  let b;try{b=JSON.parse(raw);}catch{throw Error('This file is not a readable Nth FootPrints backup.');}
  if(b?.app!==APP) throw Error('Choose a Nth FootPrints backup. Backups from other Nth apps cannot be restored here.');
- if(![1,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
+ if(![1,2,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
  if(!Array.isArray(b.records)||b.records.length>10000) throw Error('Invalid place collection.');
  if(b.formatVersion===1&&b.records.some(r=>r&&typeof r==='object'&&('photos'in r||'coverIndex'in r)))throw Error('Photo galleries require backup version 2.');
+ if(b.formatVersion<3&&(b.journeys!==undefined||b.records.some(r=>r&&'tripIds'in r)))throw Error('Journeys require backup version 3.');
+ const journeys=validateJourneys(b.formatVersion===3?b.journeys:[]);
  const records=b.records.map(validateRecord), ids=new Set(records.map(r=>r.id));
  if(ids.size!==records.length) throw Error('Backup contains duplicate place IDs.');
- return {records,settings:validateSettings(b.settings)};
+ checkJourneyLinks(records,journeys);return {records,settings:validateSettings(b.settings),journeys};
 }
 export function mergeRecords(existing,incoming) {
  const map=new Map(existing.map(r=>[r.id,r]));let added=0,updated=0,kept=0;

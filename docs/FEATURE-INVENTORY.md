@@ -24,10 +24,11 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Multi-pin atlas | Implemented in 0.3.0; photo thumbnails added in 0.3.4; fit-all, pin-to-memory, list selection, filters, missing-location entries and external directions |
 | Directions | External Google Maps destination link, not integrated navigation |
 | Local editor recovery | Shipped in 0.3.10: text, gallery/cover, favorite and completed audio drafts, plus matching returned Android camera photos; Resume/Discard after restart |
+| Trips & journeys | Shipped in 0.4.0: multi-journey membership, chosen cover, automatic dates, chronological stops, trip filters/map, atomic persistence and backups |
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | Offline map areas | Shipped in 0.3.9: USGS topographic areas, detailed U.S. coverage, progress/cancel/removal, local atlas and picker rendering |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
-| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v2; v1 imports supported |
+| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v3; v1 and v2 imports supported |
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
@@ -179,3 +180,11 @@ Persisted recovery covers partial form input, favorite, photo galleries/cover, a
 App restored-camera results are associated with the startup capture token, persisted first as a descriptor and then copied into a Blob. Resume applies the photo with cleared coordinates; a late return offers an explicit action and preserves current editor text. Cancellation, duplicate events, failed reads and stale/discarded destinations preserve the existing draft/journal. Android must deliver the result; active recording/file reads remain unrecoverable. Larger journal media and streaming backup work is still queued.
 
 Original Nth outline lettering replaces the dash in the icon, including an even-odd cutout for the Android themed variant. 204 automated checks and Chromium restart/resume/discard/camera/conflict scenarios pass. Physical Android process-death, camera return and launcher behavior need phone testing.
+
+## 0.4.0 trip collections
+
+Trips & journeys groups footprints without copying photos. Names/descriptions and explicit cover stop IDs live beside records in the same journal state; records retain journey IDs. Member selection is searchable, and a single footprint may belong to up to 20 journeys. Dates/stop order derive from footprint visit dates. Trip selection composes across Journal, Favorites and Map with search/categories/sort. Removing a journey retains the records/media and saves a deletion marker; removing a footprint or membership repairs covers. Metadata and membership writes share the serialized atomic journal transaction. Recovery drafts now include memberships and retain compatibility with previous drafts.
+
+Full backup format 3 round trips trips, deletion markers, covers, memberships and originals. Earlier backup formats import as journals without trips. Restore keeps newer versions and reconciles deleted groups and unavailable covers. Up to 1,000 journey entries (including markers); original gallery/backup bounds remain. All ten new ideas are approved; the remaining nine are queued in docs/ROADMAP.md, beginning with return visits. They are not yet implemented.
+
+218 automated checks and mobile/desktop Chromium end-to-end trip checks passed, with no page errors. Physical Android trip/Back/restore testing remains necessary.

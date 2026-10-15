@@ -1,3 +1,4 @@
+import {validateJourneys,reconcileJourneys} from '../dist/journeys.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -69,7 +70,7 @@ test('a widget request racing native action consumption is drained once the firs
 });
 test('app mirrors only completed journal writes; a failed database transaction never changes the widget',async()=>{
  const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');const calls=[];let fail=true;
- const context=vm.createContext({withoutStarterSamples:r=>r,storageReady:true,settings:{theme:'paper'},records:[],dbPut:async()=>{if(fail)throw Error('disk');},applyTheme(){},render(){},widgetSync:{refresh:r=>calls.push(r)}});
+ const context=vm.createContext({journeys:[],validateJourneys,reconcileJourneys,withoutStarterSamples:r=>r,storageReady:true,settings:{theme:'paper'},records:[],dbPut:async()=>{if(fail)throw Error('disk');},applyTheme(){},render(){},widgetSync:{refresh:r=>calls.push(r)}});
  vm.runInContext(app.slice(app.indexOf('async function commit('),app.indexOf('const widgetPlugin=')),context);
  await assert.rejects(context.commit([place('lost')]),/disk/);assert.deepEqual(calls,[]);
  fail=false;await context.commit([place('saved')]);assert.equal(calls[0][0].id,'saved');
