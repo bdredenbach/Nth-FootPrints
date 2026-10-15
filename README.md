@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.3.0**.
+A personal travel journal by Nth Experience. Prototype **0.3.1**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -49,7 +49,7 @@ Automated checks cover backup round trips, merge behavior, vertical gesture hand
 - `docs/BACKUP-FORMAT.md`: the versioned portable backup contract.
 - `tests/`: Node tests and small original, generated image fixtures.
 
-The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Native widgets, nearby search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
+The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Native widgets, online address/business search, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
 
@@ -83,6 +83,14 @@ A footprint's detail button is now **Export Photo**. It opens the save picker fo
 
 Map & directions displays all located footprints in the current search/category view. Tap a footprint pin to open its photo/details, or select a place in the list to focus its pin and reveal directions. Show all pins fits the collection again. Entries without coordinates stay in the list with an Add a location action. Pins at the same coordinates remain separate and can be selected through the list. Trips crossing the date line fit around the shorter longitude arc.
 
-The Leaflet library, styles and original footprint icons are bundled locally. Map background tiles need internet and carry visible OpenStreetMap attribution. Offline or failed tiles leave your saved pins and place list available. There are no offline map downloads or tile prefetch jobs. Tile requests occur only while the map is visible; ordinary browser HTTP caching is respected. Android's user agent identifies Nth FootPrints. The APK version name now follows package.json, and its version code follows the workflow run number. Persistent signing is still the next update-safety task.
+The Leaflet library, styles and original footprint icons are bundled locally. Map background tiles need internet and carry visible OpenStreetMap attribution. Offline or failed tiles leave your saved pins and place list available. There are no offline map downloads or tile prefetch jobs. Tile requests occur only while the map is visible; ordinary browser HTTP caching is respected. Android's user agent identifies Nth FootPrints. The APK version name now follows package.json, and its version code follows the workflow run number. Persistent signing is deferred until testing is finished.
 
-67 automated checks pass, including coordinate/date-line handling, marker selection/filtering, hidden/offline behavior, tile failures and cleanup. Real Leaflet touch/layout/provider behavior still needs phone testing. Third-party notices are in THIRD_PARTY_NOTICES.md.
+80 automated checks pass, including coordinate/date-line handling, marker selection/filtering, hidden/offline behavior, tile failures and cleanup. Real Leaflet touch/layout/provider behavior still needs phone testing. Third-party notices are in THIRD_PARTY_NOTICES.md.
+
+## Location tools and version history (0.3.1)
+
+In the footprint editor, **Choose on map** opens a separate draft position picker. Pan beneath the fixed pin, tap a spot, or center on current GPS. **Use this spot** copies coordinates to the editor; **Save footprint** is still required to persist them. Cancel leaves the draft coordinates unchanged. Manual coordinate entry and photo GPS remain available.
+
+In Map & directions, **Nearest to me** requests a current position and sorts the filtered saved-place list by straight-line distance. Places without coordinates remain available for editing. **Clear distances** restores the selected visit/name/rating order. This is local distance calculation, not online business discovery or routing; current GPS is held in memory only. Late GPS results cannot replace a newer manual selection or affect a closed picker/view.
+
+**What’s in this version?** now opens a compact release history from 0.2.2 to the current version, oldest first, with shipped features and a separate list of planned work. Release data lives in dist/releases.js.

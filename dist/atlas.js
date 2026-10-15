@@ -1,3 +1,5 @@
+export const TILE_URL='https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+export const TILE_OPTIONS={maxZoom:19,updateWhenIdle:true,updateWhenZooming:false,keepBuffer:0,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'};
 export function hasLocation(place){
  return typeof place?.lat==='number'&&Number.isFinite(place.lat)&&Math.abs(place.lat)<=90&&
   typeof place?.lng==='number'&&Number.isFinite(place.lng)&&Math.abs(place.lng)<=180;
@@ -38,10 +40,7 @@ export function createAtlas({container,L,onPick=()=>{},onStatus=()=>{},pinHTML='
   map=L.map(container,{scrollWheelZoom:false,worldCopyJump:false}).setView([20,0],2);
   layer=L.layerGroup().addTo(map);
   const instance=map;
-  tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-   maxZoom:19,updateWhenIdle:true,updateWhenZooming:false,keepBuffer:0,
-   attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
-  });
+  tiles=L.tileLayer(TILE_URL,{...TILE_OPTIONS});
   tiles.on('loading',()=>{if(map===instance&&visible){failures=0;status('loading','Loading the map…');}});
   tiles.on('tileerror',()=>{if(map===instance&&visible){failures++;status('error','The map background could not load. Your saved pins and places are still available.');}});
   tiles.on('load',()=>{if(map===instance&&visible&&!failures&&online())status('ready','Tap a pin to open its footprint. Directions open in your map app or browser.');});
