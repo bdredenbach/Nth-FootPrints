@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {IDBFactory} from 'fake-indexeddb';
 import {activeJourneys,recordJourneyIds,validateJourney,validateJourneys,journeyRecords,journeySummary,setJourneyMembership,reconcileJourneys,mergeJourneys,checkJourneyLinks} from '../dist/journeys.js';
-import {makeBackup,parseBackup,mergeRecords,validateRecord,filterRecords,withoutStarterSamples} from '../dist/model.js';
+import {makeBackup,parseBackup,mergeRecords,validateRecord,filterRecords,withoutStarterSamples,VERSION} from '../dist/model.js';
 import {createDraftStore,createDraftRecovery,clearDraftInTransaction} from '../dist/drafts.js';
 const old='2026-10-14T12:00:00.000Z',now='2026-10-15T12:00:00.000Z';
 const trip=(changes={})=>validateJourney({id:'trip-1',title:'Our weekend',notes:'The coast',createdAt:old,updatedAt:old,...changes});
@@ -37,7 +37,7 @@ test('a deleted or removed cover is repaired and the next photo is used',()=>{
 });
 test('backup format 3 round trips trip covers, memberships, tombstones, galleries and settings',()=>{
  const records=[place({photos:['data:image/png;base64,AQID','data:image/jpeg;base64,BAUG'],coverIndex:1,tripIds:['trip-1','trip-2']})],journeys=[trip({coverId:'stop-1'}),trip({id:'trip-2'}),trip({id:'removed',deleted:true})];
- const backup=makeBackup(records,{theme:'night'},journeys);assert.equal(backup.formatVersion,3);assert.equal('photo'in backup.records[0],false);
+ const backup=makeBackup(records,{theme:'night'},journeys);assert.equal(backup.formatVersion,VERSION);assert.equal('photo'in backup.records[0],false);
  const restored=parseBackup(JSON.stringify(backup));assert.deepEqual(restored.records,records);assert.deepEqual(restored.journeys,journeys);assert.equal(restored.settings.theme,'night');
 });
 test('legacy backups import with no trips; incompatible old-schema trip data is rejected',()=>{
@@ -76,7 +76,7 @@ test('failed trip persistence leaves both in-memory records and journeys intact;
 });
 test('trip selections survive a recovery draft, including recovery of older draft metadata',async()=>{
  const db=await journal(),store=createDraftStore(db),r=createDraftRecovery({store,uuid:()=> 'draft-1',read:async blob=>'data:'+blob.type+';base64,'+Buffer.from(await blob.arrayBuffer()).toString('base64')});r.begin();
- const values={title:'An unfinished stop',category:'Travel',visited:'2026-10-15',rating:'0',address:'',notes:'',phone:'',url:'',lat:'',lng:''};await r.flush({values,favorite:false,tripIds:['trip-1'],photos:[],coverIndex:0,audio:null});const draft=await store.read();assert.equal(draft.version,2);assert.deepEqual((await r.hydrate(draft)).tripIds,['trip-1']);
+ const values={title:'An unfinished stop',category:'Travel',visited:'2026-10-15',rating:'0',address:'',notes:'',phone:'',url:'',lat:'',lng:''};await r.flush({values,favorite:false,tripIds:['trip-1'],photos:[],coverIndex:0,audio:null});const draft=await store.read();assert.equal(draft.version,3);assert.deepEqual((await r.hydrate(draft)).tripIds,['trip-1']);
  const legacy={...draft,version:1};delete legacy.tripIds;assert.deepEqual((await r.hydrate(legacy)).tripIds,[]);db.close();
 });
 

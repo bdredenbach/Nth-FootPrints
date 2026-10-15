@@ -1,3 +1,4 @@
+import {INITIAL_VISIT,visitsOf,visitById,visitView,changeVisit} from '../dist/visits.js';
 import {validateJourneys,reconcileJourneys} from '../dist/journeys.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -83,10 +84,10 @@ test('serialized record changes preserve a gallery selection alongside favorite 
 });
 test('detail UI places upload after coordinates, navigates the actual image, and persists the chosen cover',async()=>{
  const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),r=addPhotos(place(),[b]);
- const ids=['details','details-content','detail-carousel','detail-image','gallery-count','gallery-thumbs','photo-position','photo-previous','photo-next','gallery-files','gallery-status'];
+ const ids=['details','details-content','detail-carousel','detail-image','gallery-count','gallery-thumbs','photo-position','photo-previous','photo-next','gallery-files','gallery-status','visit-choice','add-return-visit','use-visit-photo','delete-visit'];
  const nodes=Object.fromEntries(ids.map(id=>[id,{open:id==='details',src:a,textContent:'',innerHTML:'',dataset:{},getAttribute(name){return this[name];},addEventListener(){},removeEventListener(){}}]));
  const buttons=[0,1].map(i=>({dataset:{photoIndex:String(i)},setAttribute(name,value){this[name]=value;}}));
- const context=vm.createContext({$:id=>nodes[id],records:[r],detailRevision:0,detailId:null,detailViewer:null,detailCleanup:null,detailUpload:null,galleryWrites:Promise.resolve(),journalWrites:Promise.resolve(),MAX_PHOTOS,photosOf,coverOf,selectPhoto,createPhotoViewer,bindPhotoSwipe,document:{querySelectorAll:()=>buttons},toast(){},art:r=>r.photo,photoAlt:()=>'',esc:s=>s??'',date:s=>s,icon:()=>'',isDemo:()=>false,directions:()=>'',show(){nodes.details.open=true;},matchMedia:()=>({matches:true}),changeJournal:async transform=>{context.records=transform(context.records);}});
+ const context=vm.createContext({$:id=>nodes[id],INITIAL_VISIT,visitsOf,visitById,visitView,changeVisit,detailVisitId:null,journeyFilter:'',records:[r],detailRevision:0,detailId:null,detailViewer:null,detailCleanup:null,detailUpload:null,galleryWrites:Promise.resolve(),journalWrites:Promise.resolve(),MAX_PHOTOS,photosOf,coverOf,selectPhoto,createPhotoViewer,bindPhotoSwipe,document:{querySelectorAll:()=>buttons},toast(){},art:r=>r.photo,photoAlt:()=>'',esc:s=>s??'',date:s=>s,icon:()=>'',isDemo:()=>false,directions:()=>'',show(){nodes.details.open=true;},matchMedia:()=>({matches:true}),changeJournal:async transform=>{context.records=transform(context.records);}});
  vm.runInContext(app.slice(app.indexOf('async function openDetail('),app.indexOf('function refreshDraft()')),context);
  await context.openDetail('place');const html=nodes['details-content'].innerHTML;
  assert.ok(html.indexOf('43.000000°')<html.indexOf('Upload more photos'));assert.match(html,/id="gallery-files" type="file" multiple/);

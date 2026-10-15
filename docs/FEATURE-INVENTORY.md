@@ -17,18 +17,19 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Photo Journal | Vertical full-collection stack with search/category filters; descriptions open with the memory |
 | Journal filters, favorites, six categories, text search and sorting | Implemented across the journal and map views |
 | Create/edit/delete with date, rating, address, notes, phone, website | Implemented |
-| Original photo gallery per place | Implemented in 0.3.3, up to 30 photos, 20 MB each; persisted main image, horizontal browsing and per-photo export |
-| One voice note per place, recording or audio upload | Implemented, requires browser microphone support/permission, 20 MB limit |
+| Original photo gallery per place | Implemented in 0.3.3, up to 30 photos per visit, 20 MB each; persisted main image, horizontal browsing and per-photo export |
+| One voice note per visit, recording or audio upload | Implemented, requires browser microphone support/permission, 20 MB limit |
 | GPS capture and manual coordinates | Implemented, requires location permission for capture; Take photo + locate pairs a new camera attachment with a fresh location fix |
 | Photo geotagging | Read embedded GPS from JPEG/PNG/WebP EXIF; preview and explicitly apply coordinates; optional original visit date; re-read existing saved photos |
 | Multi-pin atlas | Implemented in 0.3.0; photo thumbnails added in 0.3.4; fit-all, pin-to-memory, list selection, filters, missing-location entries and external directions |
 | Directions | External Google Maps destination link, not integrated navigation |
 | Local editor recovery | Shipped in 0.3.10: text, gallery/cover, favorite and completed audio drafts, plus matching returned Android camera photos; Resume/Discard after restart |
 | Trips & journeys | Shipped in 0.4.0: multi-journey membership, chosen cover, automatic dates, chronological stops, trip filters/map, atomic persistence and backups |
+| Return visits | Shipped in 0.4.1: one place with dated visits, independent media/story/rating/location/trips, visit selection/edit/removal, latest sorting/widget, independent backup merge and recovery |
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | Offline map areas | Shipped in 0.3.9: USGS topographic areas, detailed U.S. coverage, progress/cancel/removal, local atlas and picker rendering |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
-| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v3; v1 and v2 imports supported |
+| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v4; v1, v2 and v3 imports supported |
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
@@ -188,3 +189,11 @@ Trips & journeys groups footprints without copying photos. Names/descriptions an
 Full backup format 3 round trips trips, deletion markers, covers, memberships and originals. Earlier backup formats import as journals without trips. Restore keeps newer versions and reconciles deleted groups and unavailable covers. Up to 1,000 journey entries (including markers); original gallery/backup bounds remain. All ten new ideas are approved; the remaining nine are queued in docs/ROADMAP.md, beginning with return visits. They are not yet implemented.
 
 219 automated checks and mobile/desktop Chromium end-to-end trip checks passed, with no page errors. Physical Android trip/Back/restore testing remains necessary.
+
+## 0.4.1 return visits
+
+Existing place fields remain the initial visit; return entries add separate dates, ratings, notes, photo galleries/cover, audio, coordinates and journey IDs. Shared title/category/favorite/address/contact details retain one place identity. The detail selector switches visits without duplicating the map place; the editor supports new returns and specific existing visits. Journal cover selection is separate from the latest visit date, which drives sorting and widgets. Place pins use the original position with located-return fallback. Removing one visit keeps the others and leaves a deletion marker; the last active visit cannot be removed independently. Full place deletion remains explicit.
+
+Trip dates/photos and note searches include only matching member visits when a trip is selected; place counts remain unique. The trip manager adds membership to the latest visit or removes it from all visits in that trip. Recovery metadata version 3 retains visit editor mode and accepts previous metadata; changed/deleted parents recover to new places. Backup format 4 stores originals once per visit and merges each visit using its own update/removal clock. Formats 1/2/3 import. A merge that would leave no active visits is rejected before persistence. Up to 200 entries per place including markers, 30 photos per visit, one completed audio note per visit, 20 journeys per visit and 150 MB total backup size.
+
+242 automated checks pass. Phone/desktop Chromium, native-style restored-camera and changed-parent draft recovery, offline return saving/restart and fresh backup restore passed without page errors. Physical Android checks remain. On this day memories is next.

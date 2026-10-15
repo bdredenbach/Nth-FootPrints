@@ -1,6 +1,7 @@
+import {validateVisitState,latestVisited,visitsOf,mergeVisitRecords} from './visits.js';
 import {recordJourneyIds,validateJourneys,checkJourneyLinks} from './journeys.js';
 export const APP = 'nth-footprints';
-export const VERSION = 3;
+export const VERSION = 4;
 export const MAX_PHOTOS = 30;
 export const CATEGORIES = ['Travel','Nature','Dining','Culture','Everyday','Other'];
 export const MAX_BACKUP = 150 * 1024 * 1024;
@@ -46,9 +47,9 @@ export function validateRecord(r) {
   }
   return {id,title,category:r.category,favorite:r.favorite,rating:r.rating,visited,lat,lng,updatedAt,
     address:text(r.address??'',500,'address'),notes:text(r.notes??'',20000,'notes'),phone:text(r.phone??'',80,'phone'),url,
-    photo,...gallery,...(r.tripIds!==undefined?{tripIds:recordJourneyIds(r.tripIds)}:{}),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
+    photo,...gallery,...validateVisitState({...r,photo,...gallery}),...(r.tripIds!==undefined?{tripIds:recordJourneyIds(r.tripIds)}:{}),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
 }
-export function backupRecord(record){const r=validateRecord(record);if(r.photos)delete r.photo;return r;}
+export function backupRecord(record){const r=validateRecord(record);if(r.photos)delete r.photo;if(r.visits)r.visits=r.visits.map(v=>{const copy={...v};if(copy.photos)delete copy.photo;return copy;});return r;}
 export function validateSettings(s={}) {
  if(!s || typeof s!=='object' || (s.theme && !['paper','night'].includes(s.theme))) throw Error('Invalid settings.');
  return {theme:s.theme??'paper'};
@@ -61,22 +62,23 @@ export function parseBackup(raw) {
  if(typeof raw!=='string'||raw.length>MAX_BACKUP) throw Error('Backup is too large for this prototype (150 MB maximum).');
  let b;try{b=JSON.parse(raw);}catch{throw Error('This file is not a readable Nth FootPrints backup.');}
  if(b?.app!==APP) throw Error('Choose a Nth FootPrints backup. Backups from other Nth apps cannot be restored here.');
- if(![1,2,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
+ if(![1,2,3,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
  if(!Array.isArray(b.records)||b.records.length>10000) throw Error('Invalid place collection.');
  if(b.formatVersion===1&&b.records.some(r=>r&&typeof r==='object'&&('photos'in r||'coverIndex'in r)))throw Error('Photo galleries require backup version 2.');
  if(b.formatVersion<3&&(b.journeys!==undefined||b.records.some(r=>r&&'tripIds'in r)))throw Error('Journeys require backup version 3.');
- const journeys=validateJourneys(b.formatVersion===3?b.journeys:[]);
+ if(b.formatVersion<4&&b.records.some(r=>r&&['visits','mainVisitId','firstVisitUpdatedAt','firstVisitDeleted'].some(key=>key in r)))throw Error('Return visits require backup version 4.');
+ const journeys=validateJourneys(b.formatVersion>=3?b.journeys:[]);
  const records=b.records.map(validateRecord), ids=new Set(records.map(r=>r.id));
  if(ids.size!==records.length) throw Error('Backup contains duplicate place IDs.');
  checkJourneyLinks(records,journeys);return {records,settings:validateSettings(b.settings),journeys};
 }
 export function mergeRecords(existing,incoming) {
  const map=new Map(existing.map(r=>[r.id,r]));let added=0,updated=0,kept=0;
- for(const r of incoming) { const old=map.get(r.id);if(!old){map.set(r.id,r);added++;}else if(Date.parse(r.updatedAt)>Date.parse(old.updatedAt)){map.set(r.id,r);updated++;}else kept++; }
+ for(const r of incoming) { const old=map.get(r.id);if(!old){map.set(r.id,r);added++;}else{const merged=mergeVisitRecords(old,r);if(merged!==old){map.set(r.id,merged);updated++;}else kept++;} }
  return {records:[...map.values()],added,updated,kept};
 }
 export function filterRecords(records,{query='',category='All places',sort='newest',favorites=false}={}) {
  const q=query.toLocaleLowerCase().trim();
- return records.filter(r=>(!favorites||r.favorite)&&(category==='All places'||r.category===category)&&(!q||[r.title,r.address,r.notes,r.category].some(x=>x.toLocaleLowerCase().includes(q))))
- .sort((a,b)=>sort==='name'?a.title.localeCompare(b.title):sort==='rating'?b.rating-a.rating||b.visited.localeCompare(a.visited):b.visited.localeCompare(a.visited)||b.updatedAt.localeCompare(a.updatedAt));
+ return records.filter(r=>(!favorites||r.favorite)&&(category==='All places'||r.category===category)&&(!q||[r.title,r.address,r.category,...(Array.isArray(r.searchNotes)?r.searchNotes:[]),...visitsOf(r).map(v=>v.notes??'')].some(x=>x.toLocaleLowerCase().includes(q))))
+ .sort((a,b)=>sort==='name'?a.title.localeCompare(b.title):sort==='rating'?b.rating-a.rating||latestVisited(b).localeCompare(latestVisited(a)):latestVisited(b).localeCompare(latestVisited(a))||b.updatedAt.localeCompare(a.updatedAt));
 }

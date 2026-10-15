@@ -1,3 +1,4 @@
+import {placeView,latestVisited} from '../dist/visits.js';
 import {validateJourneys,reconcileJourneys} from '../dist/journeys.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -123,7 +124,7 @@ test('preferences identify a removed widget and keep loading errors retryable',a
 });
 test('actual preferences controls escape footprint labels, show missing selections and save the correct widget',()=>{
  const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),buttons=[],saved=[],nodes={'widget-list':{innerHTML:'',querySelectorAll:()=>buttons},'widget-choice-4':{value:'safe',closest:()=>({scrollIntoView(){}}),focus(){}}};
- const context=vm.createContext({$:id=>nodes[id],records:[place('safe'),{...place('other'),title:'<img src=x onerror=bad>'}],esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),date:s=>s,widgetPreferences:{select:(...args)=>saved.push(args)}});
+ const context=vm.createContext({$:id=>nodes[id],placeView,latestVisited,records:[place('safe'),{...place('other'),title:'<img src=x onerror=bad>'}],esc:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),date:s=>s,widgetPreferences:{select:(...args)=>saved.push(args)}});
  buttons.push({dataset:{widgetSave:'4'}});vm.runInContext(app.slice(app.indexOf('function renderWidgetPreferences('),app.indexOf('async function pinWidget(')),context);
  context.renderWidgetPreferences({widgets:[{widgetId:4,recordId:'gone'}],busy:false,focusId:null});assert.match(nodes['widget-list'].innerHTML,/Footprint no longer in journal/);assert.match(nodes['widget-list'].innerHTML,/&lt;img/);assert.doesNotMatch(nodes['widget-list'].innerHTML,/<img/);buttons[0].onclick();assert.deepEqual(saved,[[4,'safe']]);nodes['widget-choice-4'].value='deleted';buttons[0].onclick();assert.equal(saved.length,1);
 });

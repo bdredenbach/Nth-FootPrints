@@ -1,5 +1,6 @@
+import {INITIAL_VISIT,visitsOf,visitById,visitView,placeView,latestVisited,journeyIdsOf,writeVisit,changeVisit,removeVisit} from './visits.js';
 import {APP,VERSION,CATEGORIES,MAX_BACKUP,MAX_PHOTOS,backupRecord,validateRecord,validateSettings,parseBackup,mergeRecords,filterRecords,SAMPLE_TIMESTAMP,isSampleRecord as isDemo,withoutStarterSamples} from './model.js';
-import {activeJourneys,validateJourneys,reconcileJourneys,mergeJourneys} from './journeys.js';
+import {activeJourneys,journeyRecords,validateJourneys,reconcileJourneys,mergeJourneys} from './journeys.js';
 import {createJourneysUI} from './journeys-ui.js';
 import {bindVerticalDeck,wrappedIndex,dragTransform} from './deck.js';
 import {readPhotoMetadata} from './geotags.js';
@@ -26,6 +27,7 @@ const paths={footprint:'M15 21c-2 0-3-2-3-5 0-2 1-5 3-5s4 3 4 5c0 3-2 5-4 5Z M15
 const icon=(name)=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[name]??paths.compass}"/></svg>`;
 function icons(root=document){root.querySelectorAll('[data-icon]').forEach(e=>e.innerHTML=icon(e.dataset.icon));}
 let db,records=[],journeys=[],journeyFilter='',settings={theme:'paper'},view='journal',category='All places',query='',sort='newest',deckIndex=0,mapId=null,storageReady=false;
+let editVisitId=null,detailVisitId=null;
 let editId=null,draftPhoto=null,draftAudio=null,draftArt=null,recording=null,recordStream=null,recordChunks=[],recordSession=0,transferToken=0,transferRunning=false,pendingRestore=null;
 let draftPhotos=[],draftCover=0,detailId=null,detailViewer=null,detailCleanup=null,detailUpload=null,detailRevision=0,galleryWrites=Promise.resolve();
 let draftBaseline=null,editorSaving=false,journalDeckIndex=0;
@@ -40,8 +42,8 @@ const seeds=[
 ].map(r=>({...r,updatedAt:SEEDTIME,photo:null,audio:null,phone:'',url:''}));
 const date=s=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(s+'T12:00:00Z'));
 const today=()=>{const n=new Date();return new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().slice(0,10);};
-const art=r=>r.photo??`assets/${r.sampleArt??'blank'}.svg`;
-const photoAlt=r=>r.photo?`Photograph of ${r.title}`:r.sampleArt?`Original illustration for ${r.title}`:'No photograph added yet';
+const art=r=>{const view=placeView(r);return view.photo??`assets/${view.sampleArt??'blank'}.svg`;};
+const photoAlt=record=>{const r=placeView(record);return r.photo?`Photograph of ${r.title}`:r.sampleArt?`Original illustration for ${r.title}`:'No photograph added yet';};
 let restoreCommit=false,pendingMedia=0,micPending=false,cameraPending=false;
 let pendingExport=null,exportSaving=false,exportCommit=false,transferAbort=null,activeReader=null;
 let editorSession=0,photoReadVersion=0,gpsRequestVersion=0,pendingPhotoMetadata=null,locationPending=false;
@@ -75,10 +77,10 @@ function renderJourneyFilter(){if(journeyFilter&&!journeys.some(j=>j.id===journe
 function selectedDraftTrips(){return [...$('place-trips').querySelectorAll('input:checked')].map(input=>input.value);}
 function renderEditorTrips(ids=[]){const chosen=new Set(ids),trips=activeJourneys(journeys);$('place-trips').innerHTML=trips.map(j=>`<label class="checkbox"><input type="checkbox" name="tripIds" value="${esc(j.id)}" ${chosen.has(j.id)?'checked':''}>${esc(j.title)}</label>`).join('')||'<p class="field-help">Create a trip with Trips & journeys, then add footprints here or from the trip.</p>';}
 function renderWidgetPreferences({widgets,busy,focusId}){
- const places=records.slice().sort((a,b)=>a.title.localeCompare(b.title));
+ const places=records.map(placeView).sort((a,b)=>a.title.localeCompare(b.title));
  $('widget-list').innerHTML=widgets.length?widgets.map((widget,i)=>{
   const missing=widget.recordId&&!places.some(r=>r.id===widget.recordId),id=`widget-choice-${widget.widgetId}`;
-  return `<div class="widget-choice ${widget.widgetId===focusId?'widget-target':''}"><label for="${id}">Widget ${i+1}</label><select id="${id}" ${busy?'disabled':''}><option value="" ${widget.recordId?'':'selected'}>Latest visit · follows your journal</option>${missing?`<option value="${esc(widget.recordId)}" selected disabled>Footprint no longer in journal</option>`:''}${places.map(r=>`<option value="${esc(r.id)}" ${r.id===widget.recordId?'selected':''}>${esc(r.title)} · ${esc(date(r.visited))}</option>`).join('')}</select><button class="secondary" data-widget-save="${widget.widgetId}" ${busy?'disabled':''}>Save choice</button></div>`;
+  return `<div class="widget-choice ${widget.widgetId===focusId?'widget-target':''}"><label for="${id}">Widget ${i+1}</label><select id="${id}" ${busy?'disabled':''}><option value="" ${widget.recordId?'':'selected'}>Latest visit · follows your journal</option>${missing?`<option value="${esc(widget.recordId)}" selected disabled>Footprint no longer in journal</option>`:''}${places.map(r=>`<option value="${esc(r.id)}" ${r.id===widget.recordId?'selected':''}>${esc(r.title)} · ${esc(date(latestVisited(r)))}</option>`).join('')}</select><button class="secondary" data-widget-save="${widget.widgetId}" ${busy?'disabled':''}>Save choice</button></div>`;
  }).join(''):`<p class="field-help">${busy?'Loading your widgets…':'Add a widget to your home screen, then tap Choose on it to set a footprint.'}</p>`;
  $('widget-list').querySelectorAll('[data-widget-save]').forEach(button=>{button.onclick=()=>{const id=Number(button.dataset.widgetSave),recordId=$(`widget-choice-${id}`).value;if(!recordId||records.some(r=>r.id===recordId))void widgetPreferences.select(id,recordId);};});
  if(focusId&&!busy){const select=$(`widget-choice-${focusId}`);select?.closest('.widget-choice').scrollIntoView({block:'nearest'});select?.focus({preventScroll:true});}
@@ -93,10 +95,10 @@ async function pinWidget(){
  finally{$('pin-widget').disabled=false;}
 }
 function applyTheme(){document.documentElement.classList.toggle('night',settings.theme==='night');$('theme').value=settings.theme;}
-function filtered(){return filterRecords(journeyFilter?records.filter(r=>r.tripIds?.includes(journeyFilter)):records,{query,category,sort,favorites:view==='favorites'});}
+function filtered(){return filterRecords(journeyFilter?journeyRecords(records,journeyFilter):records,{query,category,sort,favorites:view==='favorites'}).map(placeView);}
 let deckMotion=0,deckBusy=false,deckAnimations=[];
 function cancelDeckMotion(){deckMotion++;deckBusy=false;deckAnimations.forEach(a=>a.cancel());deckAnimations=[];}
-function photoCard(r,index,total,layer=0){return `<button class="photo-card ${layer?'deck-rear deck-layer-'+layer:'deck-front'}" ${layer?'tabindex="-1" aria-hidden="true"':`data-detail="${esc(r.id)}" aria-label="Open ${esc(r.title)}. ${total-index} of ${total} places. Swipe up or down to browse."`}><img class="card-image" src="${art(r)}" alt="${layer?'':esc(photoAlt(r))}" draggable="false"><strong>${esc(r.title)}</strong><span class="card-caption"><span>${esc(date(r.visited))}</span><span>${String(total-index).padStart(2,'0')} / ${String(total).padStart(2,'0')} places</span></span></button>`;}
+function photoCard(r,index,total,layer=0){return `<button class="photo-card ${layer?'deck-rear deck-layer-'+layer:'deck-front'}" ${layer?'tabindex="-1" aria-hidden="true"':`data-detail="${esc(r.id)}" aria-label="Open ${esc(r.title)}. ${total-index} of ${total} places. Swipe up or down to browse."`}><img class="card-image" src="${art(r)}" alt="${layer?'':esc(photoAlt(r))}" draggable="false"><strong>${esc(r.title)}</strong><span class="card-caption"><span>${esc(date(latestVisited(r)))}</span><span>${String(total-index).padStart(2,'0')} / ${String(total).padStart(2,'0')} places</span></span></button>`;}
 function updateRearCards(step=1){const items=filtered();document.querySelectorAll('#deck .deck-rear').forEach((el,i)=>{const index=wrappedIndex(deckIndex,(i+1)*step,items.length);el.outerHTML=photoCard(items[index],index,items.length,i+1);});}
 function previewDeck(dy){if(deckBusy)return;const front=$('deck').querySelector('.deck-front');if(!front)return;const direction=dy<0?1:-1;if($('deck').dataset.direction!==String(direction)){updateRearCards(direction);$('deck').dataset.direction=String(direction);}front.style.transform=dragTransform(dy);$('deck').classList.add('dragging');}
 function resetDeck(){const front=$('deck').querySelector('.deck-front');$('deck').classList.remove('dragging');if(front&&!deckBusy)front.style.transform='';}
@@ -110,7 +112,7 @@ function render(){
  $('journal-view').hidden=view!=='journal'||!items.length;$('favorites-view').hidden=view!=='favorites'||!items.length;$('map-view').hidden=view!=='map';$('empty').hidden=items.length>0||view==='map';
  const hasFilter=query||journeyFilter||category!=='All places';$('empty-title').textContent=hasFilter?'No footprints here just yet.':view==='favorites'?'Keep your favorites close.':'Your next story starts here.';$('empty-copy').textContent=hasFilter?'Try another search, category or trip.':view==='favorites'?'Tap the heart on a footprint to collect it here.':'Save a place, a photo, and a little of how it felt.';
  if(view==='journal'&&items.length)renderDeck(items);
- if(view==='favorites'){$('collection-title').textContent=view==='favorites'?'A little more than a place.':'Every footprint tells a story.';$('collection-count').textContent=`${items.length} ${items.length===1?'memory':'memories'}`;$('place-grid').innerHTML=items.map(r=>`<button class="grid-card" data-detail="${esc(r.id)}"><img src="${art(r)}" alt="${esc(photoAlt(r))}" loading="lazy">${r.favorite?'<span class="heart-corner" aria-label="Favorite">♥</span>':''}<h3>${esc(r.title)}</h3><p>${esc(r.address||r.category)}</p><span class="card-caption"><span>${esc(date(r.visited))}</span><span>${esc(r.category)}</span></span></button>`).join('');}
+ if(view==='favorites'){$('collection-title').textContent=view==='favorites'?'A little more than a place.':'Every footprint tells a story.';$('collection-count').textContent=`${items.length} ${items.length===1?'memory':'memories'}`;$('place-grid').innerHTML=items.map(r=>`<button class="grid-card" data-detail="${esc(r.id)}"><img src="${art(r)}" alt="${esc(photoAlt(r))}" loading="lazy">${r.favorite?'<span class="heart-corner" aria-label="Favorite">♥</span>':''}<h3>${esc(r.title)}</h3><p>${esc(r.address||r.category)}</p><span class="card-caption"><span>${esc(date(latestVisited(r)))}</span><span>${esc(r.category)}</span></span></button>`).join('');}
  if(view==='map')renderMap(items);
  icons();
 }
@@ -175,7 +177,7 @@ function editorDirty(){
  const next=editorSnapshot();return ['fields','favorite','photo','cover','audio','art'].some(key=>next[key]!==draftBaseline[key])||next.photos.length!==draftBaseline.photos.length||next.photos.some((photo,i)=>photo!==draftBaseline.photos[i]);
 }
 function canLeaveNavigation(previous,next){
- const removed=previous.dialogs.filter(item=>!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId));
+ const removed=previous.dialogs.filter(item=>!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId&&target.visitId===item.visitId));
  if(removed.some(item=>item.id==='journeys')&&!journeyUI.canClose())return false;
  if(removed.some(item=>item.id==='editor')){
   if(editorSaving){toast('Saving your footprint. Please wait.');return false;}
@@ -196,7 +198,7 @@ function applyView(next){
  view=next;deckIndex=next==='journal'?journalDeckIndex:0;render();
 }
 function setView(next){return navigation.view(next);}
-function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId}:{} )});}
+function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});}
 function cleanupDialog(id){
  if(id==='journeys')journeyUI.reset();
  if(id==='pin-picker')closePicker();
@@ -207,7 +209,7 @@ function cleanupDialog(id){
   syncSave();$('audio-preview').pause();stopRecording(true);
  }
  if(id==='details'){
-  detailRevision++;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;detailUpload?.abort();detailId=null;
+  detailRevision++;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;detailUpload?.abort();detailId=null;detailVisitId=null;
   $('details').querySelectorAll('audio').forEach(audio=>audio.pause());
  }
  if(id==='backup'){cancelTransfer();pendingRestore=null;}
@@ -224,10 +226,10 @@ function openBackup(){
 }
 async function applyNavigation(route,previous){
  const next=navigationRoute(route);
- const missing=next.dialogs.findIndex(item=>['details','editor'].includes(item.id)&&item.recordId&&!records.some(r=>r.id===item.recordId));
+ const missing=next.dialogs.findIndex(item=>['details','editor'].includes(item.id)&&item.recordId&&(!records.some(r=>r.id===item.recordId)||(item.id==='editor'&&item.visitId&&item.visitId!=='new'&&!visitById(records.find(r=>r.id===item.recordId),item.visitId))));
  if(missing>=0){next.dialogs=next.dialogs.slice(0,missing);navigation.replaceRoute(next);toast('That footprint is no longer in your journal.');}
  for(const item of [...previous.dialogs].reverse()){
-  if(!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId))closeRaw(item.id);
+  if(!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId&&target.visitId===item.visitId))closeRaw(item.id);
  }
  if(next.view!==view)applyView(next.view);
  for(const item of next.dialogs){
@@ -235,7 +237,7 @@ async function applyNavigation(route,previous){
    const returning=previous.dialogs.at(-1)?.id==='editor'&&next.dialogs.at(-1)?.id==='details';
    if(!$('details').open||detailId!==item.recordId||returning){const scroll=$('details').scrollTop;await openDetail(item.recordId);if(returning)$('details').scrollTop=scroll;}
   }else if(item.id==='editor'){
-   if(!$('editor').open||editId!==item.recordId)await openEditor(item.recordId);
+   if(!$('editor').open||editId!==item.recordId||editVisitId!==(item.visitId??null))await openEditor(item.recordId,null,item.visitId??null);
   }else if(item.id==='pin-picker'){if(!$('pin-picker').open)openPicker();}
   else if(item.id==='backup'){if(!$('backup').open)openBackup();}
   else if(item.id==='settings'){if(!$('settings').open)openPreferences();}
@@ -244,23 +246,27 @@ async function applyNavigation(route,previous){
   else if(!$(item.id).open)show(item.id);
  }
 }
-async function openDetail(id){
- const request=++detailRevision;await galleryWrites;await journalWrites;if(request!==detailRevision)return;
+async function openDetail(id,visitId=undefined){
+ const request=++detailRevision;detailUpload?.abort();await galleryWrites;await journalWrites;if(request!==detailRevision)return;
  detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;
- const r=records.find(x=>x.id===id);if(!r)return;detailId=id;
- $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><div id="detail-carousel" class="detail-carousel" tabindex="0" role="region" aria-label="Footprint photos. Swipe left or right to browse."><img id="detail-image" class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}" draggable="false"><button class="icon-button photo-previous" id="photo-previous" aria-label="Previous photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowLeft')}</button><button class="icon-button photo-next" id="photo-next" aria-label="Next photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowRight')}</button><span id="photo-position" class="photo-position" aria-live="polite"></span></div><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div>${r.tripIds?.length?`<p class="journey-labels">${r.tripIds.map(id=>journeys.find(j=>j.id===id&&!j.deleted)?.title).filter(Boolean).map(esc).join(' · ')}</p>`:''}<p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${r.lat!==null?`<p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p>`:''}<section class="footprint-gallery" aria-label="Footprint photo collection"><div class="gallery-heading"><span class="eyebrow">PHOTOS <span id="gallery-count"></span></span><label class="secondary file-button gallery-upload">${icon('plus')}Upload more photos<input id="gallery-files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Upload more photos to this footprint"></label></div><div id="gallery-thumbs" class="gallery-thumbs"></div><p class="field-help" id="gallery-status" role="status">Swipe the photo above. The one you leave selected becomes the main photo.</p><p class="field-help">Up to ${MAX_PHOTOS} photos · 20 MB each. Full journal backups support up to 150 MB.</p></section><div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}">${icon('edit')}Edit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export-photo="${esc(r.id)}" ${r.photo?'':'disabled title="Add a photograph to export it"'}>${icon('download')}Export Photo</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}">${icon('trash')}</button></div></div>`;
+ const place=records.find(x=>x.id===id);if(!place)return;const previous=visitId===undefined&&detailId===id?detailVisitId:visitId;const visits=visitsOf(place),selected=(previous?visitById(place,previous):null)??(journeyFilter?visits.find(v=>v.tripIds?.includes(journeyFilter)):null)??visits[0];if(!selected)return;const r=visitView(place,selected.id);detailId=id;detailVisitId=selected.id;
+ $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><div id="detail-carousel" class="detail-carousel" tabindex="0" role="region" aria-label="Footprint photos. Swipe left or right to browse."><img id="detail-image" class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}" draggable="false"><button class="icon-button photo-previous" id="photo-previous" aria-label="Previous photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowLeft')}</button><button class="icon-button photo-next" id="photo-next" aria-label="Next photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowRight')}</button><span id="photo-position" class="photo-position" aria-live="polite"></span></div><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><section class="visit-history" aria-label="Visits to this place"><div class="visit-heading"><span class="eyebrow">${visits.length} ${visits.length===1?'VISIT':'VISITS'} · ONE PLACE</span><button class="secondary" id="add-return-visit">${icon('plus')}Log return visit</button></div><label for="visit-choice">Choose a visit</label><select id="visit-choice">${visits.map((v,i)=>`<option value="${esc(v.id)}" ${v.id===selected.id?'selected':''}>${esc(date(v.visited))} · Visit ${visits.length-i}${v.id===INITIAL_VISIT?' · Original entry':''}${v.notes?' · '+esc(v.notes.slice(0,55).replace(/\s+/g,' ')):''}</option>`).join('')}</select><div class="visit-tools"><button type="button" class="text-button" id="use-visit-photo" ${r.photo?'':'disabled'}>Use this photo in journal</button><button type="button" class="text-button delete-button" id="delete-visit" ${visits.length<2?'disabled':''}>Delete this visit</button></div><p class="field-help">Notes, photos, voice notes and trips below belong to this visit. The place name and contact details are shared.</p></section><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div>${r.tripIds?.length?`<p class="journey-labels">${r.tripIds.map(id=>journeys.find(j=>j.id===id&&!j.deleted)?.title).filter(Boolean).map(esc).join(' · ')}</p>`:''}<p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${r.lat!==null?`<p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p>`:''}<section class="footprint-gallery" aria-label="Footprint photo collection"><div class="gallery-heading"><span class="eyebrow">PHOTOS <span id="gallery-count"></span></span><label class="secondary file-button gallery-upload">${icon('plus')}Upload more photos<input id="gallery-files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Upload more photos to this footprint"></label></div><div id="gallery-thumbs" class="gallery-thumbs"></div><p class="field-help" id="gallery-status" role="status">Swipe the photo above. The one you leave selected becomes the main photo.</p><p class="field-help">Up to ${MAX_PHOTOS} photos · 20 MB each. Full journal backups support up to 150 MB.</p></section><div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}" data-edit-visit="${esc(selected.id)}">${icon('edit')}Edit place & visit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export-photo="${esc(r.id)}" ${r.photo?'':'disabled title="Add a photograph to export it"'}>${icon('download')}Export Photo</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete place ${esc(r.title)} and all visits">${icon('trash')}</button></div></div>`;
  if(!$('details').open)show('details');
  setupDetailGallery(r);
+ $('visit-choice').onchange=e=>void openDetail(id,e.target.value).catch(error=>toast(error.message));
+ $('add-return-visit').onclick=()=>openEditor(id,null,'new');
+ $('use-visit-photo').onclick=async()=>{try{await galleryWrites;await changeJournal(rows=>rows.map(row=>row.id===id?changeVisit(row,selected.id,view=>view,{main:true}):row));toast('Journal photo updated.');}catch(error){toast(error.message);}};
+ $('delete-visit').onclick=()=>deleteSavedVisit(id,selected.id);
 }
 function setupDetailGallery(record){
- const id=record.id,revision=detailRevision,photos=photosOf(record),carousel=$('detail-carousel');
+ const id=record.id,visitId=record.visitId??INITIAL_VISIT,revision=detailRevision,photos=photosOf(record),carousel=$('detail-carousel');
  $('gallery-count').textContent=`· ${photos.length}`;
  $('gallery-thumbs').innerHTML=photos.map((src,i)=>`<button type="button" data-photo-index="${i}" aria-label="Make photo ${i+1} the main photo" aria-pressed="false"><img src="${src}" alt="" loading="lazy" decoding="async"></button>`).join('');
  const current=()=>revision===detailRevision&&detailId===id&&$('details').open;
  detailViewer=createPhotoViewer({record,
   save:photo=>changeJournal(rows=>rows.map(r=>{
    if(r.id!==id)return r;
-   const index=photosOf(r).indexOf(photo);return {...selectPhoto(r,index),updatedAt:new Date().toISOString()};
+   return changeVisit(r,visitId,view=>selectPhoto(view,photosOf(view).indexOf(photo)),{main:true});
   })),
   onChange:({index,total,photo})=>{
    if(!current())return;const image=$('detail-image'),changed=image.getAttribute('src')!==photo;
@@ -275,9 +281,9 @@ function setupDetailGallery(record){
  $('photo-previous').onclick=()=>move(-1);$('photo-next').onclick=()=>move(1);
  carousel.onkeydown=e=>{if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();e.stopPropagation();move(e.key==='ArrowLeft'?-1:1);}};
  detailCleanup=bindPhotoSwipe(carousel,{move});
- $('gallery-files').onchange=e=>uploadDetailPhotos([...e.target.files],id,revision);
+ $('gallery-files').onchange=e=>uploadDetailPhotos([...e.target.files],id,revision,visitId);
 }
-async function uploadDetailPhotos(files,id,revision){
+async function uploadDetailPhotos(files,id,revision,visitId=INITIAL_VISIT){
  if(!files.length||detailUpload)return;const abort=new AbortController();detailUpload=abort;
  const current=()=>revision===detailRevision&&detailId===id&&$('details').open;
  $('gallery-files').disabled=true;
@@ -288,9 +294,9 @@ async function uploadDetailPhotos(files,id,revision){
   $('gallery-status').textContent='Saving photos…';
   await changeJournal(rows=>{
    if(!rows.some(r=>r.id===id))throw Error('This footprint is no longer available.');
-   return rows.map(r=>r.id===id?{...addPhotos(r,images),updatedAt:new Date().toISOString()}:r);
+   return rows.map(r=>r.id===id?changeVisit(r,visitId,view=>addPhotos(view,images)):r);
   });
-  if(current()){const scroll=$('details').scrollTop;await openDetail(id);$('details').scrollTop=scroll;$('gallery-status').textContent='Photos saved. Swipe the photo above to choose your main image.';}
+  if(current()){const scroll=$('details').scrollTop;await openDetail(id,visitId);$('details').scrollTop=scroll;$('gallery-status').textContent='Photos saved. Swipe the photo above to choose your main image.';}
  }catch(e){if(current()&&e.message!=='CANCELLED')$('gallery-status').textContent=e.message;}
  finally{if(detailUpload===abort)detailUpload=null;if(current()){$('gallery-files').disabled=false;$('gallery-files').value='';}}
 }
@@ -306,7 +312,7 @@ function refreshDraft(){
  $('audio-preview').hidden=!draftAudio;$('remove-audio').hidden=!draftAudio;if(draftAudio)$('audio-preview').src=draftAudio;else{$('audio-preview').pause();$('audio-preview').removeAttribute('src');}
  scheduleDraft();
 }
-async function openEditor(id=null,recovered=null){
+async function openEditor(id=null,recovered=null,visitId=null){
  await draftClosing;
  if(!draftsReady){toast('Preparing local draft recovery. Please try again in a moment.');return;}
  if(recoveryFound&&!recovered){toast('Resume or discard your unfinished footprint first.');$('draft-recovery').scrollIntoView?.({block:'center'});return;}
@@ -315,8 +321,8 @@ async function openEditor(id=null,recovered=null){
  if(!storageReady){toast('Local saving is unavailable. Check browser storage permissions and reload.');return;}
  if($('details').open)$('details').querySelectorAll('audio').forEach(audio=>audio.pause());
  editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
- const r=id?records.find(x=>x.id===id):null;baseDraftUpdatedAt=r?.updatedAt??null;draftRecovered=!!recovered;draftSaved=false;cameraIntent=recovered?.camera??null;editId=r?.id??null;draftPhoto=r?.photo??null;draftAudio=r?.audio??null;draftArt=r?.sampleArt??null;draftPhotos=photosOf(r);draftCover=coverOf(r);
- $('place-form').reset();$('editor-title').textContent=r?'A place worth revisiting.':'A new footprint.';
+ const place=id?records.find(x=>x.id===id):null;editVisitId=place?(recovered?.visitId??visitId):null;const existing=place&&editVisitId!=='new'?visitById(place,editVisitId??INITIAL_VISIT):null;if(place&&editVisitId!=='new'&&!existing){toast('This visit is no longer available.');return;}const r=place?(editVisitId==='new'?{...place,visited:today(),notes:'',rating:0,photo:null,photos:[],coverIndex:0,audio:null,sampleArt:null,tripIds:journeyFilter?[journeyFilter]:[]}:visitView(place,existing.id)):null;baseDraftUpdatedAt=place?.updatedAt??null;draftRecovered=!!recovered;draftSaved=false;cameraIntent=recovered?.camera??null;editId=r?.id??null;draftPhoto=r?.photo??null;draftAudio=r?.audio??null;draftArt=r?.sampleArt??null;draftPhotos=photosOf(r);draftCover=coverOf(r);
+ $('place-form').reset();$('editor-title').textContent=editVisitId==='new'?'Another visit, another story.':r?'Edit this place & visit.':'A new footprint.';$('editor-visit-help').hidden=!place;$('editor-visit-help').textContent=place?'Date, rating, location, story, media and trips belong to this visit. Name, category, favorite, address and contact details apply to the place.':' ';$('save-place').textContent=place?'Save visit':'Save footprint';
  for(const field of ['title','category','visited','rating','address','notes','phone','url','lat','lng'])$(field).value=r?.[field]??({category:'Travel',visited:today(),rating:0}[field]??'');
  $('recover-camera-photo').hidden=true;$('favorite').checked=r?.favorite??false;$('editor-error').textContent='';$('location-status').textContent='Add coordinates to put this footprint on the map.';$('record-status').textContent='Recording needs microphone access. You can also attach an audio file.';
  renderEditorTrips(r?.tripIds??(journeyFilter?[journeyFilter]:[]));refreshDraft();draftBaseline=editorSnapshot();
@@ -440,7 +446,7 @@ async function toggleRecording(){
 }
 async function savePlace(e){e.preventDefault();if(editorSaving||micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
  try{const form=new FormData($('place-form'));const r=validateRecord({id:editId??crypto.randomUUID(),title:form.get('title'),category:form.get('category'),visited:form.get('visited'),rating:Number(form.get('rating')),favorite:$('favorite').checked,address:form.get('address'),notes:form.get('notes'),phone:form.get('phone'),url:form.get('url'),lat:form.get('lat')===''?null:Number(form.get('lat')),lng:form.get('lng')===''?null:Number(form.get('lng')),photo:draftPhoto,photos:draftPhotos,coverIndex:draftCover,tripIds:selectedDraftTrips(),audio:draftAudio,sampleArt:draftArt,updatedAt:new Date().toISOString()});
- editorSaving=true;$('place-form').inert=true;await saveEditorRecord(current=>current.filter(x=>x.id!==r.id).concat(r));editorSaving=false;draftBaseline=editorSnapshot();close('editor',{force:true});deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editId?'Footprint updated.':'A new memory, kept.');
+ editorSaving=true;$('place-form').inert=true;let savedVisit=editVisitId??INITIAL_VISIT;await saveEditorRecord(current=>{if(!editId)return current.concat(r);const old=current.find(x=>x.id===editId);if(!old)throw Error('This place was removed. Reopen recovery to save the draft as a new footprint.');const next=writeVisit(old,r,editVisitId??INITIAL_VISIT);if(editVisitId==='new')savedVisit=next.mainVisitId;return current.map(x=>x.id===next.id?next:x);});if(detailId===editId)detailVisitId=savedVisit;editorSaving=false;draftBaseline=editorSnapshot();close('editor',{force:true});deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editVisitId==='new'?'Return visit saved.':editId?'Place & visit updated.':'A new memory, kept.');
  }catch(e){$('editor-error').textContent=e.message;}finally{editorSaving=false;$('place-form').inert=false;save.disabled=false;scheduleDraft();}
 }
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
@@ -479,7 +485,7 @@ async function exportBackup(id=null){
  const token=beginTransfer('Create a backup');const items=id?records.filter(r=>r.id===id):[...records];
  const name=`Nth-FootPrints-${id?'memory-':''}${today()}.nthbackup`;$('transfer-file').textContent=name;
  try{
-  const trips=id?journeys.filter(j=>items.some(r=>r.tripIds?.includes(j.id))).map(j=>({...j,coverId:items.some(r=>r.id===j.coverId)?j.coverId:null})):journeys;
+  const trips=id?journeys.filter(j=>items.some(r=>journeyIdsOf(r).includes(j.id))).map(j=>({...j,coverId:items.some(r=>r.id===j.coverId)?j.coverId:null})):journeys;
   const chunks=['{"app":'+JSON.stringify(APP)+',"formatVersion":'+VERSION+',"createdAt":'+JSON.stringify(new Date().toISOString())+',"settings":'+JSON.stringify(settings)+',"journeys":'+JSON.stringify(trips)+',"records":['];let size=chunks[0].length;
   for(let i=0;i<items.length;i++){
    await tick();checkToken(token);const record=backupRecord(items[i]),part=(i?',':'')+JSON.stringify(record);size+=part.length;
@@ -494,7 +500,7 @@ async function exportBackup(id=null){
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
 }
 async function exportPhoto(id){
- if(transferRunning)return;await galleryWrites;await journalWrites;if(transferRunning)return;const r=records.find(record=>record.id===id);const photo=preparePhotoExport(r);
+ if(transferRunning)return;await galleryWrites;await journalWrites;if(transferRunning)return;const saved=records.find(record=>record.id===id);const r=saved?(detailId===id?visitView(saved,detailVisitId):placeView(saved)):saved;const photo=preparePhotoExport(r);
  setTransferDialog(true);if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
  const token=beginTransfer('Export photo');$('transfer-file').textContent=photo.name;
  pendingExport={...photo,token,kind:'photo'};transferProgress(0,'Preparing your photo…',`${fileSize(photo.blob.size)} · original photo`);
@@ -528,8 +534,8 @@ async function inspectBackup(file){
  reader.onprogress=e=>{if(e.lengthComputable&&token===transferToken)transferProgress(Math.round(e.loaded/e.total*85),'Reading your backup…',`${fileSize(e.loaded)} of ${fileSize(e.total)} read`);};
  try{
   const raw=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('The backup could not be read.'));reader.onabort=()=>reject(Error('CANCELLED'));reader.readAsText(file);});
-  await tick();checkToken(token);transferProgress(90,'Checking places and attachments…');const parsed=parseBackup(raw);await tick();checkToken(token);pendingRestore=parsed;const m=mergeRecords(records,parsed.records);
-  $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> newer versions · <b>${m.kept}</b> already up to date</p><p>${activeJourneys(parsed.journeys).length} trips included.</p><p>Your existing places stay. Only newer versions of matching footprints are updated.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance preferences</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
+  await tick();checkToken(token);transferProgress(90,'Checking places and attachments…');const parsed=parseBackup(raw);await tick();checkToken(token);const m=mergeRecords(records,parsed.records);pendingRestore=parsed;
+  $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> with changes · <b>${m.kept}</b> already up to date</p><p>${parsed.records.reduce((count,r)=>count+visitsOf(r).length,0)} visits · ${activeJourneys(parsed.journeys).length} trips included.</p><p>Your existing places stay. Visits merge separately, keeping newer edits and recorded visit removals.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance preferences</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
   $('restore-preview').hidden=false;finishTransfer(token,'Backup checked. Nothing has changed yet.');
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
  finally{if(activeReader===reader)activeReader=null;$('backup-file').value='';}
@@ -572,14 +578,19 @@ async function useLocation({capture=false}={}){
   if(session===editorSession&&request===gpsRequestVersion){locationPending=false;$('use-location').disabled=false;syncSave();}
  }
 }
+async function deleteSavedVisit(id,visitId){
+ const record=records.find(r=>r.id===id),visit=record?visitById(record,visitId):null;if(!visit)return;
+ if(!confirm(`Delete the visit on ${date(visit.visited)} and its photos and voice note? The place and its other visits will stay.`))return;
+ try{await galleryWrites;await changeJournal(rows=>rows.map(r=>r.id===id?removeVisit(r,visitId):r));await openDetail(id,null);toast('Visit removed. Your other visits are still here.');}catch(error){toast(error.message);}
+}
 async function toggleFavorite(id){const r=records.find(x=>x.id===id);if(!r)return;await galleryWrites;await changeJournal(current=>current.map(x=>x.id===id?{...x,favorite:!x.favorite,updatedAt:new Date().toISOString()}:x));if($('details').open)openDetail(id);}
-async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and its attached photo and voice note?`))return;await galleryWrites;await changeJournal(current=>current.filter(x=>x.id!==id));close('details',{force:true});toast('Footprint deleted.');}
+async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and all its visits, photos and voice notes?`))return;await galleryWrites;await changeJournal(current=>current.filter(x=>x.id!==id));close('details',{force:true});toast('Footprint deleted.');}
 async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
- try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){await openDetail(b.dataset.detail);return;}if(b.dataset.photoIndex!==undefined){galleryWrites=detailViewer?.select(Number(b.dataset.photoIndex))??Promise.resolve();return;}if(b.dataset.draftIndex!==undefined){chooseDraftPhoto(Number(b.dataset.draftIndex));return;}if(b.dataset.edit){await openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
+ try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){await openDetail(b.dataset.detail);return;}if(b.dataset.photoIndex!==undefined){galleryWrites=detailViewer?.select(Number(b.dataset.photoIndex))??Promise.resolve();return;}if(b.dataset.draftIndex!==undefined){chooseDraftPhoto(Number(b.dataset.draftIndex));return;}if(b.dataset.edit){await openEditor(b.dataset.edit,null,b.dataset.editVisit??null);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
  }catch(err){toast(err.message);}
 }
 function draftSnapshot(){
- return {editId,baseUpdatedAt:baseDraftUpdatedAt,tripIds:selectedDraftTrips(),values:Object.fromEntries(Object.keys(DRAFT_FIELDS).map(field=>[field,$(field).value])),favorite:$('favorite').checked,photos:draftPhotos.slice(),coverIndex:draftCover,audio:draftAudio,art:draftArt,camera:cameraIntent?{...cameraIntent}:null};
+ return {editId,visitId:editVisitId,baseUpdatedAt:baseDraftUpdatedAt,tripIds:selectedDraftTrips(),values:Object.fromEntries(Object.keys(DRAFT_FIELDS).map(field=>[field,$(field).value])),favorite:$('favorite').checked,photos:draftPhotos.slice(),coverIndex:draftCover,audio:draftAudio,art:draftArt,camera:cameraIntent?{...cameraIntent}:null};
 }
 function scheduleDraft(){
  if(!draftRecovery?.id||!$('editor').open||editorSaving)return;
@@ -638,7 +649,7 @@ async function resumeDraft(){
   else if(result?.cancelled){data.camera=null;draftRecovery.forgetCamera();}
   await journalWrites;const currentState=await dbGet();if(currentState){records=currentState.records.map(validateRecord);settings=validateSettings(currentState.settings);journeys=validateJourneys(currentState.journeys??[]);applyTheme();render();}
   const original=records.find(r=>r.id===data.editId),conflict=data.editId&&(!original||original.updatedAt!==data.baseUpdatedAt);
-  await openEditor(conflict?null:data.editId,data);
+  await openEditor(conflict?null:data.editId,{...data,visitId:conflict?null:data.visitId},conflict?null:data.visitId??null);
   if(conflict)$('editor-error').textContent='The saved footprint changed or was removed. This draft will save as a new footprint so the current journal stays intact.';
  }catch(error){$('recovery-status').textContent=error.message;}
  finally{$('resume-draft').disabled=false;$('discard-draft').disabled=false;}
@@ -657,12 +668,12 @@ async function applyReturnedCamera(){
  }catch(error){$('editor-error').textContent=error.message;}finally{$('recover-camera-photo').disabled=false;}
 }
 function openOfflineMaps(){
- const places=records.filter(hasLocation).sort((a,b)=>a.title.localeCompare(b.title));
+ const places=records.map(placeView).filter(hasLocation).sort((a,b)=>a.title.localeCompare(b.title));
  $('offline-place').innerHTML=places.map(r=>`<option value="${esc(r.id)}">${esc(r.title)}</option>`).join('')||'<option value="">Save a footprint with coordinates first</option>';
  $('offline-status').textContent='';show('offline-maps');renderOfflineMaps();
 }
 function offlinePlan(){
- const place=records.find(r=>r.id===$('offline-place').value);if(!place)throw Error('Save a footprint with coordinates first.');
+ const saved=records.find(r=>r.id===$('offline-place').value),place=saved?placeView(saved):null;if(!place)throw Error('Save a footprint with coordinates first.');
  return {place,plan:planOfflineArea(place,Number($('offline-radius').value),Number($('offline-detail').value))};
 }
 function offlineEstimate(){

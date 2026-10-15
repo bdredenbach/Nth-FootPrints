@@ -7,8 +7,9 @@ export function navigationRoute(route){
   if(!allowed.has(item?.id)||dialogs.some(d=>d.id===item.id))break;
   if(item.id==='details'&&!/^[a-z0-9_-]{1,100}$/i.test(item.recordId??''))break;
   if(item.id==='editor'&&item.recordId!=null&&!/^[a-z0-9_-]{1,100}$/i.test(item.recordId))break;
+  if(item.id==='editor'&&item.visitId!==undefined&&(!item.recordId||typeof item.visitId!=='string'||!/^[a-z0-9_-]{1,100}$/i.test(item.visitId)))break;
   if(item.id==='pin-picker'&&dialogs.at(-1)?.id!=='editor')break;
-  dialogs.push({id:item.id,...(['details','editor'].includes(item.id)?{recordId:item.recordId??null}:{})});
+  dialogs.push({id:item.id,...(['details','editor'].includes(item.id)?{recordId:item.recordId??null,...(item.id==='editor'&&item.visitId!==undefined?{visitId:item.visitId}:{})}:{})});
  }
  return {view,dialogs};
 }

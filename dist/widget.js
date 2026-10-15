@@ -1,10 +1,11 @@
+import {placeView} from './visits.js';
 import {filterRecords} from './model.js';
 import {createPhotoPreview as widgetThumbnail} from './photo-preview.js';
 export {widgetThumbnail};
 
 // Mirror one small, derived preview. Original media stays in the journal.
 export function widgetRecord(records){
- const r=filterRecords(records,{sort:'newest'})[0];
+ const latest=filterRecords(records,{sort:'newest'})[0],r=latest?placeView(latest):null;
  return r?{id:r.id,title:r.title,visited:r.visited,sample:!r.photo&&!!r.sampleArt,source:r.photo??(r.sampleArt?`assets/${r.sampleArt}.svg`:null)}:null;
 }
 // Only latest and explicitly pinned footprints need a native copy.

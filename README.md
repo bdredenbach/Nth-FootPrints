@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.4.0**.
+A personal travel journal by Nth Experience. Prototype **0.4.1**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -13,6 +13,7 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 - Three tabs: Photo Journal, Map & Directions, and Favorites.
 - Trips & journeys with covers, automatic dates, chronological stops, searchable membership selection, and journal/map filtering.
 - Create, edit and delete footprints with an original photo, visit date, category, rating, notes, website and phone number.
+- Keep return visits to one place, each with its own date, story, rating, photos, voice note, coordinates and trips.
 - Record or attach a voice note.
 - Preview and apply embedded photo GPS from supported JPEG, PNG and WebP files; optionally use the photo date.
 - Take photo + locate, current-device GPS capture and manual coordinates.
@@ -175,3 +176,13 @@ Trip metadata and memberships save atomically. Full backups now use format 3 wit
 All ten proposed journal features are approved. Return visits comes next, followed by anniversary memories, batch import, timeline/calendar, exploration stats, geotagged export copies, tags/smart collections, memory cards/trip PDFs and opt-in proximity reminders. See [the working queue](docs/ROADMAP.md) for scope, current status and the carried-forward media/backup and global offline-map work.
 
 219 automated checks pass; mobile/desktop Chromium checked the complete trip workflow, restart recovery, fresh backup restore and removal without photo loss. Android device testing remains necessary.
+
+## Return visits (0.4.1)
+
+Open a footprint and tap **Log return visit**. Each visit keeps its own date, notes, rating, gallery, voice note, coordinates and trips. Choose a date from the visit selector to view or edit an earlier memory. Place name, category, favorite and contact details are shared. Use **Use this photo in journal** to choose a cover; latest-visit sorting and widgets keep the latest date. The map retains one place, anchored to its original coordinates or a located return when the original has no position. Directions can use the selected visit’s coordinates.
+
+**Delete this visit** leaves the place and its other visits. At least one visit must remain; the separate Delete place control removes everything for that place. Journeys use only the visits assigned to them, with matching dates and photos; their counts remain unique places. Trip manager selection adds to the latest visit and removal clears that trip from all visits of the place.
+
+Full backups now use format 4, preserving every original, visit selection and removal marker without duplicating gallery cover bytes. Formats 1/2/3 still import. Older apps reject format 4. Overlapping backups merge visits independently and respect newer edits/removals. Recovery drafts retain add-versus-edit visit mode and accept previous drafts; changed parents recover to new footprints. Limits are 200 visit entries including removal markers, 30 photos per visit, 20 journeys per visit and 150 MB per backup.
+
+242 automated checks pass, with phone/desktop, native-style camera restart and offline browser checks. Physical Android testing remains necessary. On this day memories is next in the approved queue.

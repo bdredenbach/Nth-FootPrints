@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.4.0**.
+GitHub is authoritative. Current prototype: **0.4.1**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -9,8 +9,8 @@ Completed foundations: vertical photo stack and three-tab layout, local footprin
 Brad approved all ten ideas on October 15, 2026. Deliver one tested feature release at a time, continuing the existing phone-testing cadence. This is the approved product queue; queued does not mean shipped.
 
 1. **Trips & journeys — shipped in 0.4.0.** Group existing/new footprints into journeys, choose a cover, keep a description, derive dates, browse chronological stops and filter the atlas.
-2. **Return visits — next.** Separate dated visits to the same place, with their own notes/photos, while retaining one place identity.
-3. **On this day memories.** An optional anniversary card, with notifications optional rather than assumed.
+2. **Return visits — shipped in 0.4.1.** Separate dated visits to the same place, with their own notes/photos, while retaining one place identity.
+3. **On this day memories — next.** An optional anniversary card, with notifications optional rather than assumed.
 4. **Photo batch import.** Read supported embedded dates/locations, propose groupings and let the user review before saving.
 5. **Timeline and calendar.** Browse memories by date, month and journey.
 6. **Exploration map and statistics.** Visited countries/states/places, milestones and personal exploration summaries.
@@ -23,6 +23,20 @@ Brad approved all ten ideas on October 15, 2026. Deliver one tested feature rele
 
 - **Larger collections and streamed backups.** Move saved journal media out of in-memory base64 state and stream backup archives. Recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections remain outside recovery.
 - **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
+
+## Return visits shipped in 0.4.1
+
+User confirmed Trips & journeys 0.4.0 worked on October 15, 2026. Return visits is the next tested feature release in the approved queue; On this day memories follows it.
+
+Open a footprint and use Log return visit. Dates, ratings, story, photo gallery/selected photo, completed audio, coordinates and trip memberships belong to that visit; title, category, favorite, address, phone and website are shared place details. Switch visits from a dated selector, edit either visit using the existing editor/camera flow, choose a visit photo for the journal or delete just that visit. At least one visit must remain; Delete place removes the entire footprint and all visits. Adding a return creates no extra place ID, map pin or widget target. Sorting and widgets use the latest visit date. A newly added visit supplies the journal cover; photo-less visits fall back to another saved photo. Original place coordinates anchor its map pin, with a located return as fallback when needed; individual visit coordinates remain visible and available to Directions.
+
+Existing records remain their original visit without rewriting or duplicating their media. Additional visits are stored alongside it, with per-visit update clocks and lightweight removal markers. Editing an earlier visit preserves later visits. Trip membership is per visit; the trip manager adds a selected place to the latest visit and removes a deselected place from all its visits in that trip. Trips still count unique places, show the first/last dates for matching visits and use matching visit photos. Global trip filters and historical-note search include return visits. Journal/photo pin/widget previews follow the selected journal photo. Same-day returns remain distinct.
+
+Full `.nthbackup` format 4 stores original media once per visit and includes all visit clocks, selections and removal markers. Formats 1/2/3 still restore; older apps reject format 4. Restore merges visits independently while keeping newer shared place details, and older backups cannot revive removed visits. If conflicting histories would remove every visit of a place, validation rejects the restore before writing. Recovery draft metadata version 3 retains whether the editor was adding or editing a specific visit; versions 1/2 still resume. Changed or deleted parents recover to a new footprint. Journal Save and matching recovery cleanup remain atomic. Unfinished live recording and uncompleted file reads retain the earlier recovery limitations.
+
+Limits: 200 visit entries per place, including the original entry and removed-entry markers; up to 30 photos and one completed audio attachment per visit, 20 MB per selected media file; 20 journeys per visit; the existing 150 MB total backup bound remains. Place counts continue to count places, not visits. Larger collections/streamed backups remain queued.
+
+242 automated Node/Java/IndexedDB checks pass. Chromium phone/desktop checks cover independent galleries and trips, editing earlier visits, dirty Back protection, add/edit recovery, journal cover/latest date, trip dates and a single map place, fresh backup restore, removal and older-backup protection. Native-style process-death/returned-camera checks preserve the visit identity without requesting later GPS; conflict recovery keeps the saved parent and its history. Offline reload, return-visit saving and restart persistence pass through shell cache v24. Screens were checked at phone and desktop sizes. Physical Android testing remains necessary.
 
 ## Trips & journeys shipped in 0.4.0
 
