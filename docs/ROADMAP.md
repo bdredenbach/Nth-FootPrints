@@ -6,10 +6,12 @@ Completed foundations: vertical photo stack and three-tab layout, local footprin
 
 ## Remaining order
 
-1. **Integrated navigation (next).** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
-2. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+1. **Larger collections and Android lifecycle recovery (next).** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+2. **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
 
-3. **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
+## Skipped by user choice
+
+**Integrated navigation**, skipped on October 15, 2026. Keep the existing Directions handoff to the external map app/browser; do not build internal routing, rerouting, turn instructions or voice guidance unless requested again.
 
 ## Offline map areas shipped in 0.3.9
 
@@ -18,6 +20,8 @@ Map & directions and Preferences open the offline map manager. Choose a located 
 Progress reports tile count and actual bytes. Downloads are sequential, paced by 120 ms, with 20-second per-tile timeouts and no automatic retries. Limits: 600 tiles, 50 MB per area, 8 areas, 200 MB total. Each tile is written as a Blob to a separate IndexedDB database. Ready metadata commits only after the expected tile count is present. Cancellation/errors remove staged data; startup removes orphaned tiles from interrupted downloads. Back cancels downloads safely and blocks during final commit/removal. Downloads must stay in the foreground; process-death resumption is not included.
 
 Use View for a saved area, or Downloaded maps in the atlas to preview while online. Both atlas and draft position picker automatically use local tiles when offline. Missing areas are hatched, with no network fallback. Town tiles enlarge at higher zoom without adding detail; pin positions, photos and filtering stay available. Areas can be removed independently, including overlapping packages. Maps are device cache outside journal backups and are removed by app-data clearance/uninstall; a journal restore does not delete downloads. Integrated routing/voice and offline address search are not included.
+
+User confirmed the offline maps work on Android on October 15, 2026. More restart/storage testing can continue alongside development.
 
 179 automated checks pass. Chromium offline reload/local-tile rendering, cancellation and removal passed with no page errors; a complete 17-tile live USGS download validated.
 
