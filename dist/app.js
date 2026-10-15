@@ -10,6 +10,7 @@ import {RELEASES,APP_VERSION} from './releases.js';
 import {createWidgetSync,createWidgetLaunch,createWidgetPreferences} from './widget.js';
 import {photosOf,coverOf,selectPhoto,addPhotos,replacePhoto,removePhoto,readGalleryFiles,createPhotoViewer,bindPhotoSwipe} from './gallery.js';
 import {createNavigation,bindNativeBack,navigationRoute} from './navigation.js';
+import {createDraftStore,createDraftRecovery,clearDraftInTransaction,bindDraftLifecycle,DRAFT_FIELDS} from './drafts.js';
 import {createOfflineMaps,planOfflineArea} from './offline-maps.js';
 import {createPlaceSearch,samePlacePoint} from './place-search.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
@@ -26,6 +27,8 @@ let db,records=[],settings={theme:'paper'},view='journal',category='All places',
 let editId=null,draftPhoto=null,draftAudio=null,draftArt=null,recording=null,recordStream=null,recordChunks=[],recordSession=0,transferToken=0,transferRunning=false,pendingRestore=null;
 let draftPhotos=[],draftCover=0,detailId=null,detailViewer=null,detailCleanup=null,detailUpload=null,detailRevision=0,galleryWrites=Promise.resolve();
 let draftBaseline=null,editorSaving=false,journalDeckIndex=0;
+let draftStore=null,draftRecovery=null,draftsReady=false,recoveryFound=null,draftRecovered=false,draftSaved=false,baseDraftUpdatedAt=null,cameraIntent=null;
+let draftClosing=Promise.resolve(),nativeDraftReady=Promise.resolve(),cameraInbox=[],cameraRecoveryWrites=Promise.resolve();
 const closingDialogs=new Set();
 const SEEDTIME=SAMPLE_TIMESTAMP;
 const seeds=[
@@ -40,19 +43,19 @@ const photoAlt=r=>r.photo?`Photograph of ${r.title}`:r.sampleArt?`Original illus
 let restoreCommit=false,pendingMedia=0,micPending=false,cameraPending=false;
 let pendingExport=null,exportSaving=false,exportCommit=false,transferAbort=null,activeReader=null;
 let editorSession=0,photoReadVersion=0,gpsRequestVersion=0,pendingPhotoMetadata=null,locationPending=false;
-function syncSave(){ $('save-place').disabled=micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording';for(const id of ['take-photo','photo-file','remove-photo'])$(id).disabled=cameraPending; }
+function syncSave(){ $('save-place').disabled=micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording';for(const id of ['take-photo','photo-file','remove-photo'])$(id).disabled=cameraPending; scheduleDraft(); }
 let toastTimer;
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5500);}
 function dbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open('nth-footprints',1);req.onupgradeneeded=()=>req.result.createObjectStore('journal');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Close other FootPrints tabs, then reload.'));});}
 function dbGet(){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readonly'),r=t.objectStore('journal').get('state');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
-function dbPut(nextRecords,nextSettings){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put({records:nextRecords,settings:nextSettings},'state');t.oncomplete=resolve;t.onabort=()=>reject(t.error??Error('The journal could not be saved.'));t.onerror=()=>{};});}
-async function commit(nextRecords,nextSettings=settings){nextRecords=withoutStarterSamples(nextRecords);if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{await dbPut(nextRecords,nextSettings);}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;applyTheme();render();void widgetSync.refresh(records);}
+function dbPut(nextRecords,nextSettings,clearDraftId=null){return new Promise((resolve,reject)=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put({records:nextRecords,settings:nextSettings},'state');if(clearDraftId)clearDraftInTransaction(t.objectStore('journal'),clearDraftId);t.oncomplete=resolve;t.onabort=()=>reject(t.error??Error('The journal could not be saved.'));t.onerror=()=>{};});}
+async function commit(nextRecords,nextSettings=settings,clearDraftId=null){nextRecords=withoutStarterSamples(nextRecords);if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{await dbPut(nextRecords,nextSettings,clearDraftId);}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;applyTheme();render();void widgetSync.refresh(records);}
 let journalWrites=Promise.resolve();
-function changeJournal(transform,preferences=current=>current){const write=journalWrites.then(()=>commit(transform(records),preferences(settings)));journalWrites=write.catch(()=>{});return write;}
+function changeJournal(transform,preferences=current=>current,{clearDraftId=null}={}){const write=journalWrites.then(()=>commit(transform(records),preferences(settings),clearDraftId));journalWrites=write.catch(()=>{});return write;}
 const widgetPlugin=device.native?window.NthNative?.FootprintWidget:null;
 const widgetSync=createWidgetSync({plugin:widgetPlugin,onStatus:message=>{$('widget-status').textContent=message;}});
 const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
- canOpen:action=>storageReady&&!navigation.busy&&!navigation.applying&&(!document.querySelector('dialog[open]')||(action?.action==='configure'&&document.querySelector('dialog[open]').id==='settings')),
+ canOpen:action=>storageReady&&draftsReady&&!(recoveryFound&&action?.action==='new')&&!navigation.busy&&!navigation.applying&&(!document.querySelector('dialog[open]')||(action?.action==='configure'&&document.querySelector('dialog[open]').id==='settings')),
  openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),configureWidget:id=>openPreferences(id),
  openFootprint:async id=>{
   const record=records.find(r=>r.id===id);
@@ -159,7 +162,7 @@ const navigation=createNavigation({history:window.history,location:window.locati
 function editorSnapshot(){return {fields:JSON.stringify([...new FormData($('place-form')).entries()]),favorite:$('favorite').checked,photo:draftPhoto,photos:draftPhotos.slice(),cover:draftCover,audio:draftAudio,art:draftArt};}
 function editorDirty(){
  if(!$('editor').open||!draftBaseline)return false;
- if(pendingMedia||micPending||cameraPending||locationPending||recording?.state==='recording')return true;
+ if(draftRecovered||pendingMedia||micPending||cameraPending||locationPending||recording?.state==='recording')return true;
  const next=editorSnapshot();return ['fields','favorite','photo','cover','audio','art'].some(key=>next[key]!==draftBaseline[key])||next.photos.length!==draftBaseline.photos.length||next.photos.some((photo,i)=>photo!==draftBaseline.photos[i]);
 }
 function canLeaveNavigation(previous,next){
@@ -187,6 +190,7 @@ function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open
 function cleanupDialog(id){
  if(id==='pin-picker')closePicker();
  if(id==='editor'){
+  finishEditorDraft();
   if($('pin-picker').open)closeRaw('pin-picker');
   editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;draftBaseline=null;
   syncSave();$('audio-preview').pause();stopRecording(true);
@@ -288,19 +292,30 @@ function refreshDraft(){
  $('draft-gallery').innerHTML=draftPhotos.length>1?draftPhotos.map((src,i)=>`<button type="button" data-draft-index="${i}" aria-label="Edit photo ${i+1}" aria-pressed="${i===draftCover}"><img src="${src}" alt="" loading="lazy"></button>`).join(''):'';
  const src=draftPhoto??(draftArt?`assets/${draftArt}.svg`:null);$('photo-preview').hidden=!src;$('photo-placeholder').hidden=!!src;$('remove-photo').hidden=!src;if(src)$('photo-preview').src=src;else $('photo-preview').removeAttribute('src');
  $('audio-preview').hidden=!draftAudio;$('remove-audio').hidden=!draftAudio;if(draftAudio)$('audio-preview').src=draftAudio;else{$('audio-preview').pause();$('audio-preview').removeAttribute('src');}
+ scheduleDraft();
 }
-async function openEditor(id=null){
+async function openEditor(id=null,recovered=null){
+ await draftClosing;
+ if(!draftsReady){toast('Preparing local draft recovery. Please try again in a moment.');return;}
+ if(recoveryFound&&!recovered){toast('Resume or discard your unfinished footprint first.');$('draft-recovery').scrollIntoView?.({block:'center'});return;}
  const fromDetails=$('details').open,request=detailRevision;if(fromDetails)detailUpload?.abort();await galleryWrites;await journalWrites;
  if(fromDetails&&(!$('details').open||request!==detailRevision))return;
  if(!storageReady){toast('Local saving is unavailable. Check browser storage permissions and reload.');return;}
  if($('details').open)$('details').querySelectorAll('audio').forEach(audio=>audio.pause());
  editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
- const r=id?records.find(x=>x.id===id):null;editId=r?.id??null;draftPhoto=r?.photo??null;draftAudio=r?.audio??null;draftArt=r?.sampleArt??null;draftPhotos=photosOf(r);draftCover=coverOf(r);
+ const r=id?records.find(x=>x.id===id):null;baseDraftUpdatedAt=r?.updatedAt??null;draftRecovered=!!recovered;draftSaved=false;cameraIntent=recovered?.camera??null;editId=r?.id??null;draftPhoto=r?.photo??null;draftAudio=r?.audio??null;draftArt=r?.sampleArt??null;draftPhotos=photosOf(r);draftCover=coverOf(r);
  $('place-form').reset();$('editor-title').textContent=r?'A place worth revisiting.':'A new footprint.';
  for(const field of ['title','category','visited','rating','address','notes','phone','url','lat','lng'])$(field).value=r?.[field]??({category:'Travel',visited:today(),rating:0}[field]??'');
- $('favorite').checked=r?.favorite??false;$('editor-error').textContent='';$('location-status').textContent='Add coordinates to put this footprint on the map.';$('record-status').textContent='Recording needs microphone access. You can also attach an audio file.';
- refreshDraft();draftBaseline=editorSnapshot();show('editor');
+ $('recover-camera-photo').hidden=true;$('favorite').checked=r?.favorite??false;$('editor-error').textContent='';$('location-status').textContent='Add coordinates to put this footprint on the map.';$('record-status').textContent='Recording needs microphone access. You can also attach an audio file.';
+ refreshDraft();draftBaseline=editorSnapshot();
+ if(recovered){
+  for(const field of Object.keys(DRAFT_FIELDS))$(field).value=recovered.values[field];
+  $('favorite').checked=recovered.favorite;draftPhotos=recovered.photos.slice();draftCover=recovered.coverIndex;draftPhoto=draftPhotos[draftCover]??null;draftAudio=recovered.audio;draftArt=recovered.art;refreshDraft();
+ }
+ draftRecovery.begin(recovered?.id);recoveryFound=null;$('draft-recovery').hidden=true;show('editor');
+ if(recovered){scheduleDraft();await checkpointDraft();$('location-status').textContent=recovered.recoveredCamera?'Camera photo recovered. Add its location manually or tap Use my location for where you are now.':'Recovered unfinished footprint. Review it, then Save footprint.';await refreshReturnedCamera();}
 }
+
 function draftPosition(){
  const lat=$('lat').value.trim(),lng=$('lng').value.trim();
  const point={lat:lat===''?null:Number(lat),lng:lng===''?null:Number(lng)};
@@ -309,7 +324,7 @@ function draftPosition(){
 function setDraftPosition(point,message){
  gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();
  $('lat').value=point.lat.toFixed(6);$('lng').value=point.lng.toFixed(6);
- $('location-status').textContent=message;
+ $('location-status').textContent=message;scheduleDraft();
 }
 function closePicker(){pickerRequest++;placeSearch.cancel();pickerPlace=null;picker?.destroy();picker=null;$('picker-locate').disabled=false;}
 function openPicker(){
@@ -355,7 +370,7 @@ function applyPicker(){
   if(!$('title').value.trim())$('title').value=pickerPlace.name;
   if(!$('address').value.trim())$('address').value=pickerPlace.address;
  }
- close('pin-picker',{force:true});
+ scheduleDraft();close('pin-picker',{force:true});
 }
 function renderReleases(){
  $('release-version').textContent=`NTH FOOTPRINTS · ${APP_VERSION}`;
@@ -375,7 +390,7 @@ function applyPhotoLocation(){
  if(!pendingPhotoMetadata?.location)return;const {lat,lng}=pendingPhotoMetadata.location;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();
  $('lat').value=lat.toFixed(6);$('lng').value=lng.toFixed(6);
  if($('use-photo-date')?.checked&&pendingPhotoMetadata.takenOn)$('visited').value=pendingPhotoMetadata.takenOn;
- $('location-status').textContent='Location taken from this photo. Save the footprint to keep it.';$('photo-geotag').hidden=true;pendingPhotoMetadata=null;
+ $('location-status').textContent='Location taken from this photo. Save the footprint to keep it.';$('photo-geotag').hidden=true;pendingPhotoMetadata=null;scheduleDraft();
 }
 async function inspectSavedPhoto(){
  if(!draftPhoto)return;const session=editorSession,selection=++photoReadVersion;pendingMedia++;syncSave();$('read-photo-geotag').disabled=true;
@@ -383,8 +398,8 @@ async function inspectSavedPhoto(){
  if(session===editorSession&&selection===photoReadVersion&&$('editor').open)offerPhotoMetadata(metadata);
  }catch{$('editor-error').textContent='This photo’s metadata could not be read. You can still set its footprint location manually.';}finally{pendingMedia--;syncSave();$('read-photo-geotag').disabled=false;}
 }
-async function attach(file,kind){
- if(!file)return;let processing=false;const session=editorSession,selection=kind==='image'?++photoReadVersion:null;
+async function attach(file,kind,{preserveCapture=false}={}){
+ if(!file)return;if(kind==='image'&&!preserveCapture){cameraIntent=null;draftRecovery?.forgetCamera();}let processing=false;const session=editorSession,selection=kind==='image'?++photoReadVersion:null;
  if(kind==='image'){gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;pendingPhotoMetadata=null;$('photo-geotag').hidden=true;}
  try{if(file.size>20*1024*1024)throw Error('Choose an attachment smaller than 20 MB for this prototype.');if(!file.type.startsWith(kind+'/'))throw Error(`Choose a valid ${kind} file.`);
  processing=true;pendingMedia++;syncSave();
@@ -413,8 +428,8 @@ async function toggleRecording(){
 }
 async function savePlace(e){e.preventDefault();if(editorSaving||micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
  try{const form=new FormData($('place-form'));const r=validateRecord({id:editId??crypto.randomUUID(),title:form.get('title'),category:form.get('category'),visited:form.get('visited'),rating:Number(form.get('rating')),favorite:$('favorite').checked,address:form.get('address'),notes:form.get('notes'),phone:form.get('phone'),url:form.get('url'),lat:form.get('lat')===''?null:Number(form.get('lat')),lng:form.get('lng')===''?null:Number(form.get('lng')),photo:draftPhoto,photos:draftPhotos,coverIndex:draftCover,audio:draftAudio,sampleArt:draftArt,updatedAt:new Date().toISOString()});
- editorSaving=true;await changeJournal(current=>current.filter(x=>x.id!==r.id).concat(r));editorSaving=false;draftBaseline=editorSnapshot();close('editor',{force:true});deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editId?'Footprint updated.':'A new memory, kept.');
- }catch(e){$('editor-error').textContent=e.message;}finally{editorSaving=false;save.disabled=false;}
+ editorSaving=true;$('place-form').inert=true;await saveEditorRecord(current=>current.filter(x=>x.id!==r.id).concat(r));editorSaving=false;draftBaseline=editorSnapshot();close('editor',{force:true});deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editId?'Footprint updated.':'A new memory, kept.');
+ }catch(e){$('editor-error').textContent=e.message;}finally{editorSaving=false;$('place-form').inert=false;save.disabled=false;scheduleDraft();}
 }
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 const fileSize=n=>n<1024*1024?`${(n/1024).toFixed(1)} KB`:`${(n/1024/1024).toFixed(1)} MB`;
@@ -515,23 +530,23 @@ async function restoreBackup(){
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
  finally{restoreCommit=false;$('cancel-transfer').disabled=false;if($('confirm-restore'))$('confirm-restore').disabled=false;}
 }
-async function finishCameraPhoto(file,session){
+async function finishCameraPhoto(file,session,{restored=false}={}){
  if(session!==editorSession||!$('editor').open)return;
- const attached=await attach(file,'image');
+ const attached=await attach(file,'image',{preserveCapture:true});
  if(attached&&session===editorSession&&$('editor').open&&draftPhoto){
   pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
   // A failed new fix must never leave a previous place attached to this photo.
-  $('lat').value='';$('lng').value='';
-  await useLocation({capture:true});
+  $('lat').value='';$('lng').value='';cameraIntent=null;draftRecovery?.forgetCamera();await checkpointDraft();
+  if(restored){$('location-status').textContent='Camera photo recovered. Add its location manually or tap Use my location for where you are now.';}else await useLocation({capture:true});
  }
 }
 async function takePhoto(){
  if(cameraPending)return;
  if(!device.native){$('camera-file').value='';$('camera-file').click();return;}
  const session=editorSession;cameraPending=true;syncSave();$('editor-error').textContent='';
- try{const photo=await device.takePhoto();await finishCameraPhoto(photo,session);}
- catch(error){if(session===editorSession&&$('editor').open&&!cameraCancelled(error))$('editor-error').textContent='Could not open the camera or read its photo. Allow Camera access in Android Settings → Apps → Nth FootPrints → Permissions, then try again.';}
- finally{cameraPending=false;syncSave();}
+ try{await checkpointCamera();const photo=await device.takePhoto();await finishCameraPhoto(photo,session);}
+ catch(error){if(session===editorSession&&$('editor').open&&!cameraCancelled(error))$('editor-error').textContent=error.draftRecovery?'Your photo is attached, but draft recovery could not save it. Keep the app open and use Save footprint.':/recovery draft/i.test(error.message)?error.message:'Could not open the camera or read its photo. Allow Camera access in Android Settings → Apps → Nth FootPrints → Permissions, then try again.';}
+ finally{if(session===editorSession)cameraIntent=null;cameraPending=false;syncSave();if(session===editorSession)await checkpointDraft().catch(()=>{});}
 }
 async function useLocation({capture=false}={}){
  const session=editorSession,request=++gpsRequestVersion;locationPending=true;syncSave();$('use-location').disabled=true;$('location-status').textContent=capture?'Finding the location for your new photo…':'Finding your location…';
@@ -549,6 +564,84 @@ async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confir
 async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
  try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){await openDetail(b.dataset.detail);return;}if(b.dataset.photoIndex!==undefined){galleryWrites=detailViewer?.select(Number(b.dataset.photoIndex))??Promise.resolve();return;}if(b.dataset.draftIndex!==undefined){chooseDraftPhoto(Number(b.dataset.draftIndex));return;}if(b.dataset.edit){await openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
  }catch(err){toast(err.message);}
+}
+function draftSnapshot(){
+ return {editId,baseUpdatedAt:baseDraftUpdatedAt,values:Object.fromEntries(Object.keys(DRAFT_FIELDS).map(field=>[field,$(field).value])),favorite:$('favorite').checked,photos:draftPhotos.slice(),coverIndex:draftCover,audio:draftAudio,art:draftArt,camera:cameraIntent?{...cameraIntent}:null};
+}
+function scheduleDraft(){
+ if(!draftRecovery?.id||!$('editor').open||editorSaving)return;
+ if(editorDirty())draftRecovery.schedule(draftSnapshot());else draftRecovery.clean();
+}
+async function checkpointDraft(){
+ if(!draftRecovery?.id||!$('editor').open||editorSaving)return;
+ try{if(editorDirty())await draftRecovery.flush(draftSnapshot());else await draftRecovery.flush();}catch(error){error.draftRecovery=true;throw error;}
+}
+async function checkpointCamera(){
+ await nativeDraftReady;cameraIntent={token:crypto.randomUUID(),startedAt:new Date().toISOString()};draftRecovery?.forgetCamera();
+ try{await checkpointDraft();}catch{cameraIntent=null;throw Error('The recovery draft could not be saved before opening the camera.');}
+}
+async function saveEditorRecord(transform){
+ const clearDraftId=await draftRecovery.freeze();
+ try{await changeJournal(transform,undefined,{clearDraftId});draftSaved=true;draftRecovery.release();}
+ catch(error){draftRecovery.unfreeze();throw error;}
+}
+function finishEditorDraft(){
+ if(!draftRecovery?.id)return;
+ if(draftSaved){draftRecovery.release();return;}
+ draftClosing=draftRecovery.discard().catch(async()=>{draftRecovery.release();toast('The draft could not be removed. It remains available for recovery.');await loadDraftBanner();});
+ draftRecovered=false;cameraIntent=null;
+}
+async function loadDraftBanner(){
+ try{recoveryFound=await draftRecovery.load();$('draft-recovery').hidden=!recoveryFound;
+  if(recoveryFound){$('recovery-name').textContent=recoveryFound.values.title.trim()||'An unfinished footprint';$('recovery-status').textContent='Resume your local draft or discard it. Saved footprints stay as they are.';}
+ }catch(error){recoveryFound={unreadable:true};$('draft-recovery').hidden=false;$('recovery-name').textContent='A recovery draft needs attention';$('recovery-status').textContent=error.message;$('resume-draft').disabled=true;}
+}
+async function initialiseDraftRecovery(){
+ draftStore=createDraftStore(db);draftRecovery=createDraftRecovery({store:draftStore,onState:({state,message})=>{
+  $('draft-status').textContent=message;$('draft-status').dataset.state=state;
+  if(state==='camera'||state==='camera-error'){if($('editor').open)void refreshReturnedCamera();else $('recovery-status').textContent=message;}
+ }});
+ await loadDraftBanner();draftsReady=true;
+ for(const event of cameraInbox.splice(0))queueRestoredCamera(event);
+ if(recoveryFound?.id)void draftRecovery.readReturned(recoveryFound.id,photo=>device.readCameraPhoto(photo));
+}
+function queueRestoredCamera(event){
+ if(!draftsReady){cameraInbox.push(event);return;}
+ cameraRecoveryWrites=cameraRecoveryWrites.then(()=>draftRecovery.receiveCamera(event,photo=>device.readCameraPhoto(photo))).catch(()=>{toast('The returned camera photo could not be recovered. Your draft is still available.');});
+}
+async function refreshReturnedCamera(){
+ const id=draftRecovery?.id,session=editorSession;
+ if(!id||!$('editor').open){$('recover-camera-photo').hidden=true;return;}
+ const result=await draftRecovery.result(id);if(id!==draftRecovery.id||session!==editorSession)return;
+ $('recover-camera-photo').hidden=!result||result.cancelled;$('recover-camera-photo').textContent=result?.blob?'Recover returned camera photo':'Retry camera photo recovery';
+}
+async function resumeDraft(){
+ if(!recoveryFound?.id||!draftsReady)return;$('resume-draft').disabled=true;$('discard-draft').disabled=true;
+ try{
+  await cameraRecoveryWrites;const raw=await draftStore.read();if(!raw){recoveryFound=null;$('draft-recovery').hidden=true;return;}
+  await draftRecovery.readReturned(raw.id,photo=>device.readCameraPhoto(photo));
+  const data=await draftRecovery.hydrate(raw),result=await draftRecovery.result(raw.id);
+  if(result?.blob){const photo=await asDataURL(result.blob),next=replacePhoto({photos:data.photos,coverIndex:data.coverIndex},photo);data.photos=next.photos;data.coverIndex=next.coverIndex;data.art=null;data.values.lat='';data.values.lng='';data.camera=null;data.recoveredCamera=true;draftRecovery.forgetCamera();}
+  else if(result?.cancelled){data.camera=null;draftRecovery.forgetCamera();}
+  await journalWrites;const currentState=await dbGet();if(currentState){records=currentState.records.map(validateRecord);settings=validateSettings(currentState.settings);applyTheme();render();}
+  const original=records.find(r=>r.id===data.editId),conflict=data.editId&&(!original||original.updatedAt!==data.baseUpdatedAt);
+  await openEditor(conflict?null:data.editId,data);
+  if(conflict)$('editor-error').textContent='The saved footprint changed or was removed. This draft will save as a new footprint so the current journal stays intact.';
+ }catch(error){$('recovery-status').textContent=error.message;}
+ finally{$('resume-draft').disabled=false;$('discard-draft').disabled=false;}
+}
+async function discardRecoveryDraft(){
+ if(!recoveryFound||!confirm('Discard this unfinished draft and its draft attachments? Your saved footprints will stay.'))return;
+ $('discard-draft').disabled=true;
+ try{const raw=await draftStore.read();if(recoveryFound.unreadable)await draftStore.clearUnreadable();else if(raw?.id)await draftRecovery.discardFound(raw.id);recoveryFound=null;$('resume-draft').disabled=false;$('draft-recovery').hidden=true;widgetLaunch.flush();}
+ catch(error){$('recovery-status').textContent=error.message;}finally{$('discard-draft').disabled=false;}
+}
+async function applyReturnedCamera(){
+ const id=draftRecovery?.id,session=editorSession;if(!id)return;$('recover-camera-photo').disabled=true;
+ try{await draftRecovery.readReturned(id,photo=>device.readCameraPhoto(photo));const result=await draftRecovery.result(id);
+  if(id===draftRecovery.id&&session===editorSession&&result?.blob)await finishCameraPhoto(result.blob,session,{restored:true});
+  await refreshReturnedCamera();
+ }catch(error){$('editor-error').textContent=error.message;}finally{$('recover-camera-photo').disabled=false;}
 }
 function openOfflineMaps(){
  const places=records.filter(hasLocation).sort((a,b)=>a.title.localeCompare(b.title));
@@ -587,6 +680,10 @@ async function downloadOfflineArea(){
  }catch(error){$('offline-status').textContent=error.message==='CANCELLED'?'Download cancelled. Incomplete tiles were removed.':error.message;}
 }
 function wire(){
+ nativeDraftReady=bindDraftLifecycle({plugin:device.native?window.NthNative?.App:null,onPause:()=>{void checkpointDraft().catch(()=>{});},onRestored:queueRestoredCamera,onError:toast});
+ $('place-form').addEventListener('input',scheduleDraft);$('place-form').addEventListener('change',scheduleDraft);
+ $('resume-draft').onclick=resumeDraft;$('discard-draft').onclick=discardRecoveryDraft;$('recover-camera-photo').onclick=applyReturnedCamera;
+
  $('offline-open').onclick=openOfflineMaps;$('settings-offline').onclick=openOfflineMaps;
  $('offline-place').onchange=offlineEstimate;$('offline-radius').onchange=offlineEstimate;$('offline-detail').onchange=offlineEstimate;
  $('offline-download').onclick=downloadOfflineArea;$('offline-cancel').onclick=()=>offlineMaps.cancel();
@@ -615,6 +712,6 @@ function wire(){
 }
 async function init(){const initial=location.hash.slice(1);if(['journal','map','favorites'].includes(initial))view=initial;navigation.start(view);wire();
  try{db=await dbOpen();const state=await dbGet();if(state){const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);if(records.length!==loaded.length)await dbPut(records,settings);}else{records=seeds;await dbPut(records,settings);}storageReady=true;}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
- applyTheme();render();void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ applyTheme();render();if(storageReady)await initialiseDraftRecovery();void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 init();

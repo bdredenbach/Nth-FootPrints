@@ -74,7 +74,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.3.9 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.3.10 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",

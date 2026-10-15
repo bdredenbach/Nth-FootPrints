@@ -1,17 +1,29 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.3.9**.
+GitHub is authoritative. Current prototype: **0.3.10**.
 
-Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, and downloadable USGS offline map areas.
+Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
 ## Remaining order
 
-1. **Larger collections and Android lifecycle recovery (next).** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+1. **Larger collections and streamed backups (next).** Move saved journal media out of in-memory base64 state and stream backup archives. Editor/camera draft recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections are not recoverable.
 2. **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
 
 ## Skipped by user choice
 
 **Integrated navigation**, skipped on October 15, 2026. Keep the existing Directions handoff to the external map app/browser; do not build internal routing, rerouting, turn instructions or voice guidance unless requested again.
+
+## Draft recovery and Nth icon shipped in 0.3.10
+
+The editor writes a local recovery draft after 250 ms of idle input, with explicit checkpoints before native camera launch, on pause/page hide, and after completed photo/location changes. Startup offers Resume editing and Discard draft. Partial text/coordinates, favorite, photo gallery, selected cover and completed audio attachments are retained without creating a journal record. Blank untouched editors are not persisted. The draft is device-local and is not part of journal backups; clearing app data/uninstalling removes it.
+
+Draft metadata, attachment Blobs, a matching returned-camera sidecar and bounded closed-draft IDs share the existing journal object store. Metadata-only typing reuses media references; key-only cleanup avoids loading the saved journal/media. Successful journal Save clears the matching draft and attachments in the same IndexedDB transaction. Failed journal saves retain recovery; explicitly discarded drafts cannot be resurrected by stale writes. A pending startup draft prevents another editor from silently replacing it, including widget New shortcuts. Changed/deleted source records recover as new footprints after refreshing saved state.
+
+The Capacitor App restored-result listener persists returned camera descriptors and then copies the image into a Blob, associated only with the startup draft's pending capture token. Duplicate/unrelated/stale results are ignored. A returned photo is applied on Resume, or offered explicitly if the user has already resumed editing. Coordinates are cleared when applying a recovered capture; a later current-location fix is never silently assigned to an earlier photo. Failed camera reads remain retryable. Recovery requires that Android returns the camera result; photos never delivered by Android, unfinished voice recordings and uncompleted file reads cannot be reconstructed. Broader media/backup memory work remains queued.
+
+The existing icon's lower dash is replaced by original vector Nth lettering. Regular, round, adaptive, themed, maskable and web icons share the new geometry. 204 automated Node/Java/IndexedDB checks pass. Chromium checked save/reload/resume/discard with photo/audio/favorite/text, native-style process-restart and late camera events, no silent GPS, atomic save cleanup, and conflict-to-new behavior with no page errors. Icon previews were checked at launcher sizes and in the themed variant. Physical Android process-death/camera/launcher testing remains necessary.
+
+Reference: https://capacitorjs.com/docs/apis/app#addlistenerapprestoredresult- .
 
 ## Offline map areas shipped in 0.3.9
 
@@ -41,7 +53,7 @@ Each home-screen widget can pin one saved footprint or follow Latest visit. Choo
 
 ## Backward navigation shipped in 0.3.6
 
-A shared history controller handles Android Back through Capacitor App, browser Back/Forward, Escape and close buttons. Dialogs unwind one at a time, including the map position picker. Editing keeps its footprint underneath and returns there after Save or confirmed discard; journal card position is retained across tabs. Map/Favorites share a journal parent; Android Back at the journal minimizes the app. Dirty drafts ask before leaving, saves and transfer commits block departure, and cancellable transfers stop safely. Restoring a history entry does not re-run an export or restore. Deleted records are removed from restored routes. Browser unload prompts offer additional protection where supported; process-death draft recovery remains queued. 129 automated checks pass. Physical Android Back/keyboard/launcher and browser history testing remain necessary.
+A shared history controller handles Android Back through Capacitor App, browser Back/Forward, Escape and close buttons. Dialogs unwind one at a time, including the map position picker. Editing keeps its footprint underneath and returns there after Save or confirmed discard; journal card position is retained across tabs. Map/Favorites share a journal parent; Android Back at the journal minimizes the app. Dirty drafts ask before leaving, saves and transfer commits block departure, and cancellable transfers stop safely. Restoring a history entry does not re-run an export or restore. Deleted records are removed from restored routes. Browser unload prompts offer additional protection where supported; process-death draft recovery was subsequently added in 0.3.10. 129 automated checks pass. Physical Android Back/keyboard/launcher and browser history testing remain necessary.
 
 ## Original icon shipped in 0.3.5
 

@@ -39,7 +39,7 @@ const app=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 const captureFunctions=app.slice(app.indexOf('async function finishCameraPhoto('),app.indexOf('async function toggleFavorite('));
 function editor(device){
  const nodes=Object.fromEntries(['editor','editor-error','photo-geotag','lat','lng','location-status','use-location','camera-file'].map(id=>[id,{open:id==='editor',value:id==='lat'?'1':id==='lng'?'2':'',textContent:'',disabled:false}]));
- const context=vm.createContext({device,cameraCancelled,$:id=>nodes[id],editorSession:1,gpsRequestVersion:0,locationPending:false,cameraPending:false,draftPhoto:'old-photo',pendingPhotoMetadata:null,syncSave:()=>{},attach:async file=>{if(!file)return false;context.draftPhoto=file;return true;}});
+ const context=vm.createContext({device,cameraCancelled,checkpointDraft:async()=>{},checkpointCamera:()=>Promise.resolve(),cameraIntent:null,draftRecovery:null,$:id=>nodes[id],editorSession:1,gpsRequestVersion:0,locationPending:false,cameraPending:false,draftPhoto:'old-photo',pendingPhotoMetadata:null,syncSave:()=>{},attach:async file=>{if(!file)return false;context.draftPhoto=file;return true;}});
  vm.runInContext(captureFunctions,context);return {context,nodes};
 }
 test('capture attaches first, clears stale coordinates, then fills fresh GPS',async()=>{
@@ -57,9 +57,16 @@ test('GPS denial keeps captured photo and leaves no stale pin',async()=>{
 });
 test('closing/reopening editor discards an old camera result',async()=>{
  let resolve;const {context}=editor({native:true,takePhoto:()=>new Promise(r=>{resolve=r;}),currentPosition:async()=>{throw Error('must not request GPS');}});
- const pending=context.takePhoto();context.editorSession++;resolve('late-photo');await pending;assert.equal(context.draftPhoto,'old-photo');
+ const pending=context.takePhoto();await new Promise(r=>setImmediate(r));context.editorSession++;resolve('late-photo');await pending;assert.equal(context.draftPhoto,'old-photo');
 });
 test('GPS result cannot overwrite newer manual coordinates',async()=>{
  let resolve;const {context,nodes}=editor({currentPosition:()=>new Promise(r=>{resolve=r;})});
  const pending=context.useLocation();context.gpsRequestVersion++;nodes.lat.value='60';nodes.lng.value='10';resolve(fix);await pending;assert.equal(nodes.lat.value,'60');assert.equal(nodes.lng.value,'10');
+});
+
+test('native camera stays closed when its before-launch draft checkpoint fails',async()=>{
+ let launched=false;const f=editor({native:true,takePhoto:async()=>{launched=true;}});f.context.checkpointCamera=async()=>{throw Error('The recovery draft could not be saved before opening the camera.');};await f.context.takePhoto();assert.equal(launched,false);assert.match(f.nodes['editor-error'].textContent,/recovery draft could not be saved/);
+});
+test('restored camera attaches its photo with empty coordinates and never requests later device GPS',async()=>{
+ let queried=false;const f=editor({currentPosition:async()=>{queried=true;return fix;}});await f.context.finishCameraPhoto('returned-photo',1,{restored:true});assert.equal(f.context.draftPhoto,'returned-photo');assert.equal(f.nodes.lat.value,'');assert.equal(f.nodes.lng.value,'');assert.equal(queried,false);assert.match(f.nodes['location-status'].textContent,/photo recovered/);
 });

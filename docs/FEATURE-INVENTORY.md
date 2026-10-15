@@ -23,6 +23,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Photo geotagging | Read embedded GPS from JPEG/PNG/WebP EXIF; preview and explicitly apply coordinates; optional original visit date; re-read existing saved photos |
 | Multi-pin atlas | Implemented in 0.3.0; photo thumbnails added in 0.3.4; fit-all, pin-to-memory, list selection, filters, missing-location entries and external directions |
 | Directions | External Google Maps destination link, not integrated navigation |
+| Local editor recovery | Shipped in 0.3.10: text, gallery/cover, favorite and completed audio drafts, plus matching returned Android camera photos; Resume/Discard after restart |
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | Offline map areas | Shipped in 0.3.9: USGS topographic areas, detailed U.S. coverage, progress/cancel/removal, local atlas and picker rendering |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
@@ -32,7 +33,8 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
 | Android home-screen widget | Implemented in 0.3.2; latest-visit preview, open-memory and new-footprint shortcuts; physical launcher testing pending |
 | Address/named-business search | Shipped in 0.3.8 using Photon; explicit online queries in the position picker |
-| Worldwide detailed offline maps, integrated routing, turn-by-turn, voice guidance | Still queued; U.S. offline map viewing shipped in 0.3.9 |
+| Worldwide detailed offline maps | Still queued; U.S. offline map viewing shipped in 0.3.9 |
+| Integrated routing, turn-by-turn, voice guidance | Skipped by user choice; Directions opens the external map app |
 | KMZ import/export | Omitted at user request |
 
 ## Prototype boundaries
@@ -144,7 +146,7 @@ The web manifest has regular 192/512 PNGs, maskable 192/512 PNGs with an opaque 
 
 Android Back uses the official Capacitor App 8.0.0 plugin and the same route stack as browser Back/Forward, dialog close controls and Escape. Nested dialogs, the draft pin picker, Edit-to-footprint return, secondary-tab-to-journal return and journal card restoration are included. Android root Back minimizes to the launcher. Rapid Back is ignored while a local transition is pending; browser traversals serialize asynchronous rendering. Forward reconstructs saved-record dialogs without replaying transfers, and prunes deleted record targets.
 
-Editor snapshots track form values, favorite, gallery/cover, audio and pending camera/GPS/recording work. Leaving a dirty editor requires discard confirmation; closing its position picker does not discard it. Database saves and final backup/photo file or restore commits block departure. Other transfers request cancellation and keep the dialog until cancellation is safe. Browser unload prompts protect drafts and transfers where the browser permits them. Unsaved drafts remain memory-only.
+Editor snapshots track form values, favorite, gallery/cover, audio and pending camera/GPS/recording work. Leaving a dirty editor requires discard confirmation; closing its position picker does not discard it. Database saves and final backup/photo file or restore commits block departure. Other transfers request cancellation and keep the dialog until cancellation is safe. Browser unload prompts protect drafts and transfers where the browser permits them. Drafts were memory-only in this release; local recovery was subsequently added in 0.3.10.
 
 129 Node behavior tests cover route unwinding/Forward, denial and bounce-back, rapid browser traversals, dirty drafts, save ordering, transfer guards, missing records, native listener wiring and widget launch errors, alongside existing feature checks. Device Back gestures, keyboard handling, native permission/file dialogs and launcher resume need physical testing. Reference: https://capacitorjs.com/docs/apis/app .
 
@@ -169,3 +171,11 @@ Provider: Photon’s public demo, https://photon.komoot.io/api/ . Verified reaso
 USGS Topo raster downloads and a separate Blob-based IndexedDB store support bounded packages around saved places. Areas commit only after their expected tile count is present; interrupted staging is removed on startup. Sequential paced requests, per-tile deadlines, image/size checks, storage limits and cancellation prevent uncontrolled downloads. Back blocks while cleanup or commit completes. Overlapping areas remain independent. Both Leaflet views share a local GridLayer: missing tiles hatch, Town tiles enlarge to Street zoom, stale results are ignored, and object URLs are revoked on unload. Opening a saved area takes precedence over pending automatic map fitting. Journal media and backup format are unchanged.
 
 179 automated checks pass, including actual IndexedDB persistence/recreation and transactional failure paths. Chromium verified the phone-sized manager, completed download, local tile images, offline app reload and persisted area, cancellation and removal without page errors. Live USGS validation downloaded all 17 tiles for a Little Falls area (620,971 bytes). Android airplane-mode, process restart and storage behavior need device testing. Detailed offline coverage outside the United States remains queued.
+
+## 0.3.10 editor recovery and Nth wordmark
+
+Persisted recovery covers partial form input, favorite, photo galleries/cover, and completed voice attachments. Snapshot metadata reuses separately stored Blob media in the existing journal object store; typing does not rewrite photo bytes. Pre-camera and background checkpoints supplement 250 ms autosave. Save and matching draft cleanup share a journal transaction; closed-draft IDs prevent late writes from resurrecting saved/discarded work. Changed/deleted source footprints recover into a new record. Recovery remains local and outside backups.
+
+App restored-camera results are associated with the startup capture token, persisted first as a descriptor and then copied into a Blob. Resume applies the photo with cleared coordinates; a late return offers an explicit action and preserves current editor text. Cancellation, duplicate events, failed reads and stale/discarded destinations preserve the existing draft/journal. Android must deliver the result; active recording/file reads remain unrecoverable. Larger journal media and streaming backup work is still queued.
+
+Original Nth outline lettering replaces the dash in the icon, including an even-odd cutout for the Android themed variant. 204 automated checks and Chromium restart/resume/discard/camera/conflict scenarios pass. Physical Android process-death, camera return and launcher behavior need phone testing.

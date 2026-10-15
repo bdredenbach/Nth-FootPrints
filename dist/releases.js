@@ -1,4 +1,4 @@
-export const APP_VERSION='0.3.9';
+export const APP_VERSION='0.3.10';
 // Shipped GitHub releases, oldest first. Backup schema versions are separate.
 export const RELEASES=[
  {version:'0.2.2',date:'2026-10-15',summary:'First GitHub prototype: vertical photo stack, three tabs, local place editing, photos, voice notes, favorites, categories, photo GPS inspection, maps, directions and Nth backups. GitHub Pages entry added.'},
@@ -18,5 +18,6 @@ export const RELEASES=[
  {version:'0.3.6',date:'2026-10-15',summary:'Android Back and browser history now unwind dialogs, the map pin picker, editing and secondary tabs. Editing returns to its footprint, unsaved changes ask before discarding, and active saves or transfer commits finish safely. Back from the journal returns Android to the home screen.'},
  {version:'0.3.7',date:'2026-10-15',summary:'Independent Android widgets: pin a different saved footprint to each widget, or keep Latest visit mode. Tap Choose on a widget to change its location in Preferences. Choices persist by widget instance, photo and title changes refresh automatically, and deleted footprints show a chooser placeholder.'},
  {version:'0.3.8',date:'2026-10-15',summary:'Online address and named-business search in Choose a location. Search by name and town, preview a result on the map, then apply it to the draft. Optionally fill empty name/address fields without replacing existing text. Cancellable requests, connection feedback and manual map/coordinate entry remain available.'},
- {version:'0.3.9',date:'2026-10-15',summary:'Download USGS topographic map areas around saved footprints for offline use in the atlas and location picker. Choose area size and detail, follow progress, cancel safely, preview downloaded maps and remove saved areas. Detailed U.S. coverage; maps are stored separately from journal backups. Online search and external directions still require internet.'}
+ {version:'0.3.9',date:'2026-10-15',summary:'Download USGS topographic map areas around saved footprints for offline use in the atlas and location picker. Choose area size and detail, follow progress, cancel safely, preview downloaded maps and remove saved areas. Detailed U.S. coverage; maps are stored separately from journal backups. Online search and external directions still require internet.'},
+ {version:'0.3.10',date:'2026-10-15',summary:'Local recovery drafts retain unfinished form fields, photo galleries, selected images and completed voice notes. Resume or discard after reopening; interrupted Android camera results can return to their original draft. Save clears recovery atomically, and changed or deleted originals recover as new footprints. Added Nth lettering to the Android and web icon. Directions continues to use the external map app.'}
 ];

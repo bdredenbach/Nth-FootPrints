@@ -1,15 +1,19 @@
 // Browser sources stay dependency-free. The APK supplies the native plugins.
-export function createDeviceAccess({native=false,plugins,geolocation,fetchPhoto=globalThis.fetch}={}){
+export function createDeviceAccess({native=false,plugins,geolocation,fetchPhoto=globalThis.fetch,convertFileSrc=path=>globalThis.Capacitor?.convertFileSrc?.(path)}={}){
+ async function readCameraPhoto(photo){
+  const path=photo?.webPath||(photo?.path?convertFileSrc(photo.path):null);
+  if(!path)throw Error('The camera did not return a photo. Please try again.');
+  const response=await fetchPhoto(path);
+  if(!response.ok)throw Error('The new photo could not be opened. Please try again.');
+  const blob=await response.blob();if(blob.size>20*1024*1024)throw Error('Choose a photo smaller than 20 MB.');
+  return blob.type?blob:new Blob([blob],{type:'image/jpeg'});
+ }
  return {
-  native,
+  native,readCameraPhoto,
   async takePhoto(){
    if(!native||!plugins?.Camera)throw Error('Install the updated APK to use the Android camera.');
    const photo=await plugins.Camera.getPhoto({source:'CAMERA',resultType:'uri',quality:100,allowEditing:false,correctOrientation:true,saveToGallery:false});
-   if(!photo.webPath)throw Error('The camera did not return a photo. Please try again.');
-   const response=await fetchPhoto(photo.webPath);
-   if(!response.ok)throw Error('The new photo could not be opened. Please try again.');
-   const blob=await response.blob();
-   return blob.type?blob:new Blob([blob],{type:'image/jpeg'});
+   return readCameraPhoto(photo);
   },
   async currentPosition(){
    const options={enableHighAccuracy:true,timeout:20000,maximumAge:0};

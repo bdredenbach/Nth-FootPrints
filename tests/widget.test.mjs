@@ -128,7 +128,7 @@ test('actual preferences controls escape footprint labels, show missing selectio
 });
 test('configure shortcut can focus existing Preferences while other widget actions remain queued',async()=>{
  const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),opened=[];let event,action={action:'configure',widgetId:5},dialog={id:'settings'};
- const c=vm.createContext({createWidgetLaunch,widgetPlugin:{addListener:async(_,fn)=>{event=fn;},takeLaunchAction:async()=>action},storageReady:true,navigation:{busy:false,applying:false},document:{querySelector:()=>dialog},openPreferences:id=>opened.push(id),toast(){}});
+ const c=vm.createContext({createWidgetLaunch,widgetPlugin:{addListener:async(_,fn)=>{event=fn;},takeLaunchAction:async()=>action},storageReady:true,draftsReady:true,recoveryFound:null,navigation:{busy:false,applying:false},document:{querySelector:()=>dialog},openPreferences:id=>opened.push(id),toast(){}});
  vm.runInContext(app.slice(app.indexOf('const widgetLaunch='),app.indexOf('const widgetPreferences='))+'\nglobalThis.launch=widgetLaunch;',c);
- await c.launch.start();assert.deepEqual(opened,[5]);action={action:'configure',widgetId:6};dialog={id:'editor'};await event();assert.deepEqual(opened,[5]);dialog=null;c.launch.flush();assert.deepEqual(opened,[5,6]);
+ await c.launch.start();assert.deepEqual(opened,[5]);action={action:'configure',widgetId:6};dialog={id:'editor'};await event();assert.deepEqual(opened,[5]);dialog=null;c.launch.flush();assert.deepEqual(opened,[5,6]);c.openEditor=()=>opened.push('new');c.recoveryFound={id:'unfinished'};action={action:'new'};await event();assert.deepEqual(opened,[5,6]);c.recoveryFound=null;c.launch.flush();assert.deepEqual(opened,[5,6,'new']);
 });

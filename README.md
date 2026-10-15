@@ -49,7 +49,7 @@ Automated checks cover backup round trips, merge behavior, vertical gesture hand
 - `docs/BACKUP-FORMAT.md`: the versioned portable backup contract.
 - `tests/`: Node tests and small original, generated image fixtures.
 
-The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. USGS offline map areas are available in 0.3.9; worldwide detailed offline providers and integrated turn-by-turn navigation remain on the roadmap. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
+The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. USGS offline map areas are available in 0.3.9; worldwide detailed offline providers remain on the roadmap. Integrated navigation is skipped by user choice; Directions keeps its external map handoff. See docs/ROADMAP.md for the working queue. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
 
@@ -147,7 +147,7 @@ Search uses the Photon public demo at https://photon.komoot.io/api/ with OpenStr
 
 This provider permits reasonable usage but gives no availability guarantee and may throttle or ban extensive traffic. The prototype uses explicit submission, five results, at least 1.5 seconds between network requests, Retry-After cooldown, no automatic retry, a 12-second timeout, and a transient ten-query/five-minute memory cache. Responses are bounded to 256 KiB. A dedicated Photon service or contracted provider is required before wider/high-volume distribution; the endpoint is centralized in dist/place-search.js. Public Nominatim endpoints are not queried. Business coverage depends on named places in OpenStreetMap and is not a complete business directory.
 
-159 automated checks pass, covering requests, parsing/escaping, bad and empty responses, rate limits, caching, timeouts, cancellation, stale responses, draft-only previews and preserving existing text, alongside existing navigation/gallery/widget behavior. Live HTTP/CORS checks complement these tests; browser and physical Android keyboard/map/search interaction still need user testing. Offline USGS map areas shipped in 0.3.9; integrated navigation is next.
+159 automated checks pass, covering requests, parsing/escaping, bad and empty responses, rate limits, caching, timeouts, cancellation, stale responses, draft-only previews and preserving existing text, alongside existing navigation/gallery/widget behavior. Live HTTP/CORS checks complement these tests; browser and physical Android keyboard/map/search interaction still need user testing. Offline USGS map areas shipped in 0.3.9; draft recovery shipped in 0.3.10; larger collections and streamed backups are next.
 
 ## Offline maps (0.3.9)
 
@@ -156,3 +156,11 @@ Open Map & directions → Offline maps, or Preferences → Offline maps. Choose 
 Limits are 8 areas, 600 tiles and 50 MB per area, and 200 MB total. Remove deletes just that map package. Downloads stay on this device outside journal backups; uninstall/clear data removes them. Keep the app open during a download; interrupted packages are cleaned up at startup. Search and external directions still need a connection. No integrated routing or voice guidance is included.
 
 179 Node/Java/IndexedDB checks pass. Chromium tests passed mobile layout, package save, local tile decode, offline shell reload, persisted maps, safe cancellation, and removal with no page errors. A complete 17-tile live USGS area downloaded and validated. Real Android airplane-mode/restart testing remains necessary. USGS data licensing/source details are in THIRD_PARTY_NOTICES.md.
+
+## Recovery drafts and Nth icon (0.3.10)
+
+Unfinished editor work is retained locally with field values, favorite, gallery/cover and completed audio attachments. Wait for “Draft saved on this device,” then an app restart can offer Resume editing or Discard draft. Untouched blank editors create no recovery item. Native camera launch first checkpoints the draft; returned Android camera results are handled through Capacitor App's restored-result listener. Recovered camera photos clear the old coordinates and ask for an explicit location choice. A result arriving after Resume is offered through Recover returned camera photo, without replacing newer text.
+
+Journal Save and matching draft cleanup commit together. Failed saves retain recovery. Explicit discard removes the draft and its media. If the original record changed or disappeared, the recovered draft saves as a new footprint. Recovery uses local device storage outside backups; it cannot survive uninstall/clear-data or recreate an unfinished voice recording/file read or a camera image Android never returns. Larger saved-media collections and streamed backups remain next.
+
+The icon now reads Nth where the lower dash was, across Android and web variants. 204 automated checks pass plus Chromium recovery scenarios; physical Android camera/process-death and launcher testing remain necessary. Integrated navigation is skipped by user choice; Directions retains its external map handoff.
