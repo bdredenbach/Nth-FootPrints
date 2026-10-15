@@ -32,7 +32,7 @@ Deleting a journey retains every footprint and attachment. Removed journeys reta
 
 Full `.nthbackup` format 3 contains journeys, deletion markers, memberships, original gallery/audio and preferences. Formats 1 and 2 still import; older app versions reject format 3. Restore merges journey metadata separately by its update time, then removes references to deleted/missing journeys and repairs covers. Up to 1,000 journey entries including deletion markers; existing 10,000-backup-record, 30-photo and 150 MB limits remain. Recovery draft metadata version 2 includes selected journey IDs; previous version 1 drafts still resume. Recovery drafts and offline tiles remain outside journal backups.
 
-218 automated Node/Java/IndexedDB checks pass. Chromium mobile and desktop checks cover creation, member selection through searches, date range/cover, map filtering, unsaved form guards, editor membership after restart, original-photo backup/fresh restore, deletion without media loss, restoring an older backup and reload. No page errors occurred. Physical Android checks remain for this release.
+219 automated Node/Java/IndexedDB checks pass. Chromium mobile and desktop checks cover creation, member selection through searches, date range/cover, map filtering, unsaved form guards, editor membership after restart, original-photo backup/fresh restore, deletion without media loss, restoring an older backup and reload. No page errors occurred. Physical Android checks remain for this release.
 
 ## Skipped by user choice
 

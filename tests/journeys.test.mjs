@@ -1,3 +1,4 @@
+import {createJourneysUI} from '../dist/journeys-ui.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -77,4 +78,13 @@ test('trip selections survive a recovery draft, including recovery of older draf
  const db=await journal(),store=createDraftStore(db),r=createDraftRecovery({store,uuid:()=> 'draft-1',read:async blob=>'data:'+blob.type+';base64,'+Buffer.from(await blob.arrayBuffer()).toString('base64')});r.begin();
  const values={title:'An unfinished stop',category:'Travel',visited:'2026-10-15',rating:'0',address:'',notes:'',phone:'',url:'',lat:'',lng:''};await r.flush({values,favorite:false,tripIds:['trip-1'],photos:[],coverIndex:0,audio:null});const draft=await store.read();assert.equal(draft.version,2);assert.deepEqual((await r.hydrate(draft)).tripIds,['trip-1']);
  const legacy={...draft,version:1};delete legacy.tripIds;assert.deepEqual((await r.hydrate(legacy)).tripIds,[]);db.close();
+});
+
+test('returning from a nested footprint edit refreshes saved trip checkboxes without discarding local selections',()=>{
+ const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,{open:id==='journeys',listeners:{},addEventListener(type,fn){this.listeners[type]=fn;}});return nodes.get(id);};let records=[place(),place({id:'stop-2'})];
+ const ui=createJourneysUI({document:{getElementById:get},getState:()=>({records,journeys:[trip()]}),write:async()=>{},confirm:()=>true,date:s=>s});ui.wire();ui.open();
+ get('journeys').listeners.click({target:{closest:()=>({dataset:{journeyOpen:'trip-1'}})}});assert.match(get('journey-members').innerHTML,/data-journey-member="stop-1" checked/);
+ records=[place({tripIds:[]}),place({id:'stop-2'})];ui.refresh();assert.doesNotMatch(get('journey-members').innerHTML,/data-journey-member="stop-1" checked/);assert.match(get('journey-caption').textContent,/1 footprint/);
+ // A new local choice remains pending if another saved stop changes underneath.
+ get('journeys').listeners.change({target:{dataset:{journeyMember:'stop-1'},checked:true}});records=[place({tripIds:[]}),place({id:'stop-2',tripIds:[]})];ui.refresh();assert.match(get('journey-members').innerHTML,/data-journey-member="stop-1" checked/);assert.match(get('journey-members-count').textContent,/2 selected/);
 });

@@ -187,4 +187,4 @@ Trips & journeys groups footprints without copying photos. Names/descriptions an
 
 Full backup format 3 round trips trips, deletion markers, covers, memberships and originals. Earlier backup formats import as journals without trips. Restore keeps newer versions and reconciles deleted groups and unavailable covers. Up to 1,000 journey entries (including markers); original gallery/backup bounds remain. All ten new ideas are approved; the remaining nine are queued in docs/ROADMAP.md, beginning with return visits. They are not yet implemented.
 
-218 automated checks and mobile/desktop Chromium end-to-end trip checks passed, with no page errors. Physical Android trip/Back/restore testing remains necessary.
+219 automated checks and mobile/desktop Chromium end-to-end trip checks passed, with no page errors. Physical Android trip/Back/restore testing remains necessary.

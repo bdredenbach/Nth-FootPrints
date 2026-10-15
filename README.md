@@ -174,4 +174,4 @@ Trip metadata and memberships save atomically. Full backups now use format 3 wit
 
 All ten proposed journal features are approved. Return visits comes next, followed by anniversary memories, batch import, timeline/calendar, exploration stats, geotagged export copies, tags/smart collections, memory cards/trip PDFs and opt-in proximity reminders. See [the working queue](docs/ROADMAP.md) for scope, current status and the carried-forward media/backup and global offline-map work.
 
-218 automated checks pass; mobile/desktop Chromium checked the complete trip workflow, restart recovery, fresh backup restore and removal without photo loss. Android device testing remains necessary.
+219 automated checks pass; mobile/desktop Chromium checked the complete trip workflow, restart recovery, fresh backup restore and removal without photo loss. Android device testing remains necessary.
