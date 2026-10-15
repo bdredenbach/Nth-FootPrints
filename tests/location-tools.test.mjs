@@ -84,7 +84,7 @@ const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 function editorFixture(){
  const ids=['lat','lng','use-location','location-status','editor','pin-picker','picker-locate','picker-error','apply-position','position-coordinates','position-map','picker-status','picker-retry'];
  const nodes=Object.fromEntries(ids.map(id=>[id,{value:'',open:['editor','pin-picker'].includes(id),textContent:'',disabled:false,close(){this.open=false;}}]));
- let change;const context=vm.createContext({$:id=>nodes[id],picker:null,pickerRequest:0,gpsRequestVersion:0,locationPending:false,syncSave(){},hasLocation,window:{L:{}},show(){},device:{},createPositionPicker:options=>{change=options.onChange;return {getPosition:()=>point(43,-74),setPosition(p){change(p);},destroy(){}};}});
+ let change;const context=vm.createContext({$:id=>nodes[id],close:id=>nodes[id].close(),picker:null,pickerRequest:0,gpsRequestVersion:0,locationPending:false,syncSave(){},hasLocation,window:{L:{}},show(){},device:{},createPositionPicker:options=>{change=options.onChange;return {getPosition:()=>point(43,-74),setPosition(p){change(p);},destroy(){}};}});
  vm.runInContext(app.slice(app.indexOf('function draftPosition()'),app.indexOf('function renderReleases()')),context);
  return {context,nodes,change:()=>change};
 }

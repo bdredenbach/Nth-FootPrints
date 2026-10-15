@@ -37,7 +37,7 @@ export function createWidgetSync({plugin,thumbnail=widgetThumbnail,onStatus=()=>
 }
 export function createWidgetLaunch({plugin,canOpen=()=>true,openFootprint,newFootprint,openJournal=()=>{},onError=()=>{}}={}){
  let pending=null,reading=false,again=false,started=false,listener;
- function flush(){if(!pending||!canOpen())return;const action=pending;pending=null;if(action.action==='new')newFootprint();else if(action.action==='journal')openJournal();else openFootprint(action.id);}
+ function flush(){if(!pending||!canOpen())return;const action=pending;pending=null;try{const result=action.action==='new'?newFootprint():action.action==='journal'?openJournal():openFootprint(action.id);Promise.resolve(result).catch(()=>onError('Could not open the widget shortcut. Open your footprint from the journal.'));}catch{onError('Could not open the widget shortcut. Open your footprint from the journal.');}}
  async function read(){
   if(reading){again=true;return;}reading=true;
   try{do{

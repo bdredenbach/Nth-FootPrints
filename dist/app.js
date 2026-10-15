@@ -9,6 +9,7 @@ import {createPositionPicker,createNearbyLookup,nearestPlaces,distanceLabel} fro
 import {RELEASES,APP_VERSION} from './releases.js';
 import {createWidgetSync,createWidgetLaunch} from './widget.js';
 import {photosOf,coverOf,selectPhoto,addPhotos,replacePhoto,removePhoto,readGalleryFiles,createPhotoViewer,bindPhotoSwipe} from './gallery.js';
+import {createNavigation,bindNativeBack,navigationRoute} from './navigation.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
 let atlas=null,picker=null,pickerRequest=0,nearbyOrigin=null;
 const $=id=>document.getElementById(id);
@@ -19,6 +20,8 @@ function icons(root=document){root.querySelectorAll('[data-icon]').forEach(e=>e.
 let db,records=[],settings={theme:'paper'},view='journal',category='All places',query='',sort='newest',deckIndex=0,mapId=null,storageReady=false;
 let editId=null,draftPhoto=null,draftAudio=null,draftArt=null,recording=null,recordStream=null,recordChunks=[],recordSession=0,transferToken=0,transferRunning=false,pendingRestore=null;
 let draftPhotos=[],draftCover=0,detailId=null,detailViewer=null,detailCleanup=null,detailUpload=null,detailRevision=0,galleryWrites=Promise.resolve();
+let draftBaseline=null,editorSaving=false,journalDeckIndex=0;
+const closingDialogs=new Set();
 const SEEDTIME=SAMPLE_TIMESTAMP;
 const seeds=[
 {id:'demo-coast',title:'Cannon Beach',address:'Oregon Coast, United States',category:'Nature',visited:'2026-09-22',rating:5,favorite:true,lat:45.8918,lng:-123.9615,notes:'Salt in the air. Sand in our shoes. Nowhere else we needed to be.\n\nWe stayed until the last of the light disappeared behind the rock.',sampleArt:'coast'},
@@ -44,12 +47,12 @@ function changeJournal(transform,preferences=current=>current){const write=journ
 const widgetPlugin=device.native?window.NthNative?.FootprintWidget:null;
 const widgetSync=createWidgetSync({plugin:widgetPlugin,onStatus:message=>{$('widget-status').textContent=message;}});
 const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
- canOpen:()=>storageReady&&!document.querySelector('dialog[open]'),
+ canOpen:()=>storageReady&&!navigation.busy&&!navigation.applying&&!document.querySelector('dialog[open]'),
  openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),
- openFootprint:id=>{
+ openFootprint:async id=>{
   const record=records.find(r=>r.id===id);
   if(!record){toast('That footprint is no longer in your journal.');return;}
-  query='';category='All places';$('search').value='';setView('journal');
+  query='';category='All places';$('search').value='';await setView('journal');
   deckIndex=filtered().findIndex(r=>r.id===id);renderDeck(filtered());openDetail(id);
  },onError:toast
 });
@@ -133,9 +136,77 @@ async function moveDeck(step,{drag=0}={}){
  deckIndex=wrappedIndex(deckIndex,step,items.length);deckAnimations.forEach(a=>a.cancel());deckAnimations=[];deckBusy=false;renderDeck(items);
  if(focused)$('deck').querySelector('.deck-front')?.focus({preventScroll:true});
 }
-function setView(next){cancelDeckMotion();if(next!=='map'){atlas?.setVisible(false);nearby.cancel();}view=next;deckIndex=0;history.replaceState(null,'','#'+next);render();}
-function show(id){$(id).showModal();}
-function close(id){if(id==='backup'&&(restoreCommit||exportCommit))return;if(id==='editor')stopRecording(true);if(id==='pin-picker')closePicker();if(id==='backup'){cancelTransfer();pendingRestore=null;}$ (id).close();}
+const navigation=createNavigation({history:window.history,location:window.location,events:window,
+ apply:applyNavigation,canLeave:canLeaveNavigation,onError:toast,onSettled:()=>widgetLaunch.flush(),
+ onRoot:()=>{if(device.native)window.NthNative?.App?.minimizeApp().catch(()=>toast('Could not return to the home screen.'));}
+});
+function editorSnapshot(){return {fields:JSON.stringify([...new FormData($('place-form')).entries()]),favorite:$('favorite').checked,photo:draftPhoto,photos:draftPhotos.slice(),cover:draftCover,audio:draftAudio,art:draftArt};}
+function editorDirty(){
+ if(!$('editor').open||!draftBaseline)return false;
+ if(pendingMedia||micPending||cameraPending||locationPending||recording?.state==='recording')return true;
+ const next=editorSnapshot();return ['fields','favorite','photo','cover','audio','art'].some(key=>next[key]!==draftBaseline[key])||next.photos.length!==draftBaseline.photos.length||next.photos.some((photo,i)=>photo!==draftBaseline.photos[i]);
+}
+function canLeaveNavigation(previous,next){
+ const removed=previous.dialogs.filter(item=>!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId));
+ if(removed.some(item=>item.id==='editor')){
+  if(editorSaving){toast('Saving your footprint. Please wait.');return false;}
+  if(editorDirty()&&!confirm('Discard your unsaved footprint changes?'))return false;
+ }
+ if(removed.some(item=>item.id==='backup')){
+  if(restoreCommit||exportCommit){toast('Finishing your transfer. Please wait.');return false;}
+  if(transferRunning){cancelTransfer();if(transferRunning){toast('Cancelling your transfer safely. Please wait.');return false;}}
+ }
+ return true;
+}
+function applyView(next){
+ if(view==='journal')journalDeckIndex=deckIndex;
+ cancelDeckMotion();if(next!=='map'){atlas?.setVisible(false);nearby.cancel();}
+ view=next;deckIndex=next==='journal'?journalDeckIndex:0;render();
+}
+function setView(next){return navigation.view(next);}
+function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId}:{} )});}
+function cleanupDialog(id){
+ if(id==='pin-picker')closePicker();
+ if(id==='editor'){
+  if($('pin-picker').open)closeRaw('pin-picker');
+  editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;draftBaseline=null;
+  syncSave();$('audio-preview').pause();stopRecording(true);
+ }
+ if(id==='details'){
+  detailRevision++;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;detailUpload?.abort();detailId=null;
+  $('details').querySelectorAll('audio').forEach(audio=>audio.pause());
+ }
+ if(id==='backup'){cancelTransfer();pendingRestore=null;}
+}
+function closeRaw(id){if(!$(id).open)return;cleanupDialog(id);closingDialogs.add(id);$(id).close();}
+function close(id,{force=false}={}){
+ if(!$(id).open)return;
+ if(navigation.route()?.dialogs.at(-1)?.id!==id)return;
+ navigation.back({force});
+}
+function openBackup(){
+ if(!transferRunning){setTransferDialog();$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;$('transfer').hidden=true;$('backup').classList.remove('transfer-active');}
+ show('backup');
+}
+async function applyNavigation(route,previous){
+ const next=navigationRoute(route);
+ const missing=next.dialogs.findIndex(item=>['details','editor'].includes(item.id)&&item.recordId&&!records.some(r=>r.id===item.recordId));
+ if(missing>=0){next.dialogs=next.dialogs.slice(0,missing);navigation.replaceRoute(next);toast('That footprint is no longer in your journal.');}
+ for(const item of [...previous.dialogs].reverse()){
+  if(!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId))closeRaw(item.id);
+ }
+ if(next.view!==view)applyView(next.view);
+ for(const item of next.dialogs){
+  if(item.id==='details'){
+   const returning=previous.dialogs.at(-1)?.id==='editor'&&next.dialogs.at(-1)?.id==='details';
+   if(!$('details').open||detailId!==item.recordId||returning){const scroll=$('details').scrollTop;await openDetail(item.recordId);if(returning)$('details').scrollTop=scroll;}
+  }else if(item.id==='editor'){
+   if(!$('editor').open||editId!==item.recordId)await openEditor(item.recordId);
+  }else if(item.id==='pin-picker'){if(!$('pin-picker').open)openPicker();}
+  else if(item.id==='backup'){if(!$('backup').open)openBackup();}
+  else if(!$(item.id).open)show(item.id);
+ }
+}
 async function openDetail(id){
  const request=++detailRevision;await galleryWrites;await journalWrites;if(request!==detailRevision)return;
  detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;
@@ -198,16 +269,16 @@ function refreshDraft(){
  $('audio-preview').hidden=!draftAudio;$('remove-audio').hidden=!draftAudio;if(draftAudio)$('audio-preview').src=draftAudio;else{$('audio-preview').pause();$('audio-preview').removeAttribute('src');}
 }
 async function openEditor(id=null){
- const fromDetails=$('details').open,request=detailRevision;await galleryWrites;await journalWrites;
+ const fromDetails=$('details').open,request=detailRevision;if(fromDetails)detailUpload?.abort();await galleryWrites;await journalWrites;
  if(fromDetails&&(!$('details').open||request!==detailRevision))return;
  if(!storageReady){toast('Local saving is unavailable. Check browser storage permissions and reload.');return;}
- if($('details').open)$('details').close();
+ if($('details').open)$('details').querySelectorAll('audio').forEach(audio=>audio.pause());
  editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
  const r=id?records.find(x=>x.id===id):null;editId=r?.id??null;draftPhoto=r?.photo??null;draftAudio=r?.audio??null;draftArt=r?.sampleArt??null;draftPhotos=photosOf(r);draftCover=coverOf(r);
  $('place-form').reset();$('editor-title').textContent=r?'A place worth revisiting.':'A new footprint.';
  for(const field of ['title','category','visited','rating','address','notes','phone','url','lat','lng'])$(field).value=r?.[field]??({category:'Travel',visited:today(),rating:0}[field]??'');
  $('favorite').checked=r?.favorite??false;$('editor-error').textContent='';$('location-status').textContent='Add coordinates to put this footprint on the map.';$('record-status').textContent='Recording needs microphone access. You can also attach an audio file.';
- refreshDraft();show('editor');
+ refreshDraft();draftBaseline=editorSnapshot();show('editor');
 }
 function draftPosition(){
  const lat=$('lat').value.trim(),lng=$('lng').value.trim();
@@ -242,7 +313,7 @@ async function locatePicker(){
 function applyPicker(){
  const point=picker?.getPosition();if(!point||!$('editor').open)return;
  setDraftPosition(point,'Location chosen on the map. Save the footprint to keep it.');
- closePicker();$('pin-picker').close();
+ close('pin-picker',{force:true});
 }
 function renderReleases(){
  $('release-version').textContent=`NTH FOOTPRINTS · ${APP_VERSION}`;
@@ -298,10 +369,10 @@ async function toggleRecording(){
  recorder.start(1000);$('record').innerHTML=icon('mic')+'Stop recording';$('record').classList.add('recording');$('record-status').textContent='Recording… tap Stop when you’re finished.';$('save-place').disabled=true;
  }catch(e){recordStream?.getTracks().forEach(t=>t.stop());recordStream=null;$('record-status').textContent='Microphone access was unavailable. You can attach an audio file instead.';}finally{$('record').disabled=false;micPending=false;syncSave();}
 }
-async function savePlace(e){e.preventDefault();if(micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
+async function savePlace(e){e.preventDefault();if(editorSaving||micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
  try{const form=new FormData($('place-form'));const r=validateRecord({id:editId??crypto.randomUUID(),title:form.get('title'),category:form.get('category'),visited:form.get('visited'),rating:Number(form.get('rating')),favorite:$('favorite').checked,address:form.get('address'),notes:form.get('notes'),phone:form.get('phone'),url:form.get('url'),lat:form.get('lat')===''?null:Number(form.get('lat')),lng:form.get('lng')===''?null:Number(form.get('lng')),photo:draftPhoto,photos:draftPhotos,coverIndex:draftCover,audio:draftAudio,sampleArt:draftArt,updatedAt:new Date().toISOString()});
- await changeJournal(current=>current.filter(x=>x.id!==r.id).concat(r));close('editor');deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editId?'Footprint updated.':'A new memory, kept.');
- }catch(e){$('editor-error').textContent=e.message;}finally{save.disabled=false;}
+ editorSaving=true;await changeJournal(current=>current.filter(x=>x.id!==r.id).concat(r));editorSaving=false;draftBaseline=editorSnapshot();close('editor',{force:true});deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editId?'Footprint updated.':'A new memory, kept.');
+ }catch(e){$('editor-error').textContent=e.message;}finally{editorSaving=false;save.disabled=false;}
 }
 const tick=()=>new Promise(resolve=>setTimeout(resolve,0));
 const fileSize=n=>n<1024*1024?`${(n/1024).toFixed(1)} KB`:`${(n/1024/1024).toFixed(1)} MB`;
@@ -335,7 +406,7 @@ function setTransferDialog(photo=false){$('backup').dataset.kind=photo?'photo':'
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function exportBackup(id=null){
  if(transferRunning)return;await galleryWrites;await journalWrites;if(transferRunning)return;setTransferDialog();
- if($('details').open)$('details').close();if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
+ if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
  const token=beginTransfer('Create a backup');const items=id?records.filter(r=>r.id===id):[...records];
  const name=`Nth-FootPrints-${id?'memory-':''}${today()}.nthbackup`;$('transfer-file').textContent=name;
  try{
@@ -354,7 +425,7 @@ async function exportBackup(id=null){
 }
 async function exportPhoto(id){
  if(transferRunning)return;await galleryWrites;await journalWrites;if(transferRunning)return;const r=records.find(record=>record.id===id);const photo=preparePhotoExport(r);
- if($('details').open)$('details').close();setTransferDialog(true);if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
+ setTransferDialog(true);if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
  const token=beginTransfer('Export photo');$('transfer-file').textContent=photo.name;
  pendingExport={...photo,token,kind:'photo'};transferProgress(0,'Preparing your photo…',`${fileSize(photo.blob.size)} · original photo`);
  await savePreparedBackup();
@@ -432,29 +503,33 @@ async function useLocation({capture=false}={}){
  }
 }
 async function toggleFavorite(id){const r=records.find(x=>x.id===id);if(!r)return;await galleryWrites;await changeJournal(current=>current.map(x=>x.id===id?{...x,favorite:!x.favorite,updatedAt:new Date().toISOString()}:x));if($('details').open)openDetail(id);}
-async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and its attached photo and voice note?`))return;await galleryWrites;await changeJournal(current=>current.filter(x=>x.id!==id));$('details').close();toast('Footprint deleted.');}
+async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and its attached photo and voice note?`))return;await galleryWrites;await changeJournal(current=>current.filter(x=>x.id!==id));close('details',{force:true});toast('Footprint deleted.');}
 async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
  try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){await openDetail(b.dataset.detail);return;}if(b.dataset.photoIndex!==undefined){galleryWrites=detailViewer?.select(Number(b.dataset.photoIndex))??Promise.resolve();return;}if(b.dataset.draftIndex!==undefined){chooseDraftPhoto(Number(b.dataset.draftIndex));return;}if(b.dataset.edit){await openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
  }catch(err){toast(err.message);}
 }
 function wire(){
  $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=()=>widgetSync.refresh(records);
- document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('close',()=>queueMicrotask(()=>widgetLaunch.flush())));
+ document.querySelectorAll('dialog').forEach(dialog=>{
+  dialog.addEventListener('cancel',event=>{event.preventDefault();close(dialog.id);});
+  dialog.addEventListener('close',()=>{if(!closingDialogs.delete(dialog.id)&&!dialog.open)cleanupDialog(dialog.id);if(!navigation.busy)widgetLaunch.flush();});
+ });
+ window.addEventListener('beforeunload',event=>{if(editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning){event.preventDefault();event.returnValue='';}});
+ if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
  icons();renderReleases();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';const next=removePhoto({photos:draftPhotos,coverIndex:draftCover});draftPhotos=next.photos;draftCover=next.coverIndex;draftPhoto=next.photo;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
- $('backup-open').onclick=()=>{if(!transferRunning){setTransferDialog();$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;$('transfer').hidden=true;$('backup').classList.remove('transfer-active');}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{if($('backup').dataset.kind==='photo'){close('backup');return;}$('transfer').hidden=true;$('backup').classList.remove('transfer-active');};
+ $('backup-open').onclick=openBackup;$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{if($('backup').dataset.kind==='photo'){close('backup');return;}$('transfer').hidden=true;$('backup').classList.remove('transfer-active');};
  $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await changeJournal(current=>current,()=>({theme:e.target.value}));}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
 
- $('editor').addEventListener('cancel',()=>stopRecording(true));$('editor').addEventListener('close',()=>{if($('pin-picker').open)$('pin-picker').close();closePicker();editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;syncSave();$('audio-preview').pause();stopRecording(true);});$('details').addEventListener('close',()=>{detailRevision++;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;detailUpload?.abort();detailId=null;$('details').querySelectorAll('audio').forEach(a=>a.pause());});$('backup').addEventListener('cancel',e=>{if(restoreCommit||exportCommit)e.preventDefault();else cancelTransfer();});
  bindVerticalDeck($('deck'),{canMove:()=>!deckBusy&&filtered().length>1,move:moveDeck,preview:previewDeck,reset:resetDeck});
  document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName))return;if(view==='journal'&&['ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();moveDeck(e.key==='ArrowUp'?1:-1);}});
  document.querySelector('.brand').onclick=e=>{e.preventDefault();setView('journal');};
 
 }
-async function init(){wire();const initial=location.hash.slice(1);if(initial==='places')history.replaceState(null,'','#journal');if(['journal','map','favorites'].includes(initial))view=initial;
+async function init(){const initial=location.hash.slice(1);if(['journal','map','favorites'].includes(initial))view=initial;navigation.start(view);wire();
  try{db=await dbOpen();const state=await dbGet();if(state){const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);if(records.length!==loaded.length)await dbPut(records,settings);}else{records=seeds;await dbPut(records,settings);}storageReady=true;}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
  applyTheme();render();if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }

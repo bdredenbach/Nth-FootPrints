@@ -1,17 +1,20 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.3.5**.
+GitHub is authoritative. Current prototype: **0.3.6**.
 
-Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, and the original Android/web app icon.
+Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, and shared Android/browser backward navigation.
 
 ## Remaining order
 
-1. **Backward navigation (next).** Android Back should unwind the current view: dismiss the top dialog/pin picker first, respect active-transfer commit rules, return from editing to the originating footprint where appropriate, return from secondary tabs to the journal, and only then leave the app. Include browser navigation/history behavior. This interpretation follows the user’s request and remains to be implemented/tested.
-2. **Independent widgets / different locations.** Let each Android widget instance choose a different saved footprint, preserve that selection by widget ID, support changing the selection, and handle deleted selected places. Latest-visit mode remains available. Current widgets all show the latest visit.
-3. **Online address and business search (provider dependency).** Select a provider, usage limits and key/proxy arrangement before adding external address/POI discovery; preserve manual coordinates. No public Nominatim search endpoint is bundled or queried.
-4. **Offline map packages.** Choose an offline-capable provider/data license, package format, storage limits and download/removal flow. The current public OSM raster tile service is for interactive online viewing and will not be used for bulk offline packages.
-5. **Integrated navigation.** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
-6. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+1. **Independent widgets / different locations (next).** Let each Android widget instance choose a different saved footprint, preserve that selection by widget ID, support changing the selection, and handle deleted selected places. Latest-visit mode remains available. Current widgets all show the latest visit.
+2. **Online address and business search (provider dependency).** Select a provider, usage limits and key/proxy arrangement before adding external address/POI discovery; preserve manual coordinates. No public Nominatim search endpoint is bundled or queried.
+3. **Offline map packages.** Choose an offline-capable provider/data license, package format, storage limits and download/removal flow. The current public OSM raster tile service is for interactive online viewing and will not be used for bulk offline packages.
+4. **Integrated navigation.** Routing, rerouting, turn instructions and voice guidance, building on the selected map/routing data. Current Directions links open an external maps app/browser.
+5. **Larger collections and Android lifecycle recovery.** Move large media out of in-memory base64 state, stream backup archives, and recover unsaved camera drafts after Android destroys the activity.
+
+## Backward navigation shipped in 0.3.6
+
+A shared history controller handles Android Back through Capacitor App, browser Back/Forward, Escape and close buttons. Dialogs unwind one at a time, including the map position picker. Editing keeps its footprint underneath and returns there after Save or confirmed discard; journal card position is retained across tabs. Map/Favorites share a journal parent; Android Back at the journal minimizes the app. Dirty drafts ask before leaving, saves and transfer commits block departure, and cancellable transfers stop safely. Restoring a history entry does not re-run an export or restore. Deleted records are removed from restored routes. Browser unload prompts offer additional protection where supported; process-death draft recovery remains queued. 129 automated checks pass. Physical Android Back/keyboard/launcher and browser history testing remain necessary.
 
 ## Original icon shipped in 0.3.5
 
