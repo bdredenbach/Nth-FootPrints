@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.2.5**.
+A personal travel journal by Nth Experience. Prototype **0.2.6**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -24,7 +24,7 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 
 ## Run locally
 
-The application uses static ES modules and has no third-party JavaScript dependencies. Serve `dist/` over localhost or HTTPS, for example:
+The browser application uses static ES modules without third-party runtime dependencies. The APK workflow installs the pinned Capacitor camera/location plugins and bundles their bridge. Serve `dist/` over localhost or HTTPS, for example:
 
 ```sh
 python3 -m http.server 8000 --directory dist
@@ -40,7 +40,7 @@ Node.js 20+:
 npm test
 ```
 
-There are 30 automated checks covering backup round trips, merge behavior, vertical gesture handling including capture changes from photo/caption targets, and geotag parsing. Phone camera/GPS behavior and visual animation still require device testing.
+Automated checks cover backup round trips, merge behavior, vertical gesture handling including capture changes from photo/caption targets, and geotag parsing. Phone camera/GPS behavior and visual animation still require device testing.
 
 ## Project layout
 
@@ -49,8 +49,14 @@ There are 30 automated checks covering backup round trips, merge behavior, verti
 - `docs/BACKUP-FORMAT.md`: the versioned portable backup contract.
 - `tests/`: Node tests and small original, generated image fixtures.
 
-This is the browser prototype and a foundation for later Android bundling. It is not an APK. Native widgets, a multi-pin atlas, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. Geotags are saved with footprint records; original photo bytes are preserved.
+The browser prototype and Android debug APK share the same journal UI. Download the latest successful Build Android APK artifact from GitHub Actions. Native widgets, a multi-pin atlas, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
 
 Android builds account for system status/navigation bars and display cutouts, with safe-area spacing around the app and its fixed bottom tabs. The APK workflow builds on changes to app or Android-build files as well as manual runs.
+
+## Android photo capture (0.2.6)
+
+The large photo area chooses an existing gallery image and reads available embedded GPS without substituting your current location. **Take photo + locate** opens the Android camera through Capacitor Camera 8.0.0, attaches the result, then requests a fresh device location through Geolocation 8.0.0. Allow camera and location access when prompted; precise location gives better results. Coordinates are stored in the footprint, not written into image EXIF. A failed location lookup keeps the photo and allows retry/manual entry; cancelling the camera preserves the previous draft.
+
+Install the newly built APK for these native changes; refreshing GitHub Pages cannot update an installed APK. The browser retains its capture-input fallback, whose camera behavior depends on the browser. Android may discard the unsaved editor if it kills the app while the external camera is open; saved journal entries remain intact.

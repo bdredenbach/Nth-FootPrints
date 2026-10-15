@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import {createDeviceAccess,cameraCancelled} from '../dist/device.js';
+const fix={coords:{latitude:45.89,longitude:-123.96,accuracy:8}};
+
+test('native camera explicitly opens camera and reads returned photo bytes',async()=>{
+ let options,path;
+ const device=createDeviceAccess({native:true,plugins:{Camera:{getPhoto:async o=>{options=o;return {webPath:'https://localhost/_capacitor_file_/photo.jpg'};}}},fetchPhoto:async p=>{path=p;return new Response(new Blob(['photo'],{type:'image/jpeg'}));}});
+ const blob=await device.takePhoto();
+ assert.equal(options.source,'CAMERA');assert.equal(options.resultType,'uri');assert.equal(options.saveToGallery,false);
+ assert.match(path,/_capacitor_file_/);assert.equal(await blob.text(),'photo');assert.equal(blob.type,'image/jpeg');
+});
+test('native location requests permission and accepts Android approximate access',async()=>{
+ let requested,options;
+ const device=createDeviceAccess({native:true,plugins:{Geolocation:{checkPermissions:async()=>({location:'prompt',coarseLocation:'prompt'}),requestPermissions:async p=>{requested=p;return {location:'denied',coarseLocation:'granted'};},getCurrentPosition:async o=>{options=o;return fix;}}}});
+ assert.deepEqual(await device.currentPosition(),fix);assert.deepEqual(requested,{permissions:['location']});assert.deepEqual(options,{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+});
+test('denied location never requests a fix or substitutes browser coordinates',async()=>{
+ let queried=false;
+ const device=createDeviceAccess({native:true,plugins:{Geolocation:{checkPermissions:async()=>({location:'denied'}),requestPermissions:async()=>({location:'denied'}),getCurrentPosition:async()=>{queried=true;return fix;}}},geolocation:{getCurrentPosition:()=>{queried=true;}}});
+ await assert.rejects(device.currentPosition(),/not granted/);assert.equal(queried,false);
+});
+test('browser GPS fallback and invalid native coordinates',async()=>{
+ const browser=createDeviceAccess({geolocation:{getCurrentPosition:(ok,err,options)=>{assert.equal(options.maximumAge,0);ok(fix);}}});
+ assert.equal(await browser.currentPosition(),fix);
+ const native=createDeviceAccess({native:true,plugins:{Geolocation:{checkPermissions:async()=>({location:'granted'}),getCurrentPosition:async()=>({coords:{latitude:999,longitude:0,accuracy:1}})}}});
+ await assert.rejects(native.currentPosition(),/valid location/);
+});
+test('cancelled camera remains distinguishable from denied access or broken photo reads',async()=>{
+ assert.equal(cameraCancelled(Error('User cancelled photos app')),true);assert.equal(cameraCancelled(Error('Permission denied')),false);
+ const device=createDeviceAccess({native:true,plugins:{Camera:{getPhoto:async()=>({webPath:'missing'})}},fetchPhoto:async()=>new Response('',{status:404})});
+ await assert.rejects(device.takePhoto(),/could not be opened/);
+});
+
+// Run the actual editor capture/location functions with device and DOM boundaries stubbed.
+const app=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
+const captureFunctions=app.slice(app.indexOf('async function finishCameraPhoto('),app.indexOf('async function toggleFavorite('));
+function editor(device){
+ const nodes=Object.fromEntries(['editor','editor-error','photo-geotag','lat','lng','location-status','use-location','camera-file'].map(id=>[id,{open:id==='editor',value:id==='lat'?'1':id==='lng'?'2':'',textContent:'',disabled:false}]));
+ const context=vm.createContext({device,cameraCancelled,$:id=>nodes[id],editorSession:1,gpsRequestVersion:0,locationPending:false,cameraPending:false,draftPhoto:'old-photo',pendingPhotoMetadata:null,syncSave:()=>{},attach:async file=>{if(!file)return false;context.draftPhoto=file;return true;}});
+ vm.runInContext(captureFunctions,context);return {context,nodes};
+}
+test('capture attaches first, clears stale coordinates, then fills fresh GPS',async()=>{
+ let state;
+ state=editor({native:true,takePhoto:async()=>'new-photo',currentPosition:async()=>{assert.equal(state.context.draftPhoto,'new-photo');assert.equal(state.nodes.lat.value,'');assert.equal(state.nodes.lng.value,'');return fix;}});
+ await state.context.takePhoto();assert.equal(state.nodes.lat.value,'45.890000');assert.equal(state.nodes.lng.value,'-123.960000');assert.match(state.nodes['location-status'].textContent,/8 m accuracy/);assert.equal(state.context.cameraPending,false);
+});
+test('camera cancellation keeps previous photo and coordinates without GPS',async()=>{
+ let queried=false;const {context,nodes}=editor({native:true,takePhoto:async()=>{throw Error('User cancelled photos app');},currentPosition:async()=>{queried=true;return fix;}});
+ await context.takePhoto();assert.equal(context.draftPhoto,'old-photo');assert.equal(nodes.lat.value,'1');assert.equal(queried,false);assert.equal(nodes['editor-error'].textContent,'');
+});
+test('GPS denial keeps captured photo and leaves no stale pin',async()=>{
+ const {context,nodes}=editor({native:true,takePhoto:async()=>'new-photo',currentPosition:async()=>{throw Error('denied');}});
+ await context.takePhoto();assert.equal(context.draftPhoto,'new-photo');assert.equal(nodes.lat.value,'');assert.equal(nodes.lng.value,'');assert.match(nodes['location-status'].textContent,/photo is attached/);assert.equal(context.locationPending,false);
+});
+test('closing/reopening editor discards an old camera result',async()=>{
+ let resolve;const {context}=editor({native:true,takePhoto:()=>new Promise(r=>{resolve=r;}),currentPosition:async()=>{throw Error('must not request GPS');}});
+ const pending=context.takePhoto();context.editorSession++;resolve('late-photo');await pending;assert.equal(context.draftPhoto,'old-photo');
+});
+test('GPS result cannot overwrite newer manual coordinates',async()=>{
+ let resolve;const {context,nodes}=editor({currentPosition:()=>new Promise(r=>{resolve=r;})});
+ const pending=context.useLocation();context.gpsRequestVersion++;nodes.lat.value='60';nodes.lng.value='10';resolve(fix);await pending;assert.equal(nodes.lat.value,'60');assert.equal(nodes.lng.value,'10');
+});

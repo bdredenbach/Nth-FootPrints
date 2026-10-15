@@ -7,3 +7,9 @@ node_modules/
 *.nthbackup
 .DS_Store
 Thumbs.db
+
+# Generated Android project and bundled APK web assets
+android/
+native-web/
+capacitor.config.json
+Nth-FootPrints-debug.apk

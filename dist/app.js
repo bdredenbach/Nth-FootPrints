@@ -1,6 +1,8 @@
 import {APP,VERSION,CATEGORIES,MAX_BACKUP,validateRecord,validateSettings,parseBackup,mergeRecords,filterRecords,SAMPLE_TIMESTAMP,isSampleRecord as isDemo,withoutStarterSamples} from './model.js';
 import {bindVerticalDeck,wrappedIndex,dragTransform} from './deck.js';
 import {readPhotoMetadata} from './geotags.js';
+import {createDeviceAccess,cameraCancelled} from './device.js';
+const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={footprint:'M15 21c-2 0-3-2-3-5 0-2 1-5 3-5s4 3 4 5c0 3-2 5-4 5Z M15 7c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M9 10c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M7 14c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z',stack:'M4 7 12 3l8 4-8 4-8-4Z M4 12l8 4 8-4 M4 17l8 4 8-4',list:'M9 6h12 M9 12h12 M9 18h12 M3 6h1 M3 12h1 M3 18h1',map:'m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z M9 3v16 M15 5v16',heart:'M20 5c-2-2-5-2-8 1-3-3-6-3-8-1-3 3-1 6 1 8l7 7 7-7c2-2 4-5 1-8Z',archive:'M4 9h16v12H4V9Z M3 3h18v6H3V3Z M9 13h6',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M10 3h4l1 3 3 1 3 2v4l-3 1-1 3-2 4h-4l-1-3-3-1-4-2v-4l3-1 1-3 3-4Z',plus:'M12 5v14 M5 12h14',search:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M15 15l6 6',compass:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z m-6-3-2 4-4 2 2-4 4-2Z',arrowUp:'M12 19V5 M6 11l6-6 6 6',arrowDown:'M12 5v14 M6 13l6 6 6-6',arrowLeft:'M19 12H5 M11 6l-6 6 6 6',arrowRight:'M5 12h14 M13 6l6 6-6 6',location:'M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 0 1 14 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',close:'m6 6 12 12 M18 6 6 18',camera:'M3 7h4l2-3h6l2 3h4v14H3V7Z M16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3 M8 22h8',download:'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',edit:'m15 4 5 5-12 12H3v-5L15 4Z M12 7l5 5',external:'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',navigation:'m21 3-6 18-4-8-8-4L21 3Z',trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7'};
@@ -18,9 +20,9 @@ const date=s=>new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',yea
 const today=()=>{const n=new Date();return new Date(n.getTime()-n.getTimezoneOffset()*60000).toISOString().slice(0,10);};
 const art=r=>r.photo??`assets/${r.sampleArt??'blank'}.svg`;
 const photoAlt=r=>r.photo?`Photograph of ${r.title}`:r.sampleArt?`Original illustration for ${r.title}`:'No photograph added yet';
-let restoreCommit=false,pendingMedia=0,micPending=false;
+let restoreCommit=false,pendingMedia=0,micPending=false,cameraPending=false;
 let editorSession=0,photoReadVersion=0,gpsRequestVersion=0,pendingPhotoMetadata=null,locationPending=false;
-function syncSave(){ $('save-place').disabled=micPending||pendingMedia>0||locationPending||recording?.state==='recording'; }
+function syncSave(){ $('save-place').disabled=micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording';for(const id of ['take-photo','photo-file','remove-photo'])$(id).disabled=cameraPending; }
 let toastTimer;
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5500);}
 function dbOpen(){return new Promise((resolve,reject)=>{const req=indexedDB.open('nth-footprints',1);req.onupgradeneeded=()=>req.result.createObjectStore('journal');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('Close other FootPrints tabs, then reload.'));});}
@@ -130,7 +132,7 @@ async function inspectSavedPhoto(){
 }
 async function attach(file,kind){
  if(!file)return;let processing=false;const session=editorSession,selection=kind==='image'?++photoReadVersion:null;
- if(kind==='image'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;}
+ if(kind==='image'){gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;pendingPhotoMetadata=null;$('photo-geotag').hidden=true;}
  try{if(file.size>20*1024*1024)throw Error('Choose an attachment smaller than 20 MB for this prototype.');if(!file.type.startsWith(kind+'/'))throw Error(`Choose a valid ${kind} file.`);
  processing=true;pendingMedia++;syncSave();
  const [data,buffer]=await Promise.all([asDataURL(file),kind==='image'?file.arrayBuffer():null]);
@@ -156,7 +158,7 @@ async function toggleRecording(){
  recorder.start(1000);$('record').innerHTML=icon('mic')+'Stop recording';$('record').classList.add('recording');$('record-status').textContent='Recording… tap Stop when you’re finished.';$('save-place').disabled=true;
  }catch(e){recordStream?.getTracks().forEach(t=>t.stop());recordStream=null;$('record-status').textContent='Microphone access was unavailable. You can attach an audio file instead.';}finally{$('record').disabled=false;micPending=false;syncSave();}
 }
-async function savePlace(e){e.preventDefault();if(micPending||pendingMedia>0||locationPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
+async function savePlace(e){e.preventDefault();if(micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
  try{const form=new FormData($('place-form'));const r=validateRecord({id:editId??crypto.randomUUID(),title:form.get('title'),category:form.get('category'),visited:form.get('visited'),rating:Number(form.get('rating')),favorite:$('favorite').checked,address:form.get('address'),notes:form.get('notes'),phone:form.get('phone'),url:form.get('url'),lat:form.get('lat')===''?null:Number(form.get('lat')),lng:form.get('lng')===''?null:Number(form.get('lng')),photo:draftPhoto,audio:draftAudio,sampleArt:draftArt,updatedAt:new Date().toISOString()});
  const next=records.filter(x=>x.id!==r.id).concat(r);await commit(next);close('editor');deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editId?'Footprint updated.':'A new memory, kept.');
  }catch(e){$('editor-error').textContent=e.message;}finally{save.disabled=false;}
@@ -189,13 +191,34 @@ async function restoreBackup(){if(!pendingRestore)return;const incoming=pendingR
  checkToken(token);const merged=mergeRecords(records,incoming.records);restoreCommit=true;$('cancel-transfer').disabled=true;await commit(merged.records,withSettings?incoming.settings:settings);pendingRestore=null;$('restore-preview').hidden=true;finishTransfer(token,`Restored: ${merged.added} added, ${merged.updated} updated. Your journal is ready.`);toast('Your memories are here.');
  }catch(e){if(e.message!=='CANCELLED')finishTransfer(token,e.message);}finally{restoreCommit=false;$('cancel-transfer').disabled=false;if($('confirm-restore'))$('confirm-restore').disabled=false;}
 }
+async function finishCameraPhoto(file,session){
+ if(session!==editorSession||!$('editor').open)return;
+ const attached=await attach(file,'image');
+ if(attached&&session===editorSession&&$('editor').open&&draftPhoto){
+  pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
+  // A failed new fix must never leave a previous place attached to this photo.
+  $('lat').value='';$('lng').value='';
+  await useLocation({capture:true});
+ }
+}
+async function takePhoto(){
+ if(cameraPending)return;
+ if(!device.native){$('camera-file').value='';$('camera-file').click();return;}
+ const session=editorSession;cameraPending=true;syncSave();$('editor-error').textContent='';
+ try{const photo=await device.takePhoto();await finishCameraPhoto(photo,session);}
+ catch(error){if(session===editorSession&&$('editor').open&&!cameraCancelled(error))$('editor-error').textContent='Could not open the camera or read its photo. Allow Camera access in Android Settings → Apps → Nth FootPrints → Permissions, then try again.';}
+ finally{cameraPending=false;syncSave();}
+}
 async function useLocation({capture=false}={}){
- if(!navigator.geolocation){$('location-status').textContent='Location is unavailable. Enter coordinates manually.';return;}
  const session=editorSession,request=++gpsRequestVersion;locationPending=true;syncSave();$('use-location').disabled=true;$('location-status').textContent=capture?'Finding the location for your new photo…':'Finding your location…';
- navigator.geolocation.getCurrentPosition(p=>{
+ try{
+  const p=await device.currentPosition();
   if(session===editorSession&&request===gpsRequestVersion&&$('editor').open){$('lat').value=p.coords.latitude.toFixed(6);$('lng').value=p.coords.longitude.toFixed(6);$('location-status').textContent=`${capture?'New photo located':'Current location found'} (about ${Math.round(p.coords.accuracy)} m accuracy). Save the footprint to keep it. Add the address above if you’d like.`;}
+ }catch{
+  if(session===editorSession&&request===gpsRequestVersion&&$('editor').open)$('location-status').textContent=(capture?'Your photo is attached, but its location could not be found. ':'Could not get your location. ')+'Turn on device Location and allow location access for Nth FootPrints, then retry “Use my location” or enter coordinates manually.';
+ }finally{
   if(session===editorSession&&request===gpsRequestVersion){locationPending=false;$('use-location').disabled=false;syncSave();}
- },()=>{if(session===editorSession&&request===gpsRequestVersion){$('location-status').textContent='Could not get your location. Check location permission or enter coordinates manually.';locationPending=false;$('use-location').disabled=false;syncSave();}},{enableHighAccuracy:true,timeout:20000,maximumAge:0});
+ }
 }
 async function toggleFavorite(id){const r=records.find(x=>x.id===id);if(!r)return;await commit(records.map(x=>x.id===id?{...x,favorite:!x.favorite,updatedAt:new Date().toISOString()}:x));if($('details').open)openDetail(id);}
 async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and its attached photo and voice note?`))return;await commit(records.filter(x=>x.id!==id));$('details').close();toast('Footprint deleted.');}
@@ -207,7 +230,7 @@ function wire(){
  icons();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
- $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('camera-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;const session=editorSession;const attached=await attach(file,'image');if(attached&&session===editorSession&&$('editor').open&&draftPhoto){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;useLocation({capture:true});}};$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';draftPhoto=null;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
+ $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';draftPhoto=null;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
  $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;
  $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await commit(records,{theme:e.target.value});}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
