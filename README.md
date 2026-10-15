@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.2.8**.
+A personal travel journal by Nth Experience. Prototype **0.2.9**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -74,3 +74,7 @@ Use **Backup & restore → Create backup → Save backup…**. Preparation shows
 Restore uses the same progress panel and retains the validation/merge preview before saving changes. The portable .nthbackup v1 format and original attached media are unchanged. Native save-file handling uses a local Capacitor BackupFiles plugin with Android ACTION_CREATE_DOCUMENT and no broad storage permission. Physical-device save/cancel/cloud-provider testing is still required.
 
 **Existing test installations:** older APKs lack the save-file handler, and their discarded signing keys prevent updating them in place. Do not uninstall an existing journal before securing its data. A USB rescue helper is provided in tools/android-journal-rescue.py for a computer with Android platform tools; it makes a raw backup of the debug APK's IndexedDB files before any reinstall. This is a recovery archive, not a .nthbackup import file.
+
+## Export Photo (0.2.9)
+
+A footprint's detail button is now **Export Photo**. It opens the save picker for the attached image itself, retaining its original JPEG, PNG, WebP or GIF bytes and embedded metadata. The filename uses the place name and visit date. Footprints without an attached photo disable the action. Android uses the native document picker with an image MIME type; the website uses an image save picker or download. The progress dialog reports photo saving and cancellation. Full journal .nthbackup exports remain under Backup & restore. Footprint coordinates are not newly embedded in photo EXIF.

@@ -26,7 +26,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
 | Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v1 |
-| Individual memory export | Implemented, same .nthbackup format |
+| Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android package, widget | Planned |
 | Full multi-pin atlas, nearby place search | Planned |
@@ -83,3 +83,8 @@ Replaced APK anchor-download export with an app-local Android Storage Access Fra
 The shared dialog now retains the operation, filename, footprint being packed, counts, size, percentage, progress, cancellation and final result. Restore shows read/validation/commit progress while retaining preview and atomic merge. Closing/cancellation is blocked during final document closure or journal commit. Native builds with no save plugin report an error and never fall back to a WebView download. Web File System Access is used when available; plain browser downloads are accurately described as requested rather than confirmed saved.
 
 51 automated checks cover prior features plus chunk fidelity, deferred completion, cancellation, disk/write failures, cleanup failures, browser paths, missing native support and dialog state. Native Android compilation is checked separately; system picker/provider behavior needs device testing. Existing APK data cannot be migrated by an incompatible-signature update. The optional USB helper preserves a raw debug-app journal archive without uninstalling it.
+
+## 0.2.9 Export Photo
+Replaced the detail dialog's individual-backup Export action with Export Photo. The action decodes the stored image data URL to a typed Blob without resizing, recompressing or adding overlays. Existing metadata and original bytes are retained; the journal's separate coordinates are not newly written into EXIF. Native saving now allows a strict filename/extension list for backups and supported photo types and selects the matching MIME type. Browser save filters also use the image's extension and MIME type. Sample illustrations and footprints with no photo disable this action.
+
+Photo export opens the save picker directly, reusing cancellation, chunked writing, progress and confirmed completion. Whole-journal backups are unchanged. Tests cover real JPEG/PNG/WebP fixture bytes, GIF preservation, filenames, missing photos, browser picker options and photo-dialog routing.

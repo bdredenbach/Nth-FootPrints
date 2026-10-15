@@ -9,7 +9,7 @@ export function transferCancelled(error){return error?.name==='AbortError'||erro
 
 // Each native write is acknowledged before sending the next bounded chunk.
 // Native success means the document stream was closed, not a download click.
-export async function saveBackupFile(blob,name,{native=false,plugin,picker,download,signal,onProgress=()=>{},onCommit=()=>{}}={}){
+export async function saveBackupFile(blob,name,{native=false,plugin,picker,download,signal,onProgress=()=>{},onCommit=()=>{},mimeType='application/octet-stream',extension='.nthbackup',description='Nth FootPrints backup'}={}){
  check(signal);let session,writer;
  try{
   onProgress({phase:'choosing',written:0,total:blob.size});
@@ -17,7 +17,7 @@ export async function saveBackupFile(blob,name,{native=false,plugin,picker,downl
    if(!plugin)throw Error('This APK has no save-file handler. Keep your journal installed until it can be transferred safely.');
    session=await plugin.begin({name,size:blob.size});
   }else if(picker){
-   const handle=await picker({suggestedName:name,types:[{description:'Nth FootPrints backup',accept:{'application/octet-stream':['.nthbackup']}}]});
+   const handle=await picker({suggestedName:name,types:[{description,accept:{[mimeType]:[extension]}}]});
    check(signal);writer=await handle.createWritable();
   }else{
    check(signal);onCommit();download(blob,name);
@@ -33,14 +33,14 @@ export async function saveBackupFile(blob,name,{native=false,plugin,picker,downl
   check(signal);onCommit();onProgress({phase:'finalizing',written:blob.size,total:blob.size});
   if(native){
    const saved=await plugin.finish({id:session.id});
-   if(saved.bytes!==blob.size)throw Error('Android did not confirm the complete backup. Please retry.');
+   if(saved.bytes!==blob.size)throw Error('Android did not confirm the complete file. Please retry.');
    session=null;return {confirmed:true,name:saved.name||name,bytes:saved.bytes};
   }
   await writer.close();writer=null;return {confirmed:true,name,bytes:blob.size};
  }catch(error){
   let cleanup;
   try{if(session)await plugin.abort({id:session.id});if(writer)await writer.abort();}catch(e){cleanup=e;}
-  if(cleanup)throw Error('The backup was not completed. An incomplete file may remain in the chosen folder; delete it before retrying.');
+  if(cleanup)throw Error('The file was not completed. An incomplete file may remain in the chosen folder; delete it before retrying.');
   throw error;
  }
 }

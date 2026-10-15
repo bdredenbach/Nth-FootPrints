@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {saveBackupFile,transferCancelled} from '../dist/backup-file.js';
+import {preparePhotoExport} from '../dist/photo-export.js';
 import {APP,VERSION,MAX_BACKUP,validateRecord,parseBackup} from '../dist/model.js';
 
 function document(overrides={}){
@@ -42,7 +43,7 @@ test('write errors abort the partial document and preserve the error',async()=>{
 });
 test('finalization failure or incomplete byte count cannot be reported as saved',async()=>{
  const {plugin,calls}=document({finish:async()=>({bytes:1})});
- await assert.rejects(saveBackupFile(new Blob(['abc']),'journal.nthbackup',{native:true,plugin}),/complete backup/);assert.ok(calls.includes('abort'));
+ await assert.rejects(saveBackupFile(new Blob(['abc']),'journal.nthbackup',{native:true,plugin}),/complete file/);assert.ok(calls.includes('abort'));
 });
 test('failed cleanup explicitly reports the possible incomplete file',async()=>{
  const {plugin}=document({append:async()=>{throw Error('Write failed');},abort:async()=>{throw Error('Cannot delete');}});
@@ -60,9 +61,9 @@ test('browser file writer confirms only after close; download fallback remains u
 
 const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 function backupDialog(save){
- const nodes=Object.fromEntries(['details','backup','restore-preview','transfer','transfer-title','transfer-file','transfer-detail','save-backup','dismiss-transfer','cancel-transfer','transfer-progress','transfer-percent','transfer-label','backup-status','export-all','backup-file'].map(id=>[id,{hidden:true,open:id==='backup',textContent:'',dataset:{},classList:{add(){},remove(){}},setAttribute(){}}]));
+ const nodes=Object.fromEntries(['details','backup','restore-preview','transfer','transfer-title','transfer-file','transfer-detail','save-backup','dismiss-transfer','cancel-transfer','transfer-progress','transfer-percent','transfer-label','backup-status','export-all','backup-file','backup-heading','backup-eyebrow'].map(id=>[id,{hidden:true,open:id==='backup',textContent:'',dataset:{},classList:{add(){},remove(){}},setAttribute(){}}]));
  const r=validateRecord({id:'place',title:'Our first place 🌲',category:'Nature',visited:'2026-10-15',rating:4,favorite:false,lat:0,lng:0,notes:'Saved original',address:'',phone:'',url:'',photo:null,audio:null,sampleArt:null,updatedAt:'2026-10-15T13:00:00Z'});
- const state=vm.createContext({$:id=>nodes[id],APP,VERSION,MAX_BACKUP,validateRecord,parseBackup,Blob,AbortController,setTimeout,records:[r],settings:{theme:'paper'},transferToken:0,transferRunning:false,transferAbort:null,pendingExport:null,pendingRestore:null,exportSaving:false,exportCommit:false,restoreCommit:false,activeReader:null,device:{native:true},window:{NthNative:{BackupFiles:{}}},today:()=> '2026-10-15',saveBackupFile:save,transferCancelled,show:()=>{}});
+ const state=vm.createContext({$:id=>nodes[id],APP,VERSION,MAX_BACKUP,validateRecord,parseBackup,Blob,AbortController,setTimeout,records:[r],settings:{theme:'paper'},transferToken:0,transferRunning:false,transferAbort:null,pendingExport:null,pendingRestore:null,exportSaving:false,exportCommit:false,restoreCommit:false,activeReader:null,device:{native:true},window:{NthNative:{BackupFiles:{}}},today:()=> '2026-10-15',preparePhotoExport,saveBackupFile:save,transferCancelled,show:()=>{}});
  vm.runInContext(source.slice(source.indexOf('const tick=()=>'),source.indexOf('async function finishCameraPhoto(')),state);return {state,nodes};
 }
 test('dialog prepares a valid backup at 50%, and confirms 100% only after saving',async()=>{
@@ -75,4 +76,10 @@ test('dialog prepares a valid backup at 50%, and confirms 100% only after saving
 test('dialog shows write failure rather than success and clears prepared media',async()=>{
  const {state,nodes}=backupDialog(async()=>{throw Error('Disk full');});await state.exportBackup();await state.savePreparedBackup();
  assert.equal(nodes.transfer.dataset.state,'error');assert.match(nodes['backup-status'].textContent,/Disk full/);assert.notEqual(nodes['transfer-progress'].value,100);assert.equal(state.pendingExport,null);
+});
+
+test('Export Photo opens an image save operation directly and keeps backup format separate',async()=>{
+ let saved;const {state,nodes}=backupDialog(async(blob,name,options)=>{saved={blob,name,options};return {confirmed:true,name,bytes:blob.size};});
+ state.records[0].photo='data:image/jpeg;base64,/9j/2Q==';await state.exportPhoto('place');
+ assert.equal(nodes['backup-heading'].textContent,'Export photo.');assert.match(saved.name,/\.jpg$/);assert.equal(saved.blob.type,'image/jpeg');assert.equal(saved.options.extension,'.jpg');assert.equal(saved.options.mimeType,'image/jpeg');assert.match(nodes['backup-status'].textContent,/Your photo is ready/);assert.equal(nodes['transfer-progress'].value,100);
 });

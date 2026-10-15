@@ -3,6 +3,7 @@ import {bindVerticalDeck,wrappedIndex,dragTransform} from './deck.js';
 import {readPhotoMetadata} from './geotags.js';
 import {createDeviceAccess,cameraCancelled} from './device.js';
 import {saveBackupFile,transferCancelled} from './backup-file.js';
+import {preparePhotoExport} from './photo-export.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -92,7 +93,7 @@ function setView(next){cancelDeckMotion();view=next;deckIndex=0;history.replaceS
 function show(id){$(id).showModal();}
 function close(id){if(id==='backup'&&(restoreCommit||exportCommit))return;if(id==='editor')stopRecording(true);if(id==='backup'){cancelTransfer();pendingRestore=null;}$ (id).close();}
 function openDetail(id){const r=records.find(x=>x.id===id);if(!r)return;
- $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><img class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}"><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div><p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${r.lat!==null?`<p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p>`:''}<div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}">${icon('edit')}Edit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export="${esc(r.id)}">${icon('download')}Export</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}">${icon('trash')}</button></div></div>`;
+ $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><img class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}"><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div><p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${r.lat!==null?`<p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p>`:''}<div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}">${icon('edit')}Edit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export-photo="${esc(r.id)}" ${r.photo?'':'disabled title="Add a photograph to export it"'}>${icon('download')}Export Photo</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}">${icon('trash')}</button></div></div>`;
  if(!$('details').open)show('details');
 }
 function refreshDraft(){
@@ -193,9 +194,10 @@ function finishTransfer(token,message,success=true,cancelled=false){
  $('save-backup').hidden=true;$('cancel-transfer').hidden=true;$('dismiss-transfer').hidden=false;
  $('export-all').disabled=false;$('backup-file').disabled=false;
 }
+function setTransferDialog(photo=false){$('backup').dataset.kind=photo?'photo':'backup';$('backup-heading').textContent=photo?'Export photo.':'Backup & restore.';$('backup-eyebrow').textContent=photo?'KEEP THE VIEW':'YOUR MEMORIES GO WITH YOU';}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
 async function exportBackup(id=null){
- if(transferRunning)return;
+ if(transferRunning)return;setTransferDialog();
  if($('details').open)$('details').close();if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
  const token=beginTransfer('Create a backup');const items=id?records.filter(r=>r.id===id):[...records];
  const name=`Nth-FootPrints-${id?'memory-':''}${today()}.nthbackup`;$('transfer-file').textContent=name;
@@ -203,33 +205,41 @@ async function exportBackup(id=null){
   const chunks=['{"app":'+JSON.stringify(APP)+',"formatVersion":'+VERSION+',"createdAt":'+JSON.stringify(new Date().toISOString())+',"settings":'+JSON.stringify(settings)+',"records":['];let size=chunks[0].length;
   for(let i=0;i<items.length;i++){
    await tick();checkToken(token);const record=validateRecord(items[i]),part=(i?',':'')+JSON.stringify(record);size+=part.length;
-   if(size>MAX_BACKUP)throw Error('This journal exceeds the 150 MB backup limit. Export individual footprints from their memory pages.');
+   if(size>MAX_BACKUP)throw Error('This journal exceeds the 150 MB backup limit.');
    chunks.push(part);transferProgress(Math.round((i+1)/items.length*50),`Packing “${record.title}”`,`${i+1} of ${items.length} footprints · photos and voice notes included`);
   }
   chunks.push(']}');await tick();checkToken(token);const blob=new Blob(chunks,{type:'application/json'});
-  if(blob.size>MAX_BACKUP)throw Error('Backup exceeds the 150 MB limit. Export individual footprints instead.');
+  if(blob.size>MAX_BACKUP)throw Error('Backup exceeds the 150 MB limit.');
   pendingExport={blob,name,token,count:items.length};
   transferProgress(50,'Your backup is ready to save.',`${items.length} footprints · ${fileSize(blob.size)} · originals and preferences included`);
   $('transfer').setAttribute('aria-busy','false');$('save-backup').hidden=false;$('save-backup').disabled=false;
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
 }
+async function exportPhoto(id){
+ if(transferRunning)return;const r=records.find(record=>record.id===id);const photo=preparePhotoExport(r);
+ if($('details').open)$('details').close();setTransferDialog(true);if(!$('backup').open)show('backup');$('restore-preview').hidden=true;pendingRestore=null;
+ const token=beginTransfer('Export photo');$('transfer-file').textContent=photo.name;
+ pendingExport={...photo,token,kind:'photo'};transferProgress(0,'Preparing your photo…',`${fileSize(photo.blob.size)} · original photo`);
+ await savePreparedBackup();
+}
 async function savePreparedBackup(){
- if(!pendingExport||exportSaving)return;const {blob,name,token}=pendingExport;
+ if(!pendingExport||exportSaving)return;const {blob,name,token,kind='backup',mimeType,extension,description}=pendingExport;
+ const photo=kind==='photo',noun=photo?'photo':'backup',start=photo?0:50;
  exportSaving=true;$('save-backup').disabled=true;$('transfer').setAttribute('aria-busy','true');
  try{
   checkToken(token);
   const result=await saveBackupFile(blob,name,{
-   native:device.native,plugin:window.NthNative?.BackupFiles,
+   native:device.native,plugin:window.NthNative?.BackupFiles,mimeType,extension,description,
    picker:window.showSaveFilePicker?.bind(window),download,signal:transferAbort.signal,
    onProgress:({phase,written,total})=>{
     if(token!==transferToken)return;
-    if(phase==='choosing')transferProgress(50,'Choose where to save your .nthbackup file.');
-    else if(phase==='finalizing')transferProgress(99,'Finishing your backup…');
-    else transferProgress(50+written/total*49,'Saving your backup…',`${fileSize(written)} of ${fileSize(total)} written`);
+    if(phase==='choosing')transferProgress(start,`Choose where to save your ${photo?'photo':'.nthbackup file'}.`);
+    else if(phase==='finalizing')transferProgress(99,`Finishing your ${noun}…`);
+    else transferProgress(start+written/total*(99-start),`Saving your ${noun}…`,`${fileSize(written)} of ${fileSize(total)} written`);
    },
    onCommit:()=>{exportCommit=true;$('cancel-transfer').disabled=true;}
   });
-  finishTransfer(token,result.confirmed?`Saved ${result.name} (${fileSize(result.bytes)}). Your backup is ready.`:'Backup handed to your browser. Check Downloads and confirm the file is there.');
+  finishTransfer(token,result.confirmed?`Saved ${result.name} (${fileSize(result.bytes)}). Your ${noun} is ready.`:`${photo?'Photo':'Backup'} handed to your browser. Check Downloads and confirm the file is there.`);
   if(!result.confirmed)$('transfer-title').textContent='Download requested';
  }catch(error){finishTransfer(token,transferCancelled(error)?'Cancelled. Your journal has not changed.':error.message,false,transferCancelled(error));}
  finally{exportSaving=false;exportCommit=false;$('cancel-transfer').disabled=false;}
@@ -287,7 +297,7 @@ async function useLocation({capture=false}={}){
 async function toggleFavorite(id){const r=records.find(x=>x.id===id);if(!r)return;await commit(records.map(x=>x.id===id?{...x,favorite:!x.favorite,updatedAt:new Date().toISOString()}:x));if($('details').open)openDetail(id);}
 async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and its attached photo and voice note?`))return;await commit(records.filter(x=>x.id!==id));$('details').close();toast('Footprint deleted.');}
 async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
- try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){openDetail(b.dataset.detail);return;}if(b.dataset.edit){openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.export){await exportBackup(b.dataset.export);return;}if(b.dataset.map){mapId=b.dataset.map;renderMap(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
+ try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){openDetail(b.dataset.detail);return;}if(b.dataset.edit){openEditor(b.dataset.edit);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;renderMap(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
  }catch(err){toast(err.message);}
 }
 function wire(){
@@ -295,7 +305,7 @@ function wire(){
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('place-form').onsubmit=savePlace;$('photo-file').onchange=e=>attach(e.target.files[0],'image');$('take-photo').onclick=takePhoto;$('camera-file').onchange=e=>finishCameraPhoto(e.target.files[0],editorSession);$('read-photo-geotag').onclick=inspectSavedPhoto;$('audio-file').onchange=e=>attach(e.target.files[0],'audio');$('remove-photo').onclick=()=>{photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;$('camera-file').value='';draftPhoto=null;draftArt=null;$('photo-file').value='';refreshDraft();};$('remove-audio').onclick=()=>{draftAudio=null;$('audio-file').value='';refreshDraft();};$('record').onclick=toggleRecording;$('use-location').onclick=()=>useLocation();for(const id of ['lat','lng'])$(id).addEventListener('input',()=>{gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();$('location-status').textContent='Location set manually. Save the footprint to keep it.';});
- $('backup-open').onclick=()=>{if(!transferRunning){$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;$('transfer').hidden=true;$('backup').classList.remove('transfer-active');}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{$('transfer').hidden=true;$('backup').classList.remove('transfer-active');};
+ $('backup-open').onclick=()=>{if(!transferRunning){setTransferDialog();$('restore-preview').hidden=true;$('backup-status').textContent='';pendingRestore=null;$('transfer').hidden=true;$('backup').classList.remove('transfer-active');}show('backup');};$('export-all').onclick=()=>exportBackup();$('backup-file').onchange=e=>inspectBackup(e.target.files[0]);$('cancel-transfer').onclick=cancelTransfer;$('save-backup').onclick=savePreparedBackup;$('dismiss-transfer').onclick=()=>{if($('backup').dataset.kind==='photo'){close('backup');return;}$('transfer').hidden=true;$('backup').classList.remove('transfer-active');};
  $('settings-open').onclick=()=>show('settings');$('roadmap-open').onclick=()=>show('roadmap');$('theme').onchange=async e=>{try{await commit(records,{theme:e.target.value});}catch(err){applyTheme();toast(err.message);}};
  $('request-persistence').onclick=async()=>{try{$('persistence-status').textContent=await navigator.storage?.persist?.()?'Durable storage granted for this browser. Keep backups too.':'The browser did not grant durable storage. Backups are still available.';}catch{$('persistence-status').textContent='Durable storage is unavailable in this browser.';}};
 

@@ -34,16 +34,19 @@ public class BackupFilesPlugin extends Plugin {
 
     @PluginMethod
     public void begin(PluginCall call) {
-        if (picking || active != null) { call.reject("Another backup is still active."); return; }
+        if (picking || active != null) { call.reject("Another export is still active."); return; }
         String name = call.getString("name", "");
         int size = call.getInt("size", -1);
-        if (!name.matches("[A-Za-z0-9._-]{1,160}\\.nthbackup") || size < 1 || size > MAX_BYTES) {
-            call.reject("Invalid backup name or size."); return;
+        if (!name.matches("[A-Za-z0-9._-]{1,160}\\.(nthbackup|jpg|jpeg|png|webp|gif)") || size < 1 || size > MAX_BYTES) {
+            call.reject("Invalid export name or size."); return;
         }
         picking = true;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/octet-stream");
+        String extension = name.substring(name.lastIndexOf('.') + 1);
+        String mime = extension.equals("nthbackup") ? "application/octet-stream" :
+            (extension.equals("jpg") || extension.equals("jpeg")) ? "image/jpeg" : "image/" + extension;
+        intent.setType(mime);
         intent.putExtra(Intent.EXTRA_TITLE, name);
         try { startActivityForResult(call, intent, "documentChosen"); }
         catch (Exception e) { picking = false; call.reject("Android could not open the save-file picker.", e); }
@@ -67,7 +70,7 @@ public class BackupFilesPlugin extends Plugin {
                 JSObject ret = new JSObject(); ret.put("id", s.id); call.resolve(ret);
             } catch (Exception e) {
                 boolean removed = discard(s); picking = false;
-                call.reject(removed ? "The selected folder could not be written. Choose another location." : "The backup could not be opened. Remove the incomplete file from the chosen folder.", e);
+                call.reject(removed ? "The selected folder could not be written. Choose another location." : "The file could not be opened. Remove the incomplete file from the chosen folder.", e);
             }
         });
     }
@@ -81,17 +84,17 @@ public class BackupFilesPlugin extends Plugin {
     public void append(PluginCall call) {
         worker.execute(() -> {
             Session s = session(call);
-            if (s == null) { call.reject("This backup is no longer active."); return; }
+            if (s == null) { call.reject("This export is no longer active."); return; }
             try {
                 String encoded = call.getString("data", "");
                 if (encoded.length() > 256 * 1024) throw new java.io.IOException("Chunk exceeds limit");
                 byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
-                if (bytes.length == 0 || s.written + bytes.length > s.expected) throw new java.io.IOException("Invalid backup length");
+                if (bytes.length == 0 || s.written + bytes.length > s.expected) throw new java.io.IOException("Invalid export length");
                 s.stream.write(bytes); s.written += bytes.length;
                 JSObject ret = new JSObject(); ret.put("bytes", s.written); call.resolve(ret);
             } catch (Exception e) {
                 boolean removed = discard(s); active = null;
-                call.reject(removed ? "Android could not finish writing the backup. Check free space or choose another folder." : "Export failed. Remove the incomplete file from the chosen folder before retrying.", e);
+                call.reject(removed ? "Android could not finish writing the file. Check free space or choose another folder." : "Export failed. Remove the incomplete file from the chosen folder before retrying.", e);
             }
         });
     }
@@ -100,9 +103,9 @@ public class BackupFilesPlugin extends Plugin {
     public void finish(PluginCall call) {
         worker.execute(() -> {
             Session s = session(call);
-            if (s == null) { call.reject("This backup is no longer active."); return; }
+            if (s == null) { call.reject("This export is no longer active."); return; }
             try {
-                if (s.written != s.expected) throw new java.io.IOException("Incomplete backup");
+                if (s.written != s.expected) throw new java.io.IOException("Incomplete export");
                 s.stream.flush(); s.stream.close(); s.stream = null;
                 try (Cursor c = getContext().getContentResolver().query(s.uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
                     if (c != null && c.moveToFirst()) s.name = c.getString(0);
@@ -111,7 +114,7 @@ public class BackupFilesPlugin extends Plugin {
                 JSObject ret = new JSObject(); ret.put("name", s.name); ret.put("bytes", s.written); call.resolve(ret);
             } catch (Exception e) {
                 boolean removed = discard(s); active = null;
-                call.reject(removed ? "The backup could not be completed. Please retry." : "The backup was not completed. Remove the incomplete file from the chosen folder.", e);
+                call.reject(removed ? "The file could not be completed. Please retry." : "The file was not completed. Remove the incomplete file from the chosen folder.", e);
             }
         });
     }
@@ -128,7 +131,7 @@ public class BackupFilesPlugin extends Plugin {
             Session s = session(call);
             if (s != null) {
                 boolean removed = discard(s); active = null;
-                if (!removed) { call.reject("Remove the incomplete backup from the chosen folder."); return; }
+                if (!removed) { call.reject("Remove the incomplete file from the chosen folder."); return; }
             }
             call.resolve();
         });
