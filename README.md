@@ -2,6 +2,10 @@
 
 A personal travel journal by Nth Experience. Prototype **0.2.2**.
 
+**[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
+
+GitHub Pages serves this repository from `main` / root. The root entry page opens the app in `dist/`; all app resources and the service worker use paths relative to that directory.
+
 Browse your memories in a vertically swipeable photo stack. Tap a photo to open its place details, notes, rating and voice recording.
 
 ## Included

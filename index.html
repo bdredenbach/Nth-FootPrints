@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#263d33">
+  <meta name="description" content="Your places. Your stories. A personal photo journal by Nth Experience.">
+  <title>Nth FootPrints</title>
+  <link rel="icon" href="./dist/assets/icon.svg" type="image/svg+xml">
+  <meta http-equiv="refresh" content="0;url=./dist/">
+  <script>
+    const app = new URL('./dist/', window.location.href);
+    app.search = window.location.search;
+    app.hash = window.location.hash;
+    window.location.replace(app.href);
+  </script>
+  <style>
+    html { color-scheme: light; background: #f5f2e9; color: #283c32; font-family: Georgia, serif; }
+    body { min-height: 90vh; margin: 0; display: grid; place-content: center; text-align: center; }
+    h1 { font-size: 2rem; font-weight: normal; }
+    a { color: #2d4a3a; font-family: Arial, sans-serif; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <h1>Nth FootPrints</h1>
+  <p><a href="./dist/">Open your journal</a></p>
+</body>
+</html>
