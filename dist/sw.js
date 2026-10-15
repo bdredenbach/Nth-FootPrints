@@ -1,4 +1,4 @@
-const CACHE='nth-footprints-shell-v6';
+const CACHE='nth-footprints-shell-v7';
 const SHELL=['./','./index.html','./app.css','./app.js','./model.js','./deck.js','./geotags.js','./manifest.webmanifest','./assets/icon.svg','./assets/coast.svg','./assets/mountain.svg','./assets/city.svg','./assets/blank.svg'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('nth-footprints-shell-')&&k!==CACHE).map(k=>caches.delete(k)))));});

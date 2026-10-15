@@ -1,6 +1,13 @@
 name: Build Android APK
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "dist/**"
+      - "package.json"
+      - "tests/**"
+      - ".github/workflows/android-apk.yml"
   workflow_dispatch:
 
 permissions:
@@ -55,10 +62,25 @@ jobs:
 
           writeFileSync(path, source.replace(registration, ""));
 
+          const htmlPath = "native-web/index.html";
+          const html = readFileSync(htmlPath, "utf8");
+          writeFileSync(htmlPath, html.replace(
+            '<html lang="en">',
+            '<html lang="en" class="native-app">'
+          ));
+
           writeFileSync("capacitor.config.json", JSON.stringify({
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
-            webDir: "native-web"
+            webDir: "native-web",
+            plugins: {
+              SystemBars: {
+                insetsHandling: "css",
+                style: "DARK",
+                hidden: false,
+                animation: "NONE"
+              }
+            }
           }, null, 2));
           NODE
 

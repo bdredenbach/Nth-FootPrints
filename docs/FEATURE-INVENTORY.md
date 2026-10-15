@@ -61,3 +61,10 @@ Saving a personal footprint automatically removes untouched starter records in t
 
 ## 0.2.4 compact journal action row
 Removed the top header containing “Your world, collected.” and moved New Footprint to the left of Backup & Restore and Preferences in the existing row above search. The row wraps on narrow displays rather than clipping controls. The New Footprint button keeps its existing action and element ID; no saved journal data or gesture logic changed.
+
+## 0.2.5 Android safe areas
+The first test APK drew controls under the Android status/navigation bars. The UI now consumes Capacitor SystemBars --safe-area-inset-* CSS variables, with browser env() fallbacks on all four edges. Page content starts below the status bar. On phones the bottom tab bar's total height includes the navigation inset while preserving its 68px tab area, and content/toasts reserve that same space. Side rails and dialogs also respect the available safe area.
+
+The APK configuration explicitly enables SystemBars CSS inset handling and light system icons; a native-only forest-green strip behind the status icons keeps them legible. The native flag is applied only to the bundled HTML. No fixed status-bar or Android-navigation-bar pixel size is assumed. The build workflow now also runs for pushes changing app/build sources.
+
+Source and build-preparation checks validate the configuration; device spacing, rotation and both gesture/three-button navigation require a new APK test. Reference: https://capacitorjs.com/docs/apis/system-bars .

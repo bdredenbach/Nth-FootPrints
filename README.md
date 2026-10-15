@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.2.4**.
+A personal travel journal by Nth Experience. Prototype **0.2.5**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -52,3 +52,5 @@ There are 30 automated checks covering backup round trips, merge behavior, verti
 This is the browser prototype and a foundation for later Android bundling. It is not an APK. Native widgets, a multi-pin atlas, downloadable offline maps and integrated turn-by-turn navigation remain on the roadmap. Geotags are saved with footprint records; original photo bytes are preserved.
 
 HTC apps and videos were used as behavioral references. No HTC assets, application code, APKs or reference videos are included.
+
+Android builds account for system status/navigation bars and display cutouts, with safe-area spacing around the app and its fixed bottom tabs. The APK workflow builds on changes to app or Android-build files as well as manual runs.
