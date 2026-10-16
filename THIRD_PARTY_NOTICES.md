@@ -34,3 +34,8 @@ Terms: https://www.usgs.gov/faqs/what-are-terms-uselicensing-map-services-and-da
 ## fake-indexeddb
 
 Development-only IndexedDB behavioral test implementation, version 6.2.4, Apache-2.0. Not bundled into the app. https://github.com/dumbmatter/fakeIndexedDB
+
+
+## Nearby place listings (0.6.0)
+
+Discovery queries the public Overpass API, currently https://overpass-api.de/api/interpreter , for OpenStreetMap data under the Open Database License (ODbL): https://www.openstreetmap.org/copyright . Attribution appears beside results, in listing/saved-place details, source metadata in backups, and sourced memory cards/trip books. The UI identifies the approximate-area lookup before use. No third-party place photos or logos are scraped or bundled. Provider software is remote, not distributed in this app. Public instance usage is bounded for this testing prototype; dedicated hosting/provider capacity is required before wider distribution. Operator guidance: https://dev.overpass-api.de/overpass-doc/en/preface/commons.html .

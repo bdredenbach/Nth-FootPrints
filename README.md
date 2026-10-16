@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.5.1**.
+A personal travel journal by Nth Experience. Prototype **0.6.0**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -220,3 +220,24 @@ Visit details remove the redundant Use this photo in journal shortcut and shared
 The preview shares the atlas's online OpenStreetMap attribution and downloaded USGS tile policy. It loads only on screen, pauses when covered/hidden, and cleans up on visit changes or closure. It has no pan/zoom gestures; the button is keyboard accessible. Offline missing tiles remain hatched with a working map handoff. Backups and original place/visit data are unchanged.
 
 275 automated checks pass, plus browser checks at 360/393/680/1280 px, selected initial/return-visit coordinates, nested navigation, overlay cleanup and offline restart/handoff. Physical Android testing remains necessary.
+
+
+## Places discovery (0.6.0)
+
+**Places** replaces Favorites in the bottom/side navigation and takes the folded-map icon. Map & directions now has a location-pin icon and continues to show your saved journal. **Saved favorites** remains available inside Journal tools. The old category bar is removed from journal, saved maps and favorites.
+
+Places has **Food & Drink**, **Things to do**, **Shopping**, **Services** and **Other**. Expand Choose a type of place for the screenshot's 38 subcategories: restaurants, bars, coffee, brunch, dessert, takeout, delivery; parks, gyms, art, attractions, nightlife, live music, movies, museums, libraries; groceries, beauty supplies, car dealers, home/garden, apparel, shopping centers, electronics, sporting goods, convenience stores; hotels, ATMs, beauty salons, car rental/repair/wash, dry cleaning, charging, gas, hospitals/clinics, mail/shipping, parking and pharmacies. These depend on mapped tags; missing tags can omit a business from a narrow type. Other covers mapped miscellaneous amenities and historic places outside these groups.
+
+The map initially centers on your latest located personal footprint without sending a lookup. Tap **Search this area**, choose a saved origin, or explicitly **Use my location**. Location permission is requested only for that button. Changing a category/type or radius then requests that area; moving the map waits for Search this area. Initial detail is zoom 14 and radii are 1/2/5 km. Approximate search centers are rounded to three decimals before sharing with the Overpass API service, and this is explained beside the controls. Searches never include journal stories, record IDs or photos. Pending location/search results are ignored after leaving, pausing or changing intent. The community endpoint is `https://overpass-api.de/api/interpreter`; its availability/coverage varies, and a dedicated service is required before wider distribution. There is no automatic provider failover.
+
+Pins use the original footprint icon; no third-party photos are scraped. Results sort by straight-line distance from the search center, append 30 at a time as you scroll, and have a Load more button for keyboard access. One bounded query yields at most 600 candidates; busy-area truncation is disclosed. Narrow the type/area for more precise results. Named duplicate representations within 25 m and repeated OSM IDs are collapsed, and private/no-access or disused/abandoned places are omitted where tagged. Node coordinates or mapped area centers are used; area centers may not be entrances.
+
+Tap a pin or list item for a blurred-backdrop footprint-style listing with mapped description, hours, cuisine, phone, website, map, source credit and Directions. **Save as footprint** opens a reviewable editor with name, new category, coordinates, address, phone/website and country/region when present. Your date defaults to today; no visit story, rating or photo is fabricated. Saving is explicit. The prefilled draft checkpoints immediately and recovers its source across restart. Existing saved source IDs offer Open saved footprint and Log return visit instead of silently creating duplicates. Existing unsourced places are never automatically merged by proximity.
+
+Existing category labels remain intact in records/backups/recovery. New entries use the five new categories; an existing older category is retained as an option when editing that record. Smart collection validation accepts both. Portable backup **v6** accepts v1–v5 and adds a validated `placeSource` reference; older-labeled files cannot contain new source/category fields. Recovery metadata v5 reads v1–v4. Source credit survives edits/returns, backup/restore and appears on sourced cards/books. Originals remain unchanged.
+
+Prototype lookup bounds: one active request, at least 3 seconds between starts, 45-second client/15-second query timeout, 2 MB response, 600 candidates, 12 five-minute in-memory cache entries, and per-device/local-day caps of 50 requests and 5 MB. Only day/count/byte budget metadata persists, outside backups; no search history/location trail is stored. No automatic retries after service failures. Cached results may still be browsed in-session offline; new lookups need internet. Offline reload retains saved footprints and downloaded maps, not discovery results.
+
+286 automated checks pass, including category/query/normalization, unsafe metadata, cancellation, budgets, legacy backup compatibility and source recovery. Phone/desktop Chromium at 360/393/1280 px verifies explicit initial lookup, map/list agreement, scrolling, source-prefilled restart/save, saved-source recognition, favorites access, v6 backup and offline restart. Public NYC API checks returned HTTP 200 with CORS and real listings. Physical Android testing remains necessary.
+
+References: https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL , https://wiki.openstreetmap.org/wiki/Map_features , https://dev.overpass-api.de/overpass-doc/en/preface/commons.html , https://www.openstreetmap.org/copyright .

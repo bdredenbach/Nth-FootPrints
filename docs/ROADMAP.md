@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.5.1**.
+GitHub is authoritative. Current prototype: **0.6.0**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -140,3 +140,16 @@ User-marked layout implemented: New footprint → Tag → Collection; below sear
 Located visits show a small map under GPS. It shares atlas photo pins and online/offline map backgrounds, is lazy while off screen, stops tiles while covered/hidden and destroys on close/switch. Tapping its accessible button closes nested dialogs safely, clears excluding filters and selects/focuses that visit in Map & directions. A temporary display override keeps a return visit's different coordinates/photo in the selected map pin without changing saved place data. Missing coordinates omit the preview. Offline shell v26 includes the new module.
 
 275 automated checks and phone/desktop/offline browser verification pass. No backup/schema change. Physical Android testing remains necessary.
+
+
+## 0.6.0 Places discovery
+
+Favorites navigation becomes Places with the folded-map icon; saved Map & directions uses the location icon. Favorites remain a secondary Journal tools destination. Removed the old category bar from every saved-journal view. Places owns the five new groups and all 38 screenshot subtypes; older saved categories remain readable/editable without migration.
+
+Live discovery uses explicit approximate-area Overpass queries, a map with footprint pins, 1/2/5 km radius, local result text filter and 30-at-a-time scrolling. Initially centers near the latest personal saved footprint with no lookup until Search this area. Explicit Use my location can request GPS and query; map panning waits for another Search this area. Pins and source-attributed modal listings open a reviewable source-prefilled editor, Directions, existing source matches or return visits. No fabricated stories/ratings/photos and no scraped images. Query/result/website/source metadata validate; stale/paused searches and location results are ignored. Provider errors do not alter the journal.
+
+Current community provider: https://overpass-api.de/api/interpreter . Needs a dedicated service before wider distribution, per operator guidance: https://dev.overpass-api.de/overpass-doc/en/preface/commons.html . Private.coffee's endpoint returned server errors during testing; no automatic cross-provider failover is shipped. Small public NYC test requests against the selected service returned actual data and CORS.
+
+Bounded prototype: 600 candidates, 2 MB per response, 3-second minimum request interval, 45-second client/15-second query timeout, 50 requests/5 MB per device/local day, 12 five-minute in-memory cache entries. Budget metadata only is persisted outside backups. Results aren't retained after process restart. Offline maps and saved journals continue independently. Backup v6 imports v1–v5; optional placeSource survives shared-place edits/returns and restores. Recovery metadata v5 reads previous versions. Existing pending feature queue (larger media/streamed backups, worldwide detailed offline coverage and deferred signing) remains.
+
+286 automated checks, responsive phone/desktop discovery/save/restart/backup tests and offline checks pass. Physical Android testing remains necessary.

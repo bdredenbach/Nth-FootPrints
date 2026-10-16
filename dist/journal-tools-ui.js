@@ -1,3 +1,4 @@
+import {categoryChoices} from './categories.js';
 import {anniversaryMemories,flattenVisits,calendarMonth,explorationStats,validateRule,validateCollections,nextCollectionUpdate} from './journal-tools.js';
 import {visitsOf,visitView} from './visits.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -30,7 +31,7 @@ export function createJournalToolsUI({document,getState,write,onOpen,onMap,onCol
   }
   if(tab==='collections'){
    $('collection-list').innerHTML=(settings.collections??[]).filter(c=>!c.deleted).map(c=>`<article class="saved-collection"><strong>${esc(c.title)}</strong><p class="field-help">${esc([c.rule.query,c.rule.tag&&'#'+c.rule.tag,c.rule.category!=='All places'&&c.rule.category,c.rule.favorites&&'Favorites',c.rule.from&&'From '+c.rule.from,c.rule.to&&'To '+c.rule.to,c.rule.country,c.rule.region,c.rule.minRating&&c.rule.minRating+'+ stars',c.rule.hasLocation&&'With location',c.rule.tripId&&journeys.find(j=>j.id===c.rule.tripId)?.title].filter(Boolean).join(' · ')||'All saved places')}</p><div class="detail-actions"><button type="button" class="secondary" data-collection-apply="${esc(c.id)}">Browse</button><button type="button" class="text-button" data-collection-edit="${esc(c.id)}">Edit</button><button type="button" class="text-button delete-button" data-collection-delete="${esc(c.id)}">Remove</button></div></article>`).join('')||'<p class="field-help">Save a collection such as Favorite nature visits, 2025 road trips or Places to revisit.</p>';
-   const form=$('collection-form'),select=form.elements.tripId;select.innerHTML='<option value="">Every journey</option>'+journeys.filter(j=>!j.deleted).map(j=>`<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('');
+   const form=$('collection-form'),select=form.elements.tripId;form.elements.category.innerHTML=['All places',...categoryChoices(collectionDraft?.category)].map(c=>`<option value="${esc(c)}">${esc(c==='All places'?'All saved categories':c)}</option>`).join('');select.innerHTML='<option value="">Every journey</option>'+journeys.filter(j=>!j.deleted).map(j=>`<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('');
    if(collectionDraft)for(const [name,value]of Object.entries(collectionDraft)){const input=form.elements[name];if(input){if(input.type==='checkbox')input.checked=!!value;else input.value=value;}}
    $('collection-editor-title').textContent=collectionId?'Edit collection':'Make a smart collection';form.inert=busy;
   }

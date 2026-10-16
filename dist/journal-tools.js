@@ -1,3 +1,4 @@
+import {RECORD_CATEGORIES} from './categories.js';
 import {visitsOf,visitView,placeView} from './visits.js';
 export const MAX_TAGS=30,MAX_COLLECTIONS=100;
 const txt=(v,max,label)=>{if(typeof v!=='string'||v.length>max)throw Error(`Invalid ${label}.`);return v.trim();};
@@ -10,7 +11,7 @@ export const parseTags=value=>normalizeTags(String(value??'').split(',').map(s=>
 export function validateLabels(r){return {...(r.tags!==undefined?{tags:normalizeTags(r.tags)}:{}),...(r.country!==undefined?{country:txt(r.country,80,'country')}:{}),...(r.region!==undefined?{region:txt(r.region,100,'state or province')}:{} )};}
 export function validateRule(value={}){
  const r={query:txt(value.query??'',200,'collection search'),tag:txt(value.tag??'',40,'collection tag'),category:txt(value.category??'All places',30,'collection category'),country:txt(value.country??'',80,'collection country'),region:txt(value.region??'',100,'collection region'),tripId:txt(value.tripId??'',100,'collection trip'),from:txt(value.from??'',10,'collection start'),to:txt(value.to??'',10,'collection end'),favorites:value.favorites??false,minRating:value.minRating??0,hasLocation:value.hasLocation??false};
- if(!['All places','Travel','Nature','Dining','Culture','Everyday','Other'].includes(r.category)||typeof r.favorites!=='boolean'||typeof r.hasLocation!=='boolean'||!Number.isInteger(r.minRating)||r.minRating<0||r.minRating>5||r.from&&!day(r.from)||r.to&&!day(r.to)||r.from&&r.to&&r.from>r.to||r.tripId&&!/^[a-z0-9_-]{1,100}$/i.test(r.tripId))throw Error('Check the collection filters and date range.');return r;
+ if(!['All places',...RECORD_CATEGORIES].includes(r.category)||typeof r.favorites!=='boolean'||typeof r.hasLocation!=='boolean'||!Number.isInteger(r.minRating)||r.minRating<0||r.minRating>5||r.from&&!day(r.from)||r.to&&!day(r.to)||r.from&&r.to&&r.from>r.to||r.tripId&&!/^[a-z0-9_-]{1,100}$/i.test(r.tripId))throw Error('Check the collection filters and date range.');return r;
 }
 export function validateCollections(values=[]){
  if(!Array.isArray(values)||values.length>MAX_COLLECTIONS)throw Error(`Use up to ${MAX_COLLECTIONS} saved collections, including removed entries.`);const ids=new Set();return values.map(v=>{if(!v||typeof v.id!=='string'||!/^[a-z0-9_-]{1,100}$/i.test(v.id)||ids.has(v.id))throw Error('Invalid or duplicate collection ID.');ids.add(v.id);const title=txt(v.title,100,'collection name');if(!title||!Number.isFinite(Date.parse(v.updatedAt))||typeof v.updatedAt!=='string'||v.updatedAt.length>40||v.deleted!==undefined&&typeof v.deleted!=='boolean')throw Error('Invalid collection.');return {id:v.id,title,rule:validateRule(v.rule),updatedAt:v.updatedAt,...(v.deleted?{deleted:true}:{})};});

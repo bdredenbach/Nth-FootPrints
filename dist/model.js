@@ -1,10 +1,12 @@
+import {CATEGORIES,RECORD_CATEGORIES} from './categories.js';
+import {validatePlaceSource} from './place-source.js';
 import {validateLabels,validateCollections} from './journal-tools.js';
 import {validateVisitState,latestVisited,visitsOf,mergeVisitRecords} from './visits.js';
 import {recordJourneyIds,validateJourneys,checkJourneyLinks} from './journeys.js';
 export const APP = 'nth-footprints';
-export const VERSION = 5;
+export const VERSION = 6;
 export const MAX_PHOTOS = 30;
-export const CATEGORIES = ['Travel','Nature','Dining','Culture','Everyday','Other'];
+export {CATEGORIES,RECORD_CATEGORIES} from './categories.js';
 export const MAX_BACKUP = 150 * 1024 * 1024;
 export const SAMPLE_TIMESTAMP = '2026-10-01T12:00:00.000Z';
 const SAMPLE_IDS = new Set(['demo-coast','demo-mountain','demo-city']);
@@ -28,7 +30,7 @@ export function validateRecord(r) {
   const id = text(r.id,100,'place ID');
   if(!/^[a-z0-9_-]+$/i.test(id)) throw Error('Invalid place ID.');
   const title=text(r.title,160,'title').trim(); if(!title) throw Error('A place needs a title.');
-  if(!CATEGORIES.includes(r.category)) throw Error('Unknown place category.');
+  if(!RECORD_CATEGORIES.includes(r.category)) throw Error('Unknown place category.');
   if(typeof r.favorite!=='boolean' || !Number.isInteger(r.rating) || r.rating<0 || r.rating>5) throw Error('Invalid rating or favorite.');
   const visited=text(r.visited,10,'visit date');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(visited) || Number.isNaN(Date.parse(visited)) || new Date(visited).toISOString().slice(0,10)!==visited) throw Error('Invalid visit date.');
@@ -48,7 +50,7 @@ export function validateRecord(r) {
   }
   return {id,title,category:r.category,favorite:r.favorite,rating:r.rating,visited,lat,lng,updatedAt,
     address:text(r.address??'',500,'address'),notes:text(r.notes??'',20000,'notes'),phone:text(r.phone??'',80,'phone'),url,
-    photo,...gallery,...validateLabels(r),...validateVisitState({...r,photo,...gallery}),...(r.tripIds!==undefined?{tripIds:recordJourneyIds(r.tripIds)}:{}),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
+    photo,...gallery,...validateLabels(r),...(r.placeSource!==undefined?{placeSource:validatePlaceSource(r.placeSource)}:{}),...validateVisitState({...r,photo,...gallery}),...(r.tripIds!==undefined?{tripIds:recordJourneyIds(r.tripIds)}:{}),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
 }
 export function backupRecord(record){const r=validateRecord(record);if(r.photos)delete r.photo;if(r.visits)r.visits=r.visits.map(v=>{const copy={...v};if(copy.photos)delete copy.photo;return copy;});return r;}
 export function validateSettings(s={}) {
@@ -64,12 +66,13 @@ export function parseBackup(raw) {
  if(typeof raw!=='string'||raw.length>MAX_BACKUP) throw Error('Backup is too large for this prototype (150 MB maximum).');
  let b;try{b=JSON.parse(raw);}catch{throw Error('This file is not a readable Nth FootPrints backup.');}
  if(b?.app!==APP) throw Error('Choose a Nth FootPrints backup. Backups from other Nth apps cannot be restored here.');
- if(![1,2,3,4,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
+ if(![1,2,3,4,5,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
  if(!Array.isArray(b.records)||b.records.length>10000) throw Error('Invalid place collection.');
  if(b.formatVersion===1&&b.records.some(r=>r&&typeof r==='object'&&('photos'in r||'coverIndex'in r)))throw Error('Photo galleries require backup version 2.');
  if(b.formatVersion<3&&(b.journeys!==undefined||b.records.some(r=>r&&'tripIds'in r)))throw Error('Journeys require backup version 3.');
  if(b.formatVersion<4&&b.records.some(r=>r&&['visits','mainVisitId','firstVisitUpdatedAt','firstVisitDeleted'].some(key=>key in r)))throw Error('Return visits require backup version 4.');
  if(b.formatVersion<5&&(b.settings?.collections!==undefined||b.settings?.memories!==undefined||b.records.some(r=>r&&['tags','country','region'].some(k=>k in r))))throw Error('Journal tools require backup version 5.');
+ if(b.formatVersion<6&&(b.records.some(r=>r&&('placeSource'in r||CATEGORIES.filter(c=>c!=='Other').includes(r.category)))||b.settings?.collections?.some(c=>CATEGORIES.filter(v=>v!=='Other').includes(c.rule?.category))))throw Error('Places discovery requires backup version 6.');
  const journeys=validateJourneys(b.formatVersion>=3?b.journeys:[]);
  const records=b.records.map(validateRecord), ids=new Set(records.map(r=>r.id));
  if(ids.size!==records.length) throw Error('Backup contains duplicate place IDs.');

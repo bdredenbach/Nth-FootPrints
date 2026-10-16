@@ -1,17 +1,19 @@
 import {recordJourneyIds} from './journeys.js';
-import {CATEGORIES,MAX_PHOTOS} from './model.js';
+import {validatePlaceSource} from './place-source.js';
+import {RECORD_CATEGORIES,MAX_PHOTOS} from './model.js';
 export const DRAFT_KEY='editor-draft',CLOSED_KEY='closed-editor-drafts';
 const cameraKey=id=>`draft-camera:${id}`;
 const mediaPrefix=id=>`draft-media:${id}:`;
 const uuidPattern=/^[a-z0-9_-]{1,100}$/i;
 export const DRAFT_FIELDS={title:160,category:30,visited:10,rating:4,address:500,notes:20000,phone:80,url:2048,lat:80,lng:80,tags:2000,country:80,region:100};
 export function validateDraft(d){
- if(![1,2,3,4].includes(d?.version)||!uuidPattern.test(d.id??'')||(d.editId!==null&&!uuidPattern.test(d.editId??''))||!d.values||typeof d.favorite!=='boolean'||!Array.isArray(d.photos)||d.photos.length>MAX_PHOTOS||!Number.isInteger(d.coverIndex)||d.coverIndex<0||d.coverIndex>=Math.max(1,d.photos.length)||!Number.isFinite(Date.parse(d.savedAt)))throw Error('This recovery draft could not be read. Your saved journal is unchanged.');
+ if(![1,2,3,4,5].includes(d?.version)||!uuidPattern.test(d.id??'')||(d.editId!==null&&!uuidPattern.test(d.editId??''))||!d.values||typeof d.favorite!=='boolean'||!Array.isArray(d.photos)||d.photos.length>MAX_PHOTOS||!Number.isInteger(d.coverIndex)||d.coverIndex<0||d.coverIndex>=Math.max(1,d.photos.length)||!Number.isFinite(Date.parse(d.savedAt)))throw Error('This recovery draft could not be read. Your saved journal is unchanged.');
  for(const [field,max]of Object.entries(DRAFT_FIELDS))if(!(['tags','country','region'].includes(field)&&d.values[field]===undefined)&& (typeof d.values[field]!=='string'||d.values[field].length>max))throw Error('This recovery draft has an invalid field.');
- if(!CATEGORIES.includes(d.values.category))throw Error('This recovery draft has an invalid category.');
+ if(!RECORD_CATEGORIES.includes(d.values.category))throw Error('This recovery draft has an invalid category.');
  const prefix=mediaPrefix(d.id);for(const key of [...d.photos,...(d.audio?[d.audio]:[])])if(typeof key!=='string'||!key.startsWith(prefix)||key.length>240)throw Error('This recovery draft has an invalid attachment.');
  if(d.camera&&(!uuidPattern.test(d.camera.token??'')||!Number.isFinite(Date.parse(d.camera.startedAt))))throw Error('This recovery draft has an invalid camera request.');
  if(d.visitId!==undefined&&d.visitId!==null&&(!d.editId||!uuidPattern.test(d.visitId)))throw Error('This recovery draft has an invalid visit.');
+ if(d.placeSource!==undefined)validatePlaceSource(d.placeSource);
  recordJourneyIds(d.tripIds);return d;
 }
 function deleteMedia(store,id,keep=new Set()){
@@ -60,7 +62,7 @@ export function createDraftRecovery({store,onState=()=>{},read=blobData,uuid=()=
  async function prepare(snapshot){
   const entries=[],keys=new Set();
   function media(source,kind){if(!source)return null;let value=cache.get(source);if(!value){value={key:mediaPrefix(id)+uuid(),blob:draftBlob(source,kind)};cache.set(source,value);entries.push([value.key,value.blob]);}keys.add(source);return value.key;}
-  const draft={version:4,visitId:snapshot.visitId??null,tripIds:recordJourneyIds(snapshot.tripIds),id,editId:snapshot.editId??null,baseUpdatedAt:snapshot.baseUpdatedAt??null,values:{tags:'',country:'',region:'',...snapshot.values},favorite:!!snapshot.favorite,photos:snapshot.photos.map(src=>media(src,'image')),coverIndex:snapshot.coverIndex,audio:media(snapshot.audio,'audio'),art:snapshot.art??null,camera:snapshot.camera?{...snapshot.camera}:null,savedAt:new Date().toISOString()};
+  const draft={version:5,...(snapshot.placeSource?{placeSource:validatePlaceSource(snapshot.placeSource)}:{}),visitId:snapshot.visitId??null,tripIds:recordJourneyIds(snapshot.tripIds),id,editId:snapshot.editId??null,baseUpdatedAt:snapshot.baseUpdatedAt??null,values:{tags:'',country:'',region:'',...snapshot.values},favorite:!!snapshot.favorite,photos:snapshot.photos.map(src=>media(src,'image')),coverIndex:snapshot.coverIndex,audio:media(snapshot.audio,'audio'),art:snapshot.art??null,camera:snapshot.camera?{...snapshot.camera}:null,savedAt:new Date().toISOString()};
   validateDraft(draft);for(const key of cache.keys())if(!keys.has(key))cache.delete(key);
   // A previous failed transaction may have cached media which never reached disk.
   for(const source of keys){const value=cache.get(source);if(!entries.some(([key])=>key===value.key)&&!value.stored)entries.push([value.key,value.blob]);}
