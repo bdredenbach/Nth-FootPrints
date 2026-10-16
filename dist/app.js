@@ -13,6 +13,7 @@ import {createDeviceAccess,cameraCancelled} from './device.js';
 import {saveBackupFile,transferCancelled} from './backup-file.js';
 import {preparePhotoExport} from './photo-export.js';
 import {createAtlas,hasLocation} from './atlas.js';
+import {createVisitMap} from './visit-map.js';
 import {createPositionPicker,createNearbyLookup,nearestPlaces,distanceLabel} from './location-tools.js';
 import {RELEASES,APP_VERSION} from './releases.js';
 import {createWidgetSync,createWidgetLaunch,createWidgetPreferences} from './widget.js';
@@ -22,7 +23,7 @@ import {createDraftStore,createDraftRecovery,clearDraftInTransaction,bindDraftLi
 import {createOfflineMaps,planOfflineArea} from './offline-maps.js';
 import {createPlaceSearch,samePlacePoint} from './place-search.js';
 const device=createDeviceAccess({native:!!window.Capacitor?.isNativePlatform?.(),plugins:window.NthNative,geolocation:navigator.geolocation});
-let atlas=null,picker=null,pickerRequest=0,nearbyOrigin=null,pickerPlace=null;
+let atlas=null,picker=null,pickerRequest=0,nearbyOrigin=null,pickerPlace=null,detailMap=null,mapVisit=null,mapsPaused=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const offlineMaps=createOfflineMaps();
@@ -156,7 +157,13 @@ const nearby=createNearbyLookup({locate:()=>device.currentPosition(),
  onStatus:message=>{$('nearby-status').textContent=message;},
  onBusy:busy=>{$('nearest-places').disabled=busy;$('nearest-places').textContent=busy?'Locating…':'Nearest to me';$('clear-nearby').hidden=!busy&&!nearbyOrigin;}
 });
+function mapDisplayRecords(items){
+ if(!mapVisit)return items;const place=records.find(r=>r.id===mapVisit.recordId),visit=place&&visitById(place,mapVisit.visitId);
+ if(!visit){mapVisit=null;return items;}const chosen=visitView(place,visit.id);
+ return items.map(r=>r.id===place.id?{...r,lat:chosen.lat,lng:chosen.lng,photo:chosen.photo,photos:chosen.photos,coverIndex:chosen.coverIndex,visited:chosen.visited}:r);
+}
 function renderMapList(items){
+ items=mapDisplayRecords(items);
  if(!items.some(r=>r.id===mapId&&hasLocation(r)))mapId=null;
  const pinned=items.filter(hasLocation),missing=items.length-pinned.length;
  $('atlas-count').textContent=`${pinned.length} pinned ${pinned.length===1?'place':'places'}${missing?` · ${missing} without a location`:''}`;
@@ -168,12 +175,12 @@ function renderMapList(items){
  $('map-selection').innerHTML=r?`<strong>${esc(r.title)}</strong><div class="detail-actions"><button class="secondary" data-detail="${esc(r.id)}">Open footprint</button><a class="primary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">Directions ${icon('external')}</a></div>`:'';
 }
 function renderMap(items){
- renderMapList(items);
+ items=mapDisplayRecords(items);renderMapList(items);
  if(!atlas)atlas=createAtlas({container:$('map-content'),L:window.L,offlineMaps,pinHTML:icon('footprint'),
-  onPick:id=>{mapId=id;renderMapList(filtered());openDetail(id);},
+  onPick:id=>{mapId=id;renderMapList(filtered());openDetail(id,mapVisit?.recordId===id?mapVisit.visitId:undefined);},
   onStatus:({state,message})=>{$('map-status').textContent=message;$('retry-map').hidden=state!=='error';}
  });
- atlas.update(items,{selectedId:mapId});
+ atlas.update(items,{selectedId:mapId});syncMapVisibility();
 }
 async function moveDeck(step,{drag=0}={}){
  const items=filtered();if(deckBusy||items.length<2||view!=='journal')return;
@@ -221,11 +228,12 @@ function canLeaveNavigation(previous,next){
 }
 function applyView(next){
  if(view==='journal')journalDeckIndex=deckIndex;
- cancelDeckMotion();if(next!=='map'){atlas?.setVisible(false);nearby.cancel();}
+ cancelDeckMotion();if(next!=='map'){mapVisit=null;atlas?.setVisible(false);nearby.cancel();}
  view=next;deckIndex=next==='journal'?journalDeckIndex:0;render();
 }
 function setView(next){return navigation.view(next);}
-function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});}
+function syncMapVisibility(){const clear=!mapsPaused&&!document.hidden&&!document.querySelector('dialog[open]');atlas?.setVisible(view==='map'&&clear);detailMap?.setVisible(!mapsPaused&&!document.hidden&&$('details').open&&![...document.querySelectorAll('dialog[open]')].some(d=>d.id!=='details'));}
+function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});syncMapVisibility();}
 function cleanupDialog(id){
  if(id==='journal-tools')toolsUI.reset();if(id==='batch-import')batchUI.reset();if(id==='memory-export')exportsUI.reset();
  if(id==='journeys')journeyUI.reset();
@@ -237,12 +245,12 @@ function cleanupDialog(id){
   syncSave();$('audio-preview').pause();stopRecording(true);
  }
  if(id==='details'){
-  detailRevision++;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;detailUpload?.abort();detailId=null;detailVisitId=null;
+  detailMap?.destroy();detailMap=null;detailRevision++;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;detailUpload?.abort();detailId=null;detailVisitId=null;
   $('details').querySelectorAll('audio').forEach(audio=>audio.pause());
  }
  if(id==='backup'){cancelTransfer();pendingRestore=null;}
 }
-function closeRaw(id){if(!$(id).open)return;cleanupDialog(id);closingDialogs.add(id);$(id).close();}
+function closeRaw(id){if(!$(id).open)return;cleanupDialog(id);closingDialogs.add(id);$(id).close();syncMapVisibility();}
 function close(id,{force=false}={}){
  if(!$(id).open)return;
  if(navigation.route()?.dialogs.at(-1)?.id!==id)return;
@@ -277,16 +285,25 @@ async function applyNavigation(route,previous){
   else if(!$(item.id).open)show(item.id);
  }
 }
+async function showVisitOnMap(id,visitId){
+ await galleryWrites;await journalWrites;
+ const record=records.find(r=>r.id===id),visit=record&&visitById(record,visitId);
+ if(!visit||!hasLocation(visitView(record,visitId)))return;
+ while(navigation.route().dialogs.length){const before=navigation.route().dialogs.length;close(navigation.route().dialogs.at(-1).id);await navigation.idle();if(navigation.route().dialogs.length>=before)return;}
+ query='';category='All places';journeyFilter='';tagFilter='';collectionFilter='';explorationCountry='';explorationRegion='';$('search').value='';
+ mapId=id;mapVisit={recordId:id,visitId};await setView('map');render();atlas?.select(id,{focus:true});$('map-content').scrollIntoView({block:'start'});
+}
 async function openDetail(id,visitId=undefined){
  const request=++detailRevision;detailUpload?.abort();await galleryWrites;await journalWrites;if(request!==detailRevision)return;
- detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;
+ detailMap?.destroy();detailMap=null;detailViewer?.destroy();detailCleanup?.();detailViewer=null;detailCleanup=null;
  const place=records.find(x=>x.id===id);if(!place)return;const previous=visitId===undefined&&detailId===id?detailVisitId:visitId;const scoped=filtered().find(row=>row.id===id),visitIds=scoped?.matchingVisitIds;const visits=visitsOf(place),selected=(previous?visitById(place,previous):null)??(visitIds?visits.find(v=>visitIds.includes(v.id)):null)??(journeyFilter?visits.find(v=>v.tripIds?.includes(journeyFilter)):null)??visits[0];if(!selected)return;const r=visitView(place,selected.id);detailId=id;detailVisitId=selected.id;
- $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><div id="detail-carousel" class="detail-carousel" tabindex="0" role="region" aria-label="Footprint photos. Swipe left or right to browse."><img id="detail-image" class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}" draggable="false"><button class="icon-button photo-previous" id="photo-previous" aria-label="Previous photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowLeft')}</button><button class="icon-button photo-next" id="photo-next" aria-label="Next photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowRight')}</button><span id="photo-position" class="photo-position" aria-live="polite"></span></div><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><section class="visit-history" aria-label="Visits to this place"><div class="visit-heading"><span class="eyebrow">${visits.length} ${visits.length===1?'VISIT':'VISITS'} · ONE PLACE</span><button class="secondary" id="add-return-visit">${icon('plus')}Log return visit</button></div><label for="visit-choice">Choose a visit</label><select id="visit-choice">${visits.map((v,i)=>`<option value="${esc(v.id)}" ${v.id===selected.id?'selected':''}>${esc(date(v.visited))} · Visit ${visits.length-i}${v.id===INITIAL_VISIT?' · Original entry':''}${v.notes?' · '+esc(v.notes.slice(0,55).replace(/\s+/g,' ')):''}</option>`).join('')}</select><div class="visit-tools"><button type="button" class="text-button" id="use-visit-photo" ${r.photo?'':'disabled'}>Use this photo in journal</button><button type="button" class="text-button delete-button" id="delete-visit" ${visits.length<2?'disabled':''}>Delete this visit</button></div><p class="field-help">Notes, photos, voice notes and trips below belong to this visit. The place name and contact details are shared.</p></section><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div>${r.tripIds?.length?`<p class="journey-labels">${r.tripIds.map(id=>journeys.find(j=>j.id===id&&!j.deleted)?.title).filter(Boolean).map(esc).join(' · ')}</p>`:''}${r.tags?.length?`<div class="tool-labels">${r.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div>`:''}${r.country||r.region?`<p class="field-help">${esc([r.region,r.country].filter(Boolean).join(', '))}</p>`:''}<p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${r.lat!==null?`<p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p>`:''}<section class="footprint-gallery" aria-label="Footprint photo collection"><div class="gallery-heading"><span class="eyebrow">PHOTOS <span id="gallery-count"></span></span><label class="secondary file-button gallery-upload">${icon('plus')}Upload more photos<input id="gallery-files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Upload more photos to this footprint"></label></div><div id="gallery-thumbs" class="gallery-thumbs"></div><p class="field-help" id="gallery-status" role="status">Swipe the photo above. The one you leave selected becomes the main photo.</p><p class="field-help">Up to ${MAX_PHOTOS} photos · 20 MB each. Full journal backups support up to 150 MB.</p></section><div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}" data-edit-visit="${esc(selected.id)}">${icon('edit')}Edit place & visit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export-photo="${esc(r.id)}" ${r.photo?'':'disabled title="Add a photograph to export it"'}>${icon('download')}Export Photo</button><button type="button" class="secondary" id="share-memory">Memory card</button><button type="button" class="secondary" id="export-geotagged" ${r.photo&&Number.isFinite(r.lat)&&Number.isFinite(r.lng)?'':'disabled title="This visit needs a photo and coordinates"'}>Geotagged photo copy</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete place ${esc(r.title)} and all visits">${icon('trash')}</button></div></div>`;
+ $('details-content').innerHTML=`<button class="icon-button detail-top-close" data-close="details" aria-label="Close memory">${icon('close')}</button><div id="detail-carousel" class="detail-carousel" tabindex="0" role="region" aria-label="Footprint photos. Swipe left or right to browse."><img id="detail-image" class="detail-photo" src="${art(r)}" alt="${esc(photoAlt(r))}" draggable="false"><button class="icon-button photo-previous" id="photo-previous" aria-label="Previous photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowLeft')}</button><button class="icon-button photo-next" id="photo-next" aria-label="Next photo" ${photosOf(r).length<2?'hidden':''}>${icon('arrowRight')}</button><span id="photo-position" class="photo-position" aria-live="polite"></span></div><div class="detail-content"><div class="memory-top"><span class="eyebrow">${esc(r.category)}${isDemo(r)?' · ILLUSTRATED SAMPLE':''}</span><button class="favorite-btn ${r.favorite?'on':''}" data-favorite="${esc(r.id)}" aria-label="Toggle favorite" aria-pressed="${r.favorite}">${icon('heart')}</button></div><h2>${esc(r.title)}</h2><p class="address-line">${icon('location')}${esc(r.address||'A place of your own')}</p><section class="visit-history" aria-label="Visits to this place"><div class="visit-heading"><span class="eyebrow">${visits.length} ${visits.length===1?'VISIT':'VISITS'} · ONE PLACE</span><button class="secondary" id="add-return-visit">${icon('plus')}Log return visit</button></div><label for="visit-choice">Choose a visit</label><select id="visit-choice">${visits.map((v,i)=>`<option value="${esc(v.id)}" ${v.id===selected.id?'selected':''}>${esc(date(v.visited))} · Visit ${visits.length-i}${v.id===INITIAL_VISIT?' · Original entry':''}${v.notes?' · '+esc(v.notes.slice(0,55).replace(/\s+/g,' ')):''}</option>`).join('')}</select><div class="visit-tools"><button type="button" class="text-button delete-button" id="delete-visit" ${visits.length<2?'disabled':''}>Delete this visit</button></div></section><div class="rating-line"><span class="stars" aria-label="${r.rating} out of 5 stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</span><span>${date(r.visited)}</span></div>${r.tripIds?.length?`<p class="journey-labels">${r.tripIds.map(id=>journeys.find(j=>j.id===id&&!j.deleted)?.title).filter(Boolean).map(esc).join(' · ')}</p>`:''}${r.tags?.length?`<div class="tool-labels">${r.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div>`:''}${r.country||r.region?`<p class="field-help">${esc([r.region,r.country].filter(Boolean).join(', '))}</p>`:''}<p class="story">${esc(r.notes||'No note added yet.')}</p>${r.audio?`<audio controls src="${r.audio}" aria-label="Voice note"></audio>`:''}<div class="detail-extra">${r.phone?`<a href="tel:${esc(r.phone.replace(/[^+\d*#,;]/g,''))}">${esc(r.phone)}</a>`:''}${r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Visit website ${icon('external')}</a>`:''}</div>${hasLocation(r)?`<section class="visit-location" aria-label="Visit location"><p class="field-help">${r.lat.toFixed(6)}°, ${r.lng.toFixed(6)}°</p><div class="visit-map-preview"><div id="visit-map" class="visit-map" aria-label="Map preview of ${esc(r.title)}"></div><button type="button" id="visit-map-open" class="visit-map-open" aria-label="Show ${esc(r.title)} in Map and directions"><span>${icon('map')}Open in Map & directions ${icon('arrowRight')}</span></button></div><p id="visit-map-status" class="field-help" role="status"></p></section>`:''}<section class="footprint-gallery" aria-label="Footprint photo collection"><div class="gallery-heading"><span class="eyebrow">PHOTOS <span id="gallery-count"></span></span><label class="secondary file-button gallery-upload">${icon('plus')}Upload more photos<input id="gallery-files" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Upload more photos to this footprint"></label></div><div id="gallery-thumbs" class="gallery-thumbs"></div><p class="field-help" id="gallery-status" role="status">Swipe the photo above. The one you leave selected becomes the main photo.</p><p class="field-help">Up to ${MAX_PHOTOS} photos · 20 MB each. Full journal backups support up to 150 MB.</p></section><div class="detail-actions"><button class="primary" data-edit="${esc(r.id)}" data-edit-visit="${esc(selected.id)}">${icon('edit')}Edit place & visit</button><a class="secondary" href="${directions(r)}" target="_blank" rel="noopener noreferrer">${icon('navigation')}Directions</a><button class="secondary" data-export-photo="${esc(r.id)}" ${r.photo?'':'disabled title="Add a photograph to export it"'}>${icon('download')}Export Photo</button><button type="button" class="secondary" id="share-memory">Memory card</button><button type="button" class="secondary" id="export-geotagged" ${r.photo&&Number.isFinite(r.lat)&&Number.isFinite(r.lng)?'':'disabled title="This visit needs a photo and coordinates"'}>Geotagged photo copy</button><button class="secondary delete-button" data-delete="${esc(r.id)}" aria-label="Delete place ${esc(r.title)} and all visits">${icon('trash')}</button></div></div>`;
  if(!$('details').open)show('details');
+ if(hasLocation(r)){detailMap=createVisitMap({container:$('visit-map'),record:r,L:window.L,offlineMaps,pinHTML:icon('footprint'),onStatus:({state,message})=>{if(detailId===id&&detailVisitId===selected.id)$('visit-map-status').textContent=state==='ready'?'':message;}});$('visit-map-open').onclick=()=>void showVisitOnMap(id,selected.id).catch(error=>toast(error.message));syncMapVisibility();}
  setupDetailGallery(r);
  $('visit-choice').onchange=e=>void openDetail(id,e.target.value).catch(error=>toast(error.message));
  $('add-return-visit').onclick=()=>openEditor(id,null,'new');
- $('use-visit-photo').onclick=async()=>{try{await galleryWrites;await changeJournal(rows=>rows.map(row=>row.id===id?changeVisit(row,selected.id,view=>view,{main:true}):row));toast('Journal photo updated.');}catch(error){toast(error.message);}};
+
  $('share-memory').onclick=()=>openMemoryExport({kind:'card',recordId:id,visitId:selected.id});$('export-geotagged').onclick=()=>openMemoryExport({kind:'geotag',recordId:id,visitId:selected.id});
  $('delete-visit').onclick=()=>deleteSavedVisit(id,selected.id);
 }
@@ -302,7 +319,7 @@ function setupDetailGallery(record){
   })),
   onChange:({index,total,photo})=>{
    if(!current())return;const image=$('detail-image'),changed=image.getAttribute('src')!==photo;
-   image.src=photo??art(record);image.alt=photo?`Photo ${index+1} of ${total} of ${record.title}`:photoAlt(record);
+   image.src=photo??art(record);if(changed)detailMap?.update({...record,photo,photos:photo?[photo]:[],coverIndex:0});image.alt=photo?`Photo ${index+1} of ${total} of ${record.title}`:photoAlt(record);
    if(changed&&photo&&image.animate&&!matchMedia('(prefers-reduced-motion: reduce)').matches)image.animate([{opacity:.55},{opacity:1}],{duration:180});
    $('photo-position').textContent=total?`${index+1} / ${total}`:'';
    document.querySelectorAll('[data-photo-index]').forEach(button=>button.setAttribute('aria-pressed',Number(button.dataset.photoIndex)===index?'true':'false'));
@@ -619,7 +636,7 @@ async function deleteSavedVisit(id,visitId){
 async function toggleFavorite(id){const r=records.find(x=>x.id===id);if(!r)return;await galleryWrites;await changeJournal(current=>current.map(x=>x.id===id?{...x,favorite:!x.favorite,updatedAt:new Date().toISOString()}:x));if($('details').open)openDetail(id);}
 async function deletePlace(id){const r=records.find(x=>x.id===id);if(!r||!confirm(`Delete “${r.title}” and all its visits, photos and voice notes?`))return;await galleryWrites;await changeJournal(current=>current.filter(x=>x.id!==id));close('details',{force:true});toast('Footprint deleted.');}
 async function routeClick(e){const b=e.target.closest('button,a');if(!b)return;
- try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){await openDetail(b.dataset.detail);return;}if(b.dataset.photoIndex!==undefined){galleryWrites=detailViewer?.select(Number(b.dataset.photoIndex))??Promise.resolve();return;}if(b.dataset.draftIndex!==undefined){chooseDraftPhoto(Number(b.dataset.draftIndex));return;}if(b.dataset.edit){await openEditor(b.dataset.edit,null,b.dataset.editVisit??null);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
+ try{if(b.dataset.view){setView(b.dataset.view);return;}if(b.dataset.category){category=b.dataset.category;deckIndex=0;render();return;}if(b.dataset.close){close(b.dataset.close);return;}if(b.dataset.detail){await openDetail(b.dataset.detail,view==='map'&&mapVisit?.recordId===b.dataset.detail?mapVisit.visitId:undefined);return;}if(b.dataset.photoIndex!==undefined){galleryWrites=detailViewer?.select(Number(b.dataset.photoIndex))??Promise.resolve();return;}if(b.dataset.draftIndex!==undefined){chooseDraftPhoto(Number(b.dataset.draftIndex));return;}if(b.dataset.edit){await openEditor(b.dataset.edit,null,b.dataset.editVisit??null);return;}if(b.dataset.favorite){b.disabled=true;try{await toggleFavorite(b.dataset.favorite);}finally{b.disabled=false;}return;}if(b.dataset.delete){await deletePlace(b.dataset.delete);return;}if(b.dataset.exportPhoto){await exportPhoto(b.dataset.exportPhoto);return;}if(b.dataset.map){mapId=b.dataset.map;atlas?.select(mapId,{focus:true});renderMapList(filtered());return;}if(b.id==='apply-photo-geotag'){applyPhotoLocation();return;}if(b.id==='dismiss-photo-geotag'){pendingPhotoMetadata=null;$('photo-geotag').hidden=true;return;}if(b.id==='confirm-restore')await restoreBackup();
  }catch(err){toast(err.message);}
 }
 function draftSnapshot(){
@@ -737,7 +754,7 @@ async function downloadOfflineArea(){
  }catch(error){$('offline-status').textContent=error.message==='CANCELLED'?'Download cancelled. Incomplete tiles were removed.':error.message;}
 }
 function wire(){
- nativeDraftReady=bindDraftLifecycle({plugin:device.native?window.NthNative?.App:null,onPause:()=>{void checkpointDraft().catch(()=>{});void nearbyMemories.pause();},onRestored:queueRestoredCamera,onError:toast});
+ nativeDraftReady=bindDraftLifecycle({plugin:device.native?window.NthNative?.App:null,onPause:()=>{mapsPaused=true;syncMapVisibility();void checkpointDraft().catch(()=>{});void nearbyMemories.pause();},onRestored:queueRestoredCamera,onError:toast});
  $('place-form').addEventListener('input',scheduleDraft);$('place-form').addEventListener('change',scheduleDraft);
  $('resume-draft').onclick=resumeDraft;$('discard-draft').onclick=discardRecoveryDraft;$('recover-camera-photo').onclick=applyReturnedCamera;
 
@@ -750,14 +767,15 @@ function wire(){
  $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=async()=>{await widgetSync.refresh(records);await widgetPreferences.load();};
  document.querySelectorAll('dialog').forEach(dialog=>{
   dialog.addEventListener('cancel',event=>{event.preventDefault();close(dialog.id);});
-  dialog.addEventListener('close',()=>{if(!closingDialogs.delete(dialog.id)&&!dialog.open)cleanupDialog(dialog.id);if(!navigation.busy)widgetLaunch.flush();});
+  dialog.addEventListener('close',()=>{if(!closingDialogs.delete(dialog.id)&&!dialog.open)cleanupDialog(dialog.id);syncMapVisibility();if(!navigation.busy)widgetLaunch.flush();});
  });
  window.addEventListener('beforeunload',event=>{if(toolsUI.hasPending()||batchUI.hasPending()||exportsUI.hasPending()||editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning||offlineMaps.phase!=='idle'){event.preventDefault();event.returnValue='';}});
  if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
  icons();renderReleases();$('place-search-form').onsubmit=searchPlaces;$('place-query').oninput=()=>placeSearch.cancel();$('place-search-cancel').onclick=()=>placeSearch.cancel();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
+ window.addEventListener('pagehide',()=>{mapsPaused=true;syncMapVisibility();});window.addEventListener('pageshow',()=>{mapsPaused=false;syncMapVisibility();});
  toolsUI.wire();batchUI.wire();exportsUI.wire();$('tools-open').onclick=()=>openJournalTools();$('settings-tools').onclick=()=>openJournalTools();$('memory-banner-open').onclick=()=>openJournalTools('memories');$('nearby-memory-open').onclick=()=>{if(nearbyMatch)openDetail(nearbyMatch.recordId,nearbyMatch.visitId);};$('nearby-memory-dismiss').onclick=()=>{nearbyMatch=null;renderNearbyBanner();};
  $('tag-filter').onchange=e=>{tagFilter=e.target.value;deckIndex=0;render();};$('collection-filter').onchange=e=>{collectionFilter=e.target.value;deckIndex=0;render();};$('clear-exploration').onclick=()=>{explorationCountry='';explorationRegion='';render();};
- document.addEventListener('visibilitychange',()=>{if(document.hidden)void nearbyMemories.pause();else if(storageReady){void nearbyMemories.resume();renderToolFilters();}});if(device.native)void window.NthNative?.App?.addListener('resume',()=>{if(storageReady){void nearbyMemories.resume();renderToolFilters();}}).catch(()=>{});
+ document.addEventListener('visibilitychange',()=>{syncMapVisibility();if(document.hidden)void nearbyMemories.pause();else if(storageReady){void nearbyMemories.resume();renderToolFilters();}});if(device.native)void window.NthNative?.App?.addListener('resume',()=>{mapsPaused=false;syncMapVisibility();if(storageReady){void nearbyMemories.resume();renderToolFilters();}}).catch(()=>{});
  journeyUI.wire();$('journeys-open').onclick=openJourneys;$('journey-filter').onchange=e=>{journeyFilter=e.target.value;deckIndex=0;render();};
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};

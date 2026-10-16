@@ -113,7 +113,7 @@ test('release history is chronological, matches the app package and describes sh
 });
 test('map list renders distance order, missing-location actions and selected footprint together',()=>{
  const ids=['atlas-count','fit-places','map-list','map-selection'],nodes=Object.fromEntries(ids.map(id=>[id,{}]));
- const context=vm.createContext({$:id=>nodes[id],mapId:'far',nearbyOrigin:point(0,0),nearestPlaces,distanceLabel,hasLocation,esc:s=>String(s??''),art:()=>'',directions:()=>'',icon:()=>''});
+ const context=vm.createContext({$:id=>nodes[id],mapDisplayRecords:rows=>rows,mapId:'far',nearbyOrigin:point(0,0),nearestPlaces,distanceLabel,hasLocation,esc:s=>String(s??''),art:()=>'',directions:()=>'',icon:()=>''});
  vm.runInContext(app.slice(app.indexOf('function renderMapList('),app.indexOf('function renderMap(')),context);
  context.renderMapList([place('far',0,2),place('missing',null,null),place('near',0,0)]);
  const html=nodes['map-list'].innerHTML;assert.ok(html.indexOf('data-map="near"')<html.indexOf('data-map="far"'));assert.ok(html.indexOf('data-map="far"')<html.indexOf('data-edit="missing"'));

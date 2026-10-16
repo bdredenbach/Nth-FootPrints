@@ -25,11 +25,11 @@ function element(){
   setAttribute(k,v){this.attributes[k]=v;},classList:{toggle(){}}
  };
 }
-function fixture({thumbnail,delayed=false}={}){
+function fixture({thumbnail,delayed=false,preview=false}={}){
  const frames=[],container=element(),statuses=[],picked=[],handlers={},network={onLine:true},state={maps:[],tiles:[],groups:[]};
  const events={addEventListener:(n,f)=>{handlers[n]=f;},removeEventListener:(n,f)=>{if(handlers[n]===f)delete handlers[n];}};
  const L={
-  map(){const m={layers:new Set(),views:[],bounds:[],zoom:2,invalidations:0,removed:false,handlers:{},inView:()=>true,
+  map(container,options){const m={options,layers:new Set(),views:[],bounds:[],zoom:2,invalidations:0,removed:false,handlers:{},inView:()=>true,
    on(name,fn){this.handlers[name]=fn;return this;},getBounds(){return {contains:this.inView};},
    setView(point,zoom){this.views.push({point,zoom});this.zoom=zoom;return this;},
    getZoom(){return this.zoom;},fitBounds(points,options){this.bounds.push({points,options});return this;},
@@ -44,7 +44,7 @@ function fixture({thumbnail,delayed=false}={}){
    getElement(){return this.element;},setZIndexOffset(z){this.z=z;return this;}
   };}
  };
- const atlas=createAtlas({container,L,thumbnail,document:{createElement:element},events,network,frame:cb=>delayed?frames.push(cb):cb(),pinHTML:'<svg>trusted mark</svg>',onPick:id=>picked.push(id),onStatus:s=>statuses.push(s)});
+ const atlas=createAtlas({container,L,thumbnail,preview,document:{createElement:element},events,network,frame:cb=>delayed?frames.push(cb):cb(),pinHTML:'<svg>trusted mark</svg>',onPick:id=>picked.push(id),onStatus:s=>statuses.push(s)});
  return{atlas,frames,container,statuses,picked,handlers,network,state};
 }
 test('atlas fits every located footprint, keeps attribution, and pin activation opens the right place',()=>{
@@ -105,4 +105,8 @@ test('opening a saved offline area wins over a pending atlas fit-all frame',()=>
  const f=fixture({delayed:true});f.atlas.update([place('a',43,-74),place('b',45,-123)]);
  const area={center:{lat:43.04,lng:-74.85},maxZoom:15};f.atlas.showArea(area);f.frames[0]();
  assert.deepEqual(f.state.maps[0].views.at(-1),{point:[43.04,-74.85],zoom:13});assert.equal(f.state.maps[0].bounds.length,0);
+});
+
+test('detail atlas preview disables gestures and marker focus while retaining local tile lifecycle',()=>{
+ const f=fixture({preview:true});f.atlas.update([place('zero',0,0)]);const m=f.state.maps[0],marker=f.state.groups[0].members[0];assert.equal(m.options.dragging,false);assert.equal(m.options.zoomControl,false);assert.equal(m.options.keyboard,false);assert.equal(marker.options.keyboard,false);assert.equal(marker.options.interactive,false);assert.deepEqual(m.views.at(-1).point,[0,0]);f.atlas.setVisible(false);assert.equal(m.hasLayer(f.state.tiles[0]),false);f.atlas.destroy();assert.equal(m.removed,true);
 });

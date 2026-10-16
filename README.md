@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.5.0**.
+A personal travel journal by Nth Experience. Prototype **0.5.1**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -209,3 +209,14 @@ Books are A4 image pages, so story text is not searchable/selectable; glyph cove
 Full backups now use **format 5**, restore formats 1–4, and include labels, smart collections and the memories preference. Collections merge even when restoring appearance is unchecked; theme/memories restore only when checked. Device nearby permission, recovery drafts and downloaded maps remain outside backups. Existing 150 MB backup and media storage limits apply.
 
 272 automated checks pass, including actual Java save-plugin execution with Android fakes. Mobile/desktop Chromium checks cover legacy restore, all eight tools, labels after restart, failed-save retry, cancellation, privacy, local JPEG/PNG/PDF exports, nearby pause/resume and fresh format-5 restore. Physical Android testing remains necessary. Larger media/streamed backups, worldwide detailed offline map coverage and permanent signing remain as described in [the working queue](docs/ROADMAP.md).
+
+
+## Streamlined controls and visit maps (0.5.1)
+
+New footprint, Tag and Collection now share the first row. Below search/trip/sort, the four utility buttons run left to right: Journal tools, Trips & journeys, Backup & restore, Preferences. Both rows fit narrow phones; all controls keep their existing actions.
+
+Visit details remove the redundant Use this photo in journal shortcut and shared-fields help paragraph. Swipes/thumbnails still select the journal photo; Delete this visit remains. Located visits gain a small map below their coordinates. Tapping it closes the detail stack, clears filters that could exclude the place and opens Map & directions with that place selected, centered on the chosen visit's coordinates. Return visits can therefore open their own position; this changes only the map display. Missing-coordinate visits omit the preview.
+
+The preview shares the atlas's online OpenStreetMap attribution and downloaded USGS tile policy. It loads only on screen, pauses when covered/hidden, and cleans up on visit changes or closure. It has no pan/zoom gestures; the button is keyboard accessible. Offline missing tiles remain hatched with a working map handoff. Backups and original place/visit data are unchanged.
+
+275 automated checks pass, plus browser checks at 360/393/680/1280 px, selected initial/return-visit coordinates, nested navigation, overlay cleanup and offline restart/handoff. Physical Android testing remains necessary.

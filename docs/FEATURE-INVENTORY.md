@@ -216,3 +216,12 @@ Trip dates/photos and note searches include only matching member visits when a t
 Import limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Book limits: 100 visits, 300 pages, 80 MB; text is rasterized and font coverage follows the device. Cards indicate shortened text. PDF save uses the existing Android bounded-chunk document picker with the correct MIME type. Nearby consent/cooldowns, recovery drafts and offline maps stay outside journal backups. Labels are entered by the user, not inferred from boundaries. Original-photo metadata is not copied into cards/PDF images; titles/stories/photo pixels can still reveal locations.
 
 272 automated checks pass. Combined phone/desktop browser tests cover all eight features, failed batch-write rollback/retry, read cancellation, label draft recovery, legacy/fresh backup restore, deletion protection and nearby lifecycle. Exported GPS is independently decoded; PDF pages are rendered and checked through the full long story. Physical Android checks remain.
+
+
+## 0.5.1 layout and visit map refinement
+
+User-marked layout implemented: New footprint → Tag → Collection; below search/trip/sort, Journal tools → Trips & journeys → Backup & restore → Preferences. Four utility actions stay in a row on phones, with wrapped labels. Category filters follow. Removed the marked Use this photo in journal shortcut and shared-fields description from detail view; gallery selection and visit removal remain.
+
+Located visits show a small map under GPS. It shares atlas photo pins and online/offline map backgrounds, is lazy while off screen, stops tiles while covered/hidden and destroys on close/switch. Tapping its accessible button closes nested dialogs safely, clears excluding filters and selects/focuses that visit in Map & directions. A temporary display override keeps a return visit's different coordinates/photo in the selected map pin without changing saved place data. Missing coordinates omit the preview. Offline shell v26 includes the new module.
+
+275 automated checks and phone/desktop/offline browser verification pass. No backup/schema change. Physical Android testing remains necessary.

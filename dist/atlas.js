@@ -22,7 +22,7 @@ export function atlasPoints(records){
  return places.map((record,i)=>({record,lat:record.lat,lng:values[i]-shift}));
 }
 
-export function createAtlas({container,L,onPick=()=>{},onStatus=()=>{},pinHTML='●',thumbnail,offlineMaps,document=globalThis.document,events=globalThis.window,network=globalThis.navigator,frame=cb=>requestAnimationFrame(cb)}){
+export function createAtlas({container,L,onPick=()=>{},onStatus=()=>{},pinHTML='●',thumbnail,offlineMaps,preview=false,document=globalThis.document,events=globalThis.window,network=globalThis.navigator,frame=cb=>requestAnimationFrame(cb)}){
  let map=null,background=null,layer=null,points=[],selected=null,visible=true,spatialKey='',viewportRequest=0;
  const markers=new Map(),faces=new Map();
  const previews=createPinPreviews({thumbnail,onPreview:(id,source)=>{
@@ -44,7 +44,7 @@ export function createAtlas({container,L,onPick=()=>{},onStatus=()=>{},pinHTML='
   if(map)return true;
   if(!L){message('The map could not open. Your places are still listed below.');status('unavailable','Reload the app to try the map again.');return false;}
   container.replaceChildren();
-  map=L.map(container,{scrollWheelZoom:false,worldCopyJump:false}).setView([20,0],2);
+  map=L.map(container,{scrollWheelZoom:false,worldCopyJump:false,...(preview?{zoomControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false}:{} )}).setView([20,0],2);
   layer=L.layerGroup().addTo(map);
   map.on?.('moveend',syncPreviews);
   background=createMapBackground({map,L,offlineMaps,events,network,onStatus,readyMessage:'Tap a pin to open its footprint. Directions open in your map app or browser.'});
@@ -76,8 +76,8 @@ export function createAtlas({container,L,onPick=()=>{},onStatus=()=>{},pinHTML='
    const r=point.record,face=document.createElement('span');
    face.className='atlas-pin-face';face.innerHTML=pinHTML;faces.set(r.id,face);
    const icon=L.divIcon({html:face,className:'atlas-pin',iconSize:[44,52],iconAnchor:[22,52]});
-   const marker=L.marker([point.lat,point.lng],{icon,title:r.title,keyboard:true,autoPanOnFocus:true}).addTo(layer);
-   marker.getElement()?.setAttribute('aria-label',`Open footprint: ${r.title}`);
+   const marker=L.marker([point.lat,point.lng],{icon,title:r.title,keyboard:!preview,interactive:!preview,autoPanOnFocus:!preview}).addTo(layer);
+   if(!preview)marker.getElement()?.setAttribute('aria-label',`Open footprint: ${r.title}`);
    marker.on('click',()=>{select(r.id);onPick(r.id);});markers.set(r.id,marker);
   }
   select(selectedId);

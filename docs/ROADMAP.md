@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.5.0**.
+GitHub is authoritative. Current prototype: **0.5.1**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -131,3 +131,12 @@ A resizable Android home-screen widget shows the latest visited footprint and th
 Continue device checks for camera/location permissions, audio, safe areas, native save/restore and map gestures. Automated checks and compilation do not replace those checks.
 
 A separate HTC Locations reference is still needed to finish its feature inventory. Complete parity is not claimed. **KMZ stays omitted** in favor of the Nth-specific backup format.
+
+
+## 0.5.1 layout and visit map refinement
+
+User-marked layout implemented: New footprint → Tag → Collection; below search/trip/sort, Journal tools → Trips & journeys → Backup & restore → Preferences. Four utility actions stay in a row on phones, with wrapped labels. Category filters follow. Removed the marked Use this photo in journal shortcut and shared-fields description from detail view; gallery selection and visit removal remain.
+
+Located visits show a small map under GPS. It shares atlas photo pins and online/offline map backgrounds, is lazy while off screen, stops tiles while covered/hidden and destroys on close/switch. Tapping its accessible button closes nested dialogs safely, clears excluding filters and selects/focuses that visit in Map & directions. A temporary display override keeps a return visit's different coordinates/photo in the selected map pin without changing saved place data. Missing coordinates omit the preview. Offline shell v26 includes the new module.
+
+275 automated checks and phone/desktop/offline browser verification pass. No backup/schema change. Physical Android testing remains necessary.
