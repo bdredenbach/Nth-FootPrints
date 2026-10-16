@@ -59,5 +59,28 @@ test('a prefilled place draft retains its source across restart and older drafts
 
 test('prototype daily request budget persists without storing areas and cache hits remain available',async()=>{
  const values=new Map(),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};let calls=0,instant=Date.parse('2026-10-16T12:00:00Z');const options={storage,now:()=>instant,wait:async()=>{},network:{onLine:true},fetch:async()=>{calls++;return response(payload());}};
- const client=createDiscoveryClient(options);for(let i=0;i<50;i++)await client.search({...params,center:{lat:42+i*.001,lng:-73}});assert.equal(calls,50);await assert.rejects(client.search({...params,groupId:'services'}),/allowance/);assert.equal(calls,50);assert.equal((await client.search({...params,center:{lat:42.049,lng:-73}})).cached,true);const fresh=createDiscoveryClient(options);await assert.rejects(fresh.search(params),/allowance/);const stored=[...values.values()].join('');assert.ok(!stored.includes('latitude'));assert.ok(!stored.includes('42.049'));instant+=86400000;await fresh.search(params);assert.equal(calls,51);
+ const client=createDiscoveryClient(options);for(let i=0;i<50;i++)await client.search({...params,center:{lat:42+i*.001,lng:-73}});assert.equal(calls,50);await assert.rejects(client.search({...params,groupId:'services'}),/50 successful/);assert.equal(calls,50);assert.equal((await client.search({...params,center:{lat:42.049,lng:-73}})).cached,true);const fresh=createDiscoveryClient(options);await assert.rejects(fresh.search(params),/50 successful/);const stored=[...values.values()].join('');assert.ok(!stored.includes('latitude'));assert.ok(!stored.includes('42.049'));instant+=86400000;await fresh.search(params);assert.equal(calls,51);
+});
+
+
+test('failed searches do not spend successful-search allowance; backoff and separate safety cap persist',async()=>{
+ const values=new Map(),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};let instant=Date.parse(clock),calls=0;const waits=[];
+ const client=createDiscoveryClient({storage,now:()=>instant,wait:async ms=>{waits.push(ms);instant+=ms;},network:{onLine:true},fetch:async()=>{calls++;return calls<=3?response({},504):response(payload());}});
+ for(let i=0;i<3;i++)await assert.rejects(client.search(params),/could not load/);
+ assert.equal(JSON.parse(values.get('nth-discovery-budget-v2')).successes,0);assert.deepEqual(waits,[5000,10000]);
+ await client.search(params);assert.equal(JSON.parse(values.get('nth-discovery-budget-v2')).successes,1);assert.equal(JSON.parse(values.get('nth-discovery-budget-v2')).attempts,4);
+ values.set('nth-discovery-budget-v2',JSON.stringify({day:'2026-10-16',successes:1,attempts:100,bytes:1}));const blocked=createDiscoveryClient({storage,now:()=>instant,fetch:async()=>{throw Error('must not fetch');}});await assert.rejects(blocked.search(params),/safety limit/);
+});
+test('loaded groups survive beyond freshness window and answer complete subtype/smaller radius without more requests',async()=>{
+ let instant=Date.parse(clock),calls=0;const client=createDiscoveryClient({now:()=>instant,wait:async()=>{},network:{onLine:true},fetch:async()=>{calls++;return response(payload([node(1),node(2,{amenity:'cafe',name:'Coffee'})]));}});
+ await client.search(params);assert.equal((await client.search({...params,filterId:'coffee',radius:1000})).items.length,1);assert.equal(calls,1);
+ instant+=3600000;assert.equal(client.cached(params).items.length,2);assert.equal(calls,1);await client.search(params,{force:true});assert.equal(calls,2);
+});
+test('truncated broad searches cannot hide missing subtype results and a failed forced refresh retains the good cache',async()=>{
+ let fail=false,calls=0;const client=createDiscoveryClient({wait:async()=>{},fetch:async()=>{calls++;if(fail)return response({},503);return response(payload(Array.from({length:601},(_,i)=>node(i+1,{name:'Restaurant '+i},{lat:42+i*.000001,lon:-73}))));}});
+ await client.search(params);assert.equal(client.cached({...params,filterId:'coffee'}),null);fail=true;await assert.rejects(client.search(params,{force:true}),/busy/);assert.equal(client.cached(params).items.length,600);assert.equal(calls,2);
+});
+test('legacy attempt budgets migrate without treating failures as completed searches',async()=>{
+ const values=new Map([['nth-discovery-budget-v1',JSON.stringify({day:'2026-10-16',requests:50,bytes:4000})]]),storage={getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)};
+ const c=createDiscoveryClient({storage,now:()=>Date.parse(clock),fetch:async()=>response(payload())});await c.search(params);const b=JSON.parse(values.get('nth-discovery-budget-v2'));assert.equal(b.successes,1);assert.equal(b.attempts,51);assert.ok(b.bytes>4000);
 });

@@ -238,3 +238,14 @@ Current community provider: https://overpass-api.de/api/interpreter . Needs a de
 Bounded prototype: 600 candidates, 2 MB per response, 3-second minimum request interval, 45-second client/15-second query timeout, 50 requests/5 MB per device/local day, 12 five-minute in-memory cache entries. Budget metadata only is persisted outside backups. Results aren't retained after process restart. Offline maps and saved journals continue independently. Backup v6 imports v1–v5; optional placeSource survives shared-place edits/returns and restores. Recovery metadata v5 reads previous versions. Existing pending feature queue (larger media/streamed backups, worldwide detailed offline coverage and deferred signing) remains.
 
 286 automated checks, responsive phone/desktop discovery/save/restart/backup tests and offline checks pass. Physical Android testing remains necessary.
+
+
+## 0.6.1 Places usability and search recovery
+
+Replaced saved-origin dropdown and lower Refresh / retry link with one accessible Refresh button beside Use my location. Refresh also retries map tiles and searches the current map area after panning. The map fits the chosen radius when entering an area or changing radius, drawing its boundary; category changes do not reset zoom. Searches never depend on zoom events.
+
+Loaded category results restore without another request, including session-stale entries. Complete group results answer narrower types and smaller radii locally; truncated group results require a new subtype lookup. Cache is bounded to 30 sets, 30-minute freshness for ordinary client searches. Explicit Refresh bypasses cache; failed refresh retains it. Previous results/pins stay labeled and visible while another category loads or fails.
+
+Local daily successful-search allowance is 50; failures and cancellations spend no successful-search credit. Separate 100-attempt and 5 MB limits protect the community service, with 3-second minimum pacing, Retry-After and escalating failure cooldowns. Legacy attempt budget migrates without charging it as successes. No automatic external retries or provider failover.
+
+Provider recommendation researched: Geoapify Places supports category/radius search, offset pagination and attributed cache/store reuse with Leaflet. It requires an account/key and has not been enabled. Its OSM-based coverage is not guaranteed to add missing local businesses. Google Places map and storage restrictions make it a larger change for permanent journal data. Sources: https://www.geoapify.com/places-api/ , https://www.geoapify.com/pricing/ , https://developers.google.com/maps/documentation/places/web-service/policies .

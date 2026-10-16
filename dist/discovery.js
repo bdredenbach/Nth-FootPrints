@@ -61,23 +61,31 @@ async function boundedJSON(response,remaining=2*1024*1024,onBytes=()=>{}){
 }
 export function createDiscoveryClient({fetch=globalThis.fetch,now=Date.now,wait=delay,network=globalThis.navigator,storage}={}){
  if(storage===undefined){try{storage=globalThis.localStorage;}catch{storage=null;}}
- let active=null,generation=0,nextAllowed=0;const cache=new Map();let budget={day:'',requests:0,bytes:0};
+ let active=null,generation=0,nextAllowed=0,failures=0;const cache=new Map();let budget={day:'',successes:0,attempts:0,bytes:0};
  const day=()=>{const d=new Date(now());return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
- try{const saved=JSON.parse(storage?.getItem('nth-discovery-budget-v1')??'null');if(saved?.day===day()&&Number.isInteger(saved.requests)&&saved.requests>=0&&Number.isInteger(saved.bytes)&&saved.bytes>=0)budget=saved;}catch{}
- function saveBudget(){try{storage?.setItem('nth-discovery-budget-v1',JSON.stringify(budget));}catch{}}
- function allowance(){if(budget.day!==day())budget={day:day(),requests:0,bytes:0};if(budget.requests>=50||budget.bytes>=5*1024*1024)throw Error('Today’s prototype Places allowance is used. Try again tomorrow. Your journal and maps still work.');}
+ try{const saved=JSON.parse(storage?.getItem('nth-discovery-budget-v2')??'null');if(saved?.day===day()&&['successes','attempts','bytes'].every(k=>Number.isInteger(saved[k])&&saved[k]>=0))budget=saved;else {const old=JSON.parse(storage?.getItem('nth-discovery-budget-v1')??'null');if(old?.day===day()){budget={day:day(),successes:0,attempts:Math.max(0,Number(old.requests)||0),bytes:Math.max(0,Number(old.bytes)||0)};}}}catch{}
+ function saveBudget(){try{storage?.setItem('nth-discovery-budget-v2',JSON.stringify(budget));}catch{}}
+ function allowance(){if(budget.day!==day())budget={day:day(),successes:0,attempts:0,bytes:0};if(budget.successes>=50)throw Error('Today’s 50 successful Places searches are used. Loaded categories are still available. Try new areas tomorrow.');if(budget.attempts>=100||budget.bytes>=5*1024*1024)throw Error('Places has reached today’s service safety limit. Loaded categories are still available. Try new searches tomorrow.');}
+ function cached(params,{fresh=false}={}){
+  const query=discoveryQuery(params);let hit=cache.get(query);
+  // A complete broad result can answer narrower types/radii locally. A truncated
+  // result cannot promise that a missing subtype is absent from the area.
+  if(!hit)hit=[...cache.values()].reverse().find(h=>!h.result.limited&&h.params.groupId===params.groupId&&!h.params.filterId&&h.params.center.lat.toFixed(3)===params.center.lat.toFixed(3)&&h.params.center.lng.toFixed(3)===params.center.lng.toFixed(3)&&h.params.radius>=params.radius);
+  if(!hit||fresh&&now()-hit.at>=1800000)return null;
+  const result=structuredClone(hit.result);result.items=result.items.filter(p=>!params.filterId||p.kinds.includes(params.filterId)).map(p=>({...p,km:proximityKm(params.center,p)})).filter(p=>p.km<=params.radius/1000).sort((a,b)=>a.km-b.km||a.title.localeCompare(b.title));return {...result,cached:true,loadedAt:hit.at};
+ }
 
  function cancel(){generation++;active?.abort();active=null;}
- return {cancel,async search(params){
-  const query=discoveryQuery(params);cancel();const token=generation,hit=cache.get(query);if(hit&&now()-hit.at<300000){const result=structuredClone(hit.result);result.items=result.items.map(p=>({...p,km:proximityKm(params.center,p)})).filter(p=>p.km<=params.radius/1000).sort((a,b)=>a.km-b.km||a.title.localeCompare(b.title));return {...result,cached:true};}
+ return {cancel,cached,async search(params,{force=false}={}){
+  const query=discoveryQuery(params);cancel();const token=generation,hit=!force&&cached(params,{fresh:true});if(hit)return hit;
   if(network?.onLine===false)throw Error('Places discovery needs internet. Saved footprints and downloaded maps are still available.');
   allowance();const abort=new AbortController();active=abort;let timer;
   try{
-   const remaining=Math.max(0,nextAllowed-now());if(remaining>0)await wait(remaining,abort.signal);if(abort.signal.aborted)throw cancelError();nextAllowed=now()+3000;allowance();budget.requests++;saveBudget();
+   const remaining=Math.max(0,nextAllowed-now());if(remaining>0)await wait(remaining,abort.signal);if(abort.signal.aborted)throw cancelError();nextAllowed=now()+3000;allowance();budget.attempts++;saveBudget();
    timer=setTimeout(()=>abort.abort('timeout'),45000);
    const response=await fetch(DISCOVERY_ENDPOINT,{method:'POST',body:new URLSearchParams({data:query}),signal:abort.signal,credentials:'omit',referrerPolicy:'strict-origin-when-cross-origin'});
-   if(!response.ok){if(response.status===429||response.status===503){const retry=response.headers?.get?.('retry-after'),seconds=/^\d+$/.test(retry??'')?Number(retry):Math.max(0,(Date.parse(retry)-now())/1000)||30;nextAllowed=now()+Math.min(300,Math.max(3,seconds))*1000;throw Error('Places is busy. Wait a little, then tap Retry.');}throw Error('Places could not load. Check your connection and tap Retry.');}
-   const body=await boundedJSON(response,5*1024*1024-budget.bytes,n=>{budget.bytes+=n;saveBudget();});const payload=body.payload;if(token!==generation||abort.signal.aborted)throw cancelError();const result=normalizeDiscovery(payload,params);cache.set(query,{at:now(),result});while(cache.size>12)cache.delete(cache.keys().next().value);return {...structuredClone(result),cached:false};
-  }catch(error){if(token!==generation||abort.signal.reason!=='timeout'&&abort.signal.aborted)throw cancelError();if(abort.signal.reason==='timeout')throw Error('Places took too long to respond. Try a smaller area or tap Retry.');if(error instanceof SyntaxError)throw Error('Places returned unreadable data. Tap Retry later.');if(error instanceof TypeError)throw Error('Places could not connect. Check your internet connection and tap Retry.');throw error;}finally{clearTimeout(timer);if(token===generation)active=null;}
+   if(!response.ok){if(response.status===429||response.status===503){const retry=response.headers?.get?.('retry-after'),seconds=/^\d+$/.test(retry??'')?Number(retry):Math.max(0,(Date.parse(retry)-now())/1000)||30;nextAllowed=now()+Math.min(300,Math.max(3,seconds))*1000;throw Error('Places is busy. Wait a little, then tap Refresh.');}throw Error('Places could not load. Check your connection and tap Refresh.');}
+   const body=await boundedJSON(response,5*1024*1024-budget.bytes,n=>{budget.bytes+=n;saveBudget();});const payload=body.payload;if(token!==generation||abort.signal.aborted)throw cancelError();const result=normalizeDiscovery(payload,params);budget.successes++;failures=0;saveBudget();cache.set(query,{at:now(),result,params:structuredClone(params)});while(cache.size>30)cache.delete(cache.keys().next().value);return {...structuredClone(result),cached:false,loadedAt:now()};
+  }catch(error){if(token!==generation||abort.signal.reason!=='timeout'&&abort.signal.aborted)throw cancelError();failures++;nextAllowed=Math.max(nextAllowed,now()+Math.min(120000,5000*2**Math.min(failures-1,5)));if(abort.signal.reason==='timeout')throw Error('Places took too long to respond. Try a smaller area or tap Refresh.');if(error instanceof SyntaxError)throw Error('Places returned unreadable data. Tap Refresh later.');if(error instanceof TypeError)throw Error('Places could not connect. Check your internet connection and tap Refresh.');throw error;}finally{clearTimeout(timer);if(token===generation)active=null;}
  }};
 }
