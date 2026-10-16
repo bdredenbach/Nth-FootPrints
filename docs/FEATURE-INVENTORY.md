@@ -281,3 +281,7 @@ Removed saved collections throughout the application: toolbar selector, Journal 
 ### Explicit one-footprint photo import — 0.6.6
 
 The grouping dropdown offers “All selected photos in one footprint”: one shared review and one new footprint for up to 30 unique photos, regardless of missing GPS or differing dates. Its shared date/GPS start from the first detected values, or today/no location when absent. Per-group saved-place destinations and manual date-based grouping controls are hidden in this mode. Every included image is previewed; no photos are silently split or dropped. Switching modes reuses the selected original media; edited fields require confirmation before rebuilding. Existing duplicate skipping, atomic saves, cancellation and automatic GPS/date modes remain. Backup v7 and recovery v6 are unchanged; shell v33 refreshes the UI.
+
+## 0.6.7 — aligned create and tag controls
+
+Removed the visible Tag label row, retaining the screen-reader label. New footprint and the tag selector share a 44 px height; the existing responsive row, keyboard access and tag filtering remain. No data or backup changes.

@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.6**.
+A personal travel journal by Nth Experience. Prototype **0.6.7**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -291,3 +291,9 @@ Validation for 0.6.5: 308 automated checks pass. Browser checks at 360/393/1280 
 “All selected photos in one footprint” groups the entire deduplicated batch into one new footprint, including photos with missing GPS or different dates. Review one shared set of fields and a strip showing every included photo. First detected photo date and GPS are proposals only; missing dates start as today and missing GPS stays empty. Limits: 30 unique photos per footprint; larger one-footprint requests stop with an explanation and never silently split or drop photos. Other automatic modes still require date/GPS matches. Changing the dropdown regroups the selected originals locally; edited fields are protected by a confirmation. Original files and backup/recovery schemas stay unchanged.
 
 Validation for 0.6.6: 313 automated checks pass. Browser checks at 360/393/1280 px reproduce the six-photo/no-GPS report, save exactly one footprint with unchanged original bytes, verify no per-group destinations, regroup without rereading files, preserve edits when a regroup is cancelled, retry a failed save, and retain duplicate protection. Direct and regrouped 31-photo requests stop safely; 30 photos form one review. Existing strict/nearby/manual grouping and Undo checks also pass.
+
+### Aligned journal controls (0.6.7)
+
+The Tag heading is visually hidden while remaining accessible. New footprint and the tag dropdown share a 44 px height, aligning their top and bottom edges on phones and desktop. Shell v34 refreshes the layout; filtering and journal data are unchanged.
+
+Browser validation for 0.6.7 at 320/360/393/684/1280 px confirms matching 44 px control heights and top/bottom edges, no visible Tag label row, retained accessible naming and keyboard order, working tag filtering and no row overflow.
