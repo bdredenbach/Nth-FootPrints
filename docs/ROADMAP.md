@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.6.7**.
+GitHub is authoritative. Current prototype: **0.6.8**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -196,3 +196,10 @@ Saved collections are removed from the toolbar, Journal tools, filtering, editin
 ### Explicit one-footprint photo import — 0.6.6
 
 The grouping dropdown offers “All selected photos in one footprint”: one shared review and one new footprint for up to 30 unique photos, regardless of missing GPS or differing dates. Its shared date/GPS start from the first detected values, or today/no location when absent. Per-group saved-place destinations and manual date-based grouping controls are hidden in this mode. Every included image is previewed; no photos are silently split or dropped. Switching modes reuses the selected original media; edited fields require confirmation before rebuilding. Existing duplicate skipping, atomic saves, cancellation and automatic GPS/date modes remain. Backup v7 and recovery v6 are unchanged; shell v33 refreshes the UI.
+
+
+### Journal filters and location labels — 0.6.8
+
+Borderless All tags and All footprints sit beside New footprint; sorting sits beside search. Country choices are pre-populated offline, with U.S. states/territories and Canadian provinces/territories plus manual/custom fallback. Photo/map/device coordinates can fill empty country/state labels through cached Geoapify reverse lookup, including batch review. Pending results never replace manual labels. Queued stale work is cancelled before provider use; lookup has separate bounded caching, timeout and safety budget.
+
+Android selected-photo uploads request original media and photo-location permission through the system document chooser. Providers can still supply copies without GPS; manual location choices remain available. Original attachment bytes, saved custom labels, portable v7 and recovery v6 remain unchanged. Physical Android provider behavior needs device validation. Binary media/streamed backups, broader offline map coverage and permanent signing remain queued.

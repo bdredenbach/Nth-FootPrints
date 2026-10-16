@@ -44,3 +44,12 @@ The 0.6.0–0.6.1 discovery implementation queried the public Overpass API at ht
 ## Geoapify Places (0.6.2)
 
 Nearby place discovery uses the hosted Geoapify Places API: https://api.geoapify.com/v2/places . Source data is primarily OpenStreetMap under ODbL. Required linked Powered by Geoapify and OpenStreetMap contributor credits appear beside results and in listing/saved-place details. Provider/source credit metadata survives journal backup/recovery and sourced cards/books. Geoapify permits caching/storage/redistribution subject to attribution: https://www.geoapify.com/places-api/ . See https://www.geoapify.com/terms-and-conditions/ and https://www.geoapify.com/privacy-policy/ . No third-party photos or logos are scraped. Geoapify service software is remote, not bundled. Base map tiles/offline USGS maps and external directions are independent of this discovery provider.
+
+
+## Geoapify reverse geocoding (0.6.8)
+
+Country/state suggestions use the hosted reverse geocoding API at https://api.geoapify.com/v1/geocode/reverse . Geoapify and OpenStreetMap contributor links appear beside editor and batch location controls. Only selected coordinates and the project key are sent; photos and journal text are not uploaded. Manual/offline country and region choices remain available. API documentation: https://apidocs.geoapify.com/docs/geocoding/reverse-geocoding/ . Geoapify terms/privacy and OpenStreetMap licensing above also apply.
+
+## Country display names
+
+The static country/territory labels were generated from Node/ICU English Intl.DisplayNames (Unicode CLDR), using ISO 3166-1 codes. No country-list runtime library is bundled. Unicode data files and software terms: https://www.unicode.org/license.txt .

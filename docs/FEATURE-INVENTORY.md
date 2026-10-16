@@ -285,3 +285,10 @@ The grouping dropdown offers “All selected photos in one footprint”: one sha
 ## 0.6.7 — aligned create and tag controls
 
 Removed the visible Tag label row, retaining the screen-reader label. New footprint and the tag selector share a 44 px height; the existing responsive row, keyboard access and tag filtering remain. No data or backup changes.
+
+
+## 0.6.8 — journal filters and location labels
+
+Borderless All tags and All footprints sit beside New footprint; sorting sits beside search. Country choices are pre-populated offline, with U.S. states/territories and Canadian provinces/territories plus manual/custom fallback. Photo/map/device coordinates can fill empty country/state labels through cached Geoapify reverse lookup, including batch review. Pending results never replace manual labels. Queued stale work is cancelled before provider use; lookup has separate bounded caching, timeout and safety budget.
+
+Android selected-photo uploads request original media and photo-location permission through the system document chooser. Providers can still supply copies without GPS; manual location choices remain available. Original attachment bytes, saved custom labels, portable v7 and recovery v6 remain unchanged. Physical Android provider behavior needs device validation. Binary media/streamed backups, broader offline map coverage and permanent signing remain queued.

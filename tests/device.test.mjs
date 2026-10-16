@@ -39,7 +39,7 @@ const app=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 const captureFunctions=app.slice(app.indexOf('async function finishCameraPhoto('),app.indexOf('async function toggleFavorite('));
 function editor(device){
  const nodes=Object.fromEntries(['editor','editor-error','photo-geotag','lat','lng','location-status','use-location','camera-file'].map(id=>[id,{open:id==='editor',value:id==='lat'?'1':id==='lng'?'2':'',textContent:'',disabled:false}]));
- const context=vm.createContext({device,cameraCancelled,checkpointDraft:async()=>{},checkpointCamera:()=>Promise.resolve(),cameraIntent:null,draftRecovery:null,$:id=>nodes[id],editorSession:1,gpsRequestVersion:0,locationPending:false,cameraPending:false,draftPhoto:'old-photo',pendingPhotoMetadata:null,syncSave:()=>{},attach:async file=>{if(!file)return false;context.draftPhoto=file;return true;}});
+ const context=vm.createContext({device,cameraCancelled,fillEditorRegion:async()=>{},checkpointDraft:async()=>{},checkpointCamera:()=>Promise.resolve(),cameraIntent:null,draftRecovery:null,$:id=>nodes[id],editorSession:1,gpsRequestVersion:0,locationPending:false,cameraPending:false,draftPhoto:'old-photo',pendingPhotoMetadata:null,syncSave:()=>{},attach:async file=>{if(!file)return false;context.draftPhoto=file;return true;}});
  vm.runInContext(captureFunctions,context);return {context,nodes};
 }
 test('capture attaches first, clears stale coordinates, then fills fresh GPS',async()=>{

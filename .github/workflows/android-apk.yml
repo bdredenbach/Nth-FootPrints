@@ -74,7 +74,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.6.7 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.6.8 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",
@@ -121,6 +121,7 @@ jobs:
               "RECORD_AUDIO",
               "ACCESS_FINE_LOCATION",
               "ACCESS_COARSE_LOCATION",
+              "ACCESS_MEDIA_LOCATION",
           ]
 
           for permission in permissions:

@@ -114,3 +114,7 @@ body{padding-left:var(--app-safe-left);padding-right:var(--app-safe-right)}
 
 /* Keep the create action and tag selector level, without a visible label row. */
 .journal-actions #add,.journal-actions .quick-filter select{height:44px;min-height:44px}
+
+/* Create + tag + trip filters, then search + sort; borderless selectors. */
+.journal-actions{grid-template-columns:max-content minmax(100px,160px) minmax(130px,220px)}.journal-actions .quick-filter select{border:0;background:transparent;box-shadow:none;border-radius:0;padding:8px 0}.toolbar{flex-wrap:nowrap;gap:12px}.toolbar>.search{flex:1 1 0;min-width:0}.toolbar>.sort-label{flex:0 1 auto;min-width:0;max-width:42%}.toolbar>.sort-label select{max-width:100%;min-width:0;border:0;background:transparent;box-shadow:none;text-overflow:ellipsis}.field [hidden]{display:none}
+@media(max-width:680px){.journal-actions{grid-template-columns:max-content minmax(0,.75fr) minmax(0,1.25fr);gap:8px}.journal-actions .quick-filter select{font-size:11px}.toolbar{gap:10px}.toolbar>.search{flex:1 1 0}.toolbar>.sort-label{margin-left:0}.toolbar>.sort-label select{font-size:11px}}

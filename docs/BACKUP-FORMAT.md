@@ -42,3 +42,8 @@ Saved Places searches (0.6.3) live in a separate local IndexedDB database and ar
 ## 0.6.5 retired settings compatibility
 
 The saved collections feature is removed. `settings.collections` in older device state or backups is an ignored legacy field; its rules no longer validate, run, merge or appear in UI. New exports contain only supported appearance/memory preferences. Removing these optional settings does not require a schema bump: backup v7 still accepts v1–v7, preserving valid footprints, visits, tags, journeys, sources and attachment bytes. Restoring appearance remains optional. Loading attempts to clear retired settings atomically; if that cleanup alone fails, the app stays usable with the sanitized settings in memory and the next successful normal save drops them. Recovery metadata remains v6.
+
+
+### 0.6.8 location controls
+
+Country dropdowns and U.S./Canadian region choices still serialize the existing country/region strings. Custom labels round-trip unchanged; no backup/recovery migration is required. A hidden original region input retains the normal editor field name. The reverse-geocoding cache (`nth-region-labels-v1`) and separate usage counter (`nth-region-usage-v1`) are local conveniences outside portable backups. Lookup results cannot overwrite manual edits or committed records. Android original-media selection preserves supplied photo bytes; absent source GPS is never synthesized in the original attachment.

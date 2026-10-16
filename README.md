@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.7**.
+A personal travel journal by Nth Experience. Prototype **0.6.8**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -194,7 +194,7 @@ Brad requested the remaining eight ideas in one release. Open **Journal tools** 
 
 - **Memories:** earlier-year visits on this month/day, with an optional home card. No scheduled system notifications.
 - **Timeline:** a month calendar or chronological visit list, with date/query/trip filters. Repeated visits stay separate.
-- **Exploration:** places, visits, photos, days, years and milestones. Country/region totals use the labels you enter in a place's editor; tap a label to filter saved pins. These are personal labels, not automatic boundary detection.
+- **Exploration:** places, visits, photos, days, years and milestones. Country/region totals use the reviewed labels in a place's editor; tap a label to filter saved pins. Coordinates can suggest empty labels online; manual entries are preserved.
 - **Nearby:** explicitly enable 250/500/1,000 m reminders for earlier visits. Permission is requested on enable. Checks stop when the app is hidden/paused and resume without prompting. There are no background alerts or recorded location trails. Per-place reminders have a 24-hour cooldown; consent and cooldowns stay on this device and never enter backups.
 
 **Import photos** reads supported embedded date/GPS locally, skips exact original duplicates, and proposes groups only when embedded dates match and GPS points are within 100 m of the first photo (nearby) or match to five decimal places (same location). In automatic modes missing metadata stays separate and is shown for review. Choose “All selected photos in one footprint” to explicitly combine up to 30 unique photos with one shared name/date/location/story, even without GPS or with different dates; the first detected date/GPS are proposed for review and location is optional. This mode always creates one new footprint and hides per-group destinations. Individual-photo mode is also available. Changing grouping rebuilds selected photos locally without reading or selecting them again; edited review fields require confirmation before being reset. Review each date, per-photo GPS and new-place/return-visit target before one atomic save. Optional “Use the same location” assigns chosen reviewed coordinates to checked visits (including missing-GPS photos), grouping by reviewed date; dates stay separate, galleries split at 30, conflicting destinations/labels are rejected, and Undo restores the prior review. Stories and tags are combined; group titles follow the reference visit for its date or the first selected visit on other dates. Original media is unchanged; no current GPS is assigned to old photos. Limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Reading can be cancelled; failed saves preserve the review and existing journal.
@@ -297,3 +297,18 @@ Validation for 0.6.6: 313 automated checks pass. Browser checks at 360/393/1280 
 The Tag heading is visually hidden while remaining accessible. New footprint and the tag dropdown share a 44 px height, aligning their top and bottom edges on phones and desktop. Shell v34 refreshes the layout; filtering and journal data are unchanged.
 
 Browser validation for 0.6.7 at 320/360/393/684/1280 px confirms matching 44 px control heights and top/bottom edges, no visible Tag label row, retained accessible naming and keyboard order, working tag filtering and no row overflow.
+
+
+### Journal filters and photo location labels (0.6.8)
+
+New footprint, All tags and All footprints share the first row. Tag and footprint selectors have no permanent border; keyboard focus remains visible. Latest visit sorting sits alongside search, also borderless. Filters still compose and journeys remain available in All footprints.
+
+The editor and batch review offer 249 pre-populated country/territory choices without a network dependency. United States offers 50 states, DC and five territories; Canada offers all 13 provinces/territories. Other countries use a region text field, and “Other / enter manually” preserves custom regions for the U.S./Canada. Existing custom/legacy country and region strings survive opening, draft recovery and saving. Changing the country explicitly clears its previous region.
+
+Applying detected photo GPS, a chosen map/search point or fresh device location can fill empty country/state labels via Geoapify reverse geocoding. Located batch groups do the same. Review labels before saving. Manually entered labels are never replaced by a late result or a changed point. Fully automatic labels can follow a changed point during that editing session. The optional retry button uses the same cache. Lookup failures/offline mode do not block saving or manual choices.
+
+Reverse lookup sends only the selected coordinates and configured key, not photos, filenames, stories or the journal. Requests are serialized at one per second with a 10-second timeout, a separate persistent 100-attempt daily safety cap, same-point in-flight deduplication and a 100-point local label cache. It does not spend the Places successful-search counter, though both use the project's provider credits. Closed/changed review groups cancel queued work before a request. Local lookup cache and counters remain outside portable backups; saved country/region strings remain inside them. Portable v7 and recovery v6 are unchanged. Shell v35 includes the two new offline modules.
+
+Android image file inputs use the system Files/Documents chooser and request ACCESS_MEDIA_LOCATION on Android 10+. Grant it to permit embedded photo GPS when the source supports original media. Selected document URIs are converted to their equivalent MediaStore URI where supported and requested with setRequireOriginal; unreadable/unsupported originals fall back to the supplied selected copy. Camera capture, audio selection and backup file selection retain their existing paths. No broad gallery permission, image rewriting or substitution of today's device position is used. Shared/resized/cloud copies may lack GPS even when a gallery knows the original location; missing metadata cannot be reconstructed from those bytes. Choose an original local photo or assign the location manually.
+
+Validation: 319 automated checks, including actual Java chooser/helper classes compiled against API boundary mocks, pass. Browser checks at 320/360/393/684/1280 px verify filter alignment, borderless controls and offline country/subdivision choices. Full flows cover photo GPS autofill, changed coordinates, manual/stale-response protection, offline labels, draft recovery, original-byte preservation in one-footprint batch import and located batch autofill. The Android workflow compiles against the real SDK; permission/provider behavior still needs testing on a physical phone.
