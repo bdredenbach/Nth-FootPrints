@@ -1,7 +1,7 @@
 import {journeyIdsOf,latestVisited} from './visits.js';
 import {activeJourneys,journeySummary,validateJourney,setJourneyMembership,MAX_JOURNEYS} from './journeys.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function createJourneysUI({document=globalThis.document,getState,write,onOpen=()=>{},onBrowse=()=>{},onMap=()=>{},onStatus=()=>{},confirm=globalThis.confirm,date=s=>s,art=r=>r.photo??`assets/${r.sampleArt??'blank'}.svg`,uuid=()=>crypto.randomUUID()}={}){
+export function createJourneysUI({document=globalThis.document,getState,write,onOpen=()=>{},onBrowse=()=>{},onMap=()=>{},onBook=()=>{},onStatus=()=>{},confirm=globalThis.confirm,date=s=>s,art=r=>r.photo??`assets/${r.sampleArt??'blank'}.svg`,uuid=()=>crypto.randomUUID()}={}){
  const $=id=>document.getElementById(id);let selected=null,formDraft=null,members=null,membersBaseline=null,search='',busy=false;
  const state=()=>getState();
  function dirty(){if(!selected)return !!formDraft&&(formDraft.title.trim()!==''||formDraft.notes.trim()!=='');const j=state().journeys.find(j=>j.id===selected);return !!formDraft&&(formDraft.title!==j?.title||formDraft.notes!==j?.notes)||!!members&&JSON.stringify([...members].sort())!==membersBaseline;}
@@ -27,7 +27,7 @@ export function createJourneysUI({document=globalThis.document,getState,write,on
   $('journey-cover').hidden=!summary.cover;if(summary.cover)$('journey-cover').src=art(summary.cover);
   $('journey-stops').innerHTML=summary.places.map(r=>`<article class="journey-stop"><button type="button" data-journey-memory="${esc(r.id)}"><img src="${esc(art(r))}" alt="" loading="lazy"><span><strong>${esc(r.title)}</strong><small>${esc(date(r.visited))}${r.visitEnd&&r.visitEnd!==r.visited?` – ${esc(date(r.visitEnd))}`:''}${r.visitCount>1?` · ${r.visitCount} visits`:''}</small></span></button><button type="button" class="text-button" data-journey-cover="${esc(r.id)}" ${busy?'disabled':''}>${trip.coverId===r.id?'Cover selected':'Use as cover'}</button></article>`).join('')||'<p class="field-help">Add footprints below to begin this journey.</p>';
   for(const id of ['journey-save','journey-save-members','journey-delete'])$(id).disabled=busy;
-  $('journey-map').disabled=busy||!summary.located;$('journey-browse').disabled=busy||!summary.count;$('journey-member-search').value=search;renderMembers();
+  $('journey-book').disabled=busy||!summary.count;$('journey-map').disabled=busy||!summary.located;$('journey-browse').disabled=busy||!summary.count;$('journey-member-search').value=search;renderMembers();
  }
  function renderMembers(){
   if(!members)return;const q=search.toLocaleLowerCase().trim(),records=state().records.slice().sort((a,b)=>latestVisited(b).localeCompare(latestVisited(a))||a.title.localeCompare(b.title));
@@ -42,6 +42,7 @@ export function createJourneysUI({document=globalThis.document,getState,write,on
   $('journey-member-search').oninput=()=>{search=$('journey-member-search').value;renderMembers();};
   $('journey-save-members').onclick=()=>void act(async()=>{const chosen=new Set(members),journeyId=selected;await write({records:rows=>setJourneyMembership(rows,journeyId,chosen)});members=null;membersBaseline=null;$('journey-status').textContent='Footprints saved to this journey.';});
   $('journey-delete').onclick=()=>{if(!confirm('Delete this journey? All its footprints, photos and stories will stay in your journal.'))return;void act(async()=>{const journeyId=selected,now=new Date().toISOString();await write({records:rows=>setJourneyMembership(rows,journeyId,[],now),journeys:rows=>rows.map(j=>j.id===journeyId?{...j,deleted:true,coverId:null,updatedAt:now}:j)});reset();$('journey-status').textContent='Journey removed. Your footprints are still in the journal.';});};
+  $('journey-book').onclick=()=>{if(!busy)onBook(selected);};
   $('journey-browse').onclick=()=>{if(canClose())onBrowse(selected);};$('journey-map').onclick=()=>{if(canClose())onMap(selected);};
   $('journeys').addEventListener('change',event=>{const id=event.target.dataset.journeyMember;if(id){if(event.target.checked)members.add(id);else members.delete(id);$('journey-members-count').textContent=`${members.size} selected · save the selection below`;}});
   $('journeys').addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;if(button.dataset.journeyOpen){show(button.dataset.journeyOpen);return;}if(button.dataset.journeyMemory){if(!busy)onOpen(button.dataset.journeyMemory);return;}if(button.dataset.journeyCover)void act(async()=>{const coverId=button.dataset.journeyCover,journeyId=selected;if(!state().records.some(r=>r.id===coverId&&journeyIdsOf(r).includes(journeyId)))throw Error('Add that footprint to this journey first.');await write({journeys:rows=>rows.map(j=>j.id===journeyId?{...j,coverId,updatedAt:new Date().toISOString()}:j)});$('journey-status').textContent='Journey cover saved.';});});

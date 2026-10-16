@@ -58,7 +58,7 @@ test('deleting a trip reconciles all visit memberships and its cover without los
  assert.throws(()=>makeBackup([r],{},[trip('trip-a')]),/missing journey/);
 });
 test('format 4 stores each image once and restores every visit, original, marker, selection and trip',()=>{
- const r=returns(),rows=[trip('trip-a'),trip('trip-b')],backup=makeBackup([r],{theme:'night'},rows);assert.equal(backup.formatVersion,4);assert.equal('photo'in backup.records[0],false);assert.equal('photo'in backup.records[0].visits[0],false);const raw=JSON.stringify(backup);assert.equal(raw.split(image).length-1,1);assert.equal(raw.split(other).length-1,1);
+ const r=returns(),rows=[trip('trip-a'),trip('trip-b')],backup=makeBackup([r],{theme:'night'},rows);assert.equal(backup.formatVersion,VERSION);assert.equal('photo'in backup.records[0],false);assert.equal('photo'in backup.records[0].visits[0],false);const raw=JSON.stringify(backup);assert.equal(raw.split(image).length-1,1);assert.equal(raw.split(other).length-1,1);
  const parsed=parseBackup(raw);assert.deepEqual(parsed.records,[r]);assert.equal(parsed.settings.theme,'night');const removed=removeVisit(r,'return-1',third);assert.deepEqual(parseBackup(JSON.stringify(makeBackup([removed],{},rows))).records,[removed]);
 });
 test('all earlier backup versions restore as one-visit places; old schemas cannot silently drop visit data',()=>{
@@ -91,7 +91,7 @@ async function dbOpen(){return new Promise((resolve,reject)=>{const q=new IDBFac
 test('visit editor drafts retain their mode, media and trips through restart and reject missing-parent metadata',async()=>{
  let seq=0;const db=await dbOpen(),store=createDraftStore(db),r=createDraftRecovery({store,uuid:()=> 'draft-'+(++seq),read:async blob=>'data:'+blob.type+';base64,'+Buffer.from(await blob.arrayBuffer()).toString('base64')});r.begin();
  const values={title:'Our beach',category:'Nature',visited:'2026-10-15',rating:'5',address:'',notes:'Unfinished return',phone:'',url:'',lat:'44',lng:'-72'};
- for(const visitId of ['new','initial','return-1']){await r.flush({editId:'home',visitId,baseUpdatedAt:first,values,favorite:true,tripIds:['trip-b'],photos:[other],coverIndex:0,audio});const meta=await store.read();assert.equal(meta.version,3);const loaded=await r.hydrate(meta);assert.equal(loaded.visitId,visitId);assert.deepEqual(loaded.photos,[other]);assert.equal(loaded.audio,audio);assert.deepEqual(loaded.tripIds,['trip-b']);}
+ for(const visitId of ['new','initial','return-1']){await r.flush({editId:'home',visitId,baseUpdatedAt:first,values,favorite:true,tripIds:['trip-b'],photos:[other],coverIndex:0,audio});const meta=await store.read();assert.equal(meta.version,4);const loaded=await r.hydrate(meta);assert.equal(loaded.visitId,visitId);assert.deepEqual(loaded.photos,[other]);assert.equal(loaded.audio,audio);assert.deepEqual(loaded.tripIds,['trip-b']);}
  const old=await store.read();for(const version of [1,2]){const legacy={...old,version};delete legacy.visitId;assert.equal((await r.hydrate(legacy)).visitId,undefined);}assert.throws(()=>validateDraft({...old,editId:null}));db.close();
 });
 test('a failed atomic journal write cannot partially add a return visit or clear its recovery draft',async()=>{

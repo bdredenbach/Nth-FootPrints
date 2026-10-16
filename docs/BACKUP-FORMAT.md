@@ -1,29 +1,27 @@
-# Nth FootPrints portable backup v2
+# Nth FootPrints portable backup v5
 
-User-facing actions are **Backup & restore → Create backup → Save backup…** and **Restore**. **Export Photo** saves an image, separately from full-journal backup. Files use `.nthbackup`; this does not imply compatibility with other Nth apps.
-
-The backup is UTF-8 JSON, not KMZ or a ZIP container:
+**Backup & restore → Create backup → Save backup…** saves UTF-8 JSON with the `.nthbackup` extension, not a ZIP/KMZ. Original media are not recompressed. **Export Photo**, geotagged copies, cards and PDF books are separate exports.
 
 ```json
-{"app":"nth-footprints","formatVersion":2,"createdAt":"ISO timestamp","settings":{"theme":"paper"},"records":[]}
+{"app":"nth-footprints","formatVersion":5,"createdAt":"ISO timestamp","settings":{"theme":"paper","memories":true,"collections":[]},"journeys":[],"records":[]}
 ```
 
-Each place includes a stable ID, title, category, visit date, 0–5 rating, favorite flag, address, optional paired latitude/longitude, notes, phone, HTTP(S) website, update timestamp, optional original image/audio data URLs, and optional bundled sample illustration key. No HTC media or credentials are included. Photos/audio are not recompressed.
+Place records contain stable IDs and shared title, category, favorite, address, phone, HTTP(S) website, optional tags/country/region and update clock. The original top-level date, rating, notes, paired GPS, photos/coverIndex, completed audio and trip memberships form the first visit. Additional `visits` have stable independent IDs, timestamps and their own visit fields. Lightweight removed-visit markers prevent older backups reviving them. At least one active visit must remain. A journal-photo reference can choose a surviving visit/photo. Derived photo aliases are omitted so original media are stored once per visit. Legacy single-photo records remain readable.
 
-Gallery records store `photos`, an ordered array of original image data URLs, and `coverIndex`, a zero-based main-photo selection. An empty array uses index zero. The selected image is derived into `photo` in app state for cards/widgets/export; this alias is omitted from gallery backups so the same original is not stored twice. Legacy single-photo records can still use `photo` without gallery fields.
+Journeys retain title, description, cover and independent update/removal clocks. Membership belongs to visits; removing a journey retains all places and media. Smart collections retain a stable ID, title, validated filter rule and update/removal clock. Rules can select query, tag, category, country/region, trip, date bounds, minimum rating, favorites and located visits. Date/rating/trip constraints must match the same visit. Deleted collection markers win ties; local edit clocks increase even after device clock rollback.
 
 ## Compatibility
 
-Version 2 readers accept version 1 single-photo backups and version 2 backups. Gallery fields in a file labeled version 1 are rejected. Older app releases reject version 2 backups instead of silently discarding extra photos. Normal database loading validates and preserves both legacy and gallery records without changing original media.
+The current reader accepts versions 1–5. Version 1 is single-photo, 2 adds galleries, 3 journeys, 4 return visits and 5 labels/collections/memories. Fields requiring a newer schema are rejected in older-labeled files instead of silently discarded. Older applications reject newer backup versions; export a fresh backup before updating or replacing a test APK.
 
 ## Restore and save behavior
 
-Restore validates the entire file before any write, rejecting foreign app IDs, unsupported versions, malformed records, duplicate IDs, invalid image arrays/cover selections, unsafe website schemes, invalid dates and incomplete/out-of-range coordinates. The preview reports new places, newer revisions and already-current entries. Incoming records replace matching IDs only when their update timestamp is newer; unrelated existing places stay. Theme restoration is optional. The merge commits in one IndexedDB transaction; errors preserve the existing state. Preparation can be cancelled; a started commit cannot.
+The entire file validates before any write: app/version, unique IDs, dates/clocks, categories, media, paired finite GPS ranges, bounded labels/rules, visit references and safe URLs. Preview reports new/newer/current places. Shared place fields and visits merge by their separate clocks; journey and collection metadata merge independently. Deleted journeys/visits/collections are not revived by older backups. A merge removing every visit is rejected. Unavailable covers/memberships are repaired. Whole-place deletion still has no tombstone, so an older backup can restore a deleted place.
 
-Gallery uploads read every selected file before one commit. A cancelled/invalid batch attaches nothing. A cover selection updates the record revision and saves automatically. Backup and Export Photo wait for pending cover writes. Journal mutations serialize so gallery, favorite, restore and settings updates preserve one another.
+Collections always merge as journal content. The appearance checkbox separately restores theme and memories preference; unchecked keeps current appearance. Nearby permission/cooldowns, widget choices, recovery drafts and downloaded maps never enter backups. Backups contain unencrypted private stories/media/GPS.
 
-Android saves through its document picker and bounded acknowledged chunks. Progress reaches success only after stream closure. Cancel/write failure attempts to delete the incomplete newly created document and reports cleanup failure. No broad storage permission is added.
+Changes serialize through one journal queue and commit together in IndexedDB. Errors preserve previous state and recovery. Preparation can cancel; a started commit cannot. Batch import validates all reviewed groups before one write and retains review on failure. Android files save through the document picker in bounded acknowledged chunks; completion follows stream closure. Cancel/failure attempts incomplete-file cleanup and reports cleanup failure. PDF/image/backup MIME types match filenames; no broad storage permission is added.
 
-## Limits
+## Bounds
 
-150 MB per full backup, 20 MB per attachment in upload flows, 30 photos per footprint and 10,000 imported records. JPG, PNG, WebP and GIF photos are supported. Base64 JSON and in-memory media retain prototype overhead; a binary media store and streaming archive remain on the roadmap. Backups are unencrypted. Deleted footprints may return when restoring older backups because neither format has deletion tombstones. No cross-app compatibility is claimed.
+150 MB per full backup, 10,000 imported places, 200 visit entries per place including markers, 30 photos per visit, 20 journeys per visit, 1,000 journey entries and 100 smart collection entries including markers. Each place allows 30 tags of 40 characters, country 80 and region 100. Individual attachment upload limit is 20 MB. Supported photos: JPG/PNG/WebP/GIF. Batch import adds a 60-file/80 MB raw bound. Base64 JSON and in-memory media retain prototype overhead; binary media and streamed backups remain queued. No cross-app compatibility is claimed.

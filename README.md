@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.4.1**.
+A personal travel journal by Nth Experience. Prototype **0.5.0**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -173,7 +173,7 @@ Use **Trips & journeys** above the journal to create a trip and select its saved
 
 Trip metadata and memberships save atomically. Full backups now use format 3 with original media, covers and trip deletion markers; format 1/2 backups still import. App versions before 0.4.0 reject format 3. Recovery drafts retain trip selections and can still read older drafts. Limits: 20 journeys per footprint and 1,000 journey entries including deletion markers. Existing media/backup limits apply.
 
-All ten proposed journal features are approved. Return visits comes next, followed by anniversary memories, batch import, timeline/calendar, exploration stats, geotagged export copies, tags/smart collections, memory cards/trip PDFs and opt-in proximity reminders. See [the working queue](docs/ROADMAP.md) for scope, current status and the carried-forward media/backup and global offline-map work.
+All ten proposed journal features are shipped across 0.4.0, 0.4.1 and 0.5.0. See [the working queue](docs/ROADMAP.md) for scope, current status and the carried-forward media/backup and global offline-map work.
 
 219 automated checks pass; mobile/desktop Chromium checked the complete trip workflow, restart recovery, fresh backup restore and removal without photo loss. Android device testing remains necessary.
 
@@ -185,4 +185,27 @@ Open a footprint and tap **Log return visit**. Each visit keeps its own date, no
 
 Full backups now use format 4, preserving every original, visit selection and removal marker without duplicating gallery cover bytes. Formats 1/2/3 still import. Older apps reject format 4. Overlapping backups merge visits independently and respect newer edits/removals. Recovery drafts retain add-versus-edit visit mode and accept previous drafts; changed parents recover to new footprints. Limits are 200 visit entries including removal markers, 30 photos per visit, 20 journeys per visit and 150 MB per backup.
 
-242 automated checks pass, with phone/desktop, native-style camera restart and offline browser checks. Physical Android testing remains necessary. On this day memories is next in the approved queue.
+242 automated checks pass, with phone/desktop, native-style camera restart and offline browser checks. Physical Android testing remains necessary. The remaining eight features ship together in 0.5.0.
+
+
+## Journal suite (0.5.0)
+
+Brad requested the remaining eight ideas in one release. Open **Journal tools** from the toolbar or Preferences:
+
+- **Memories:** earlier-year visits on this month/day, with an optional home card. No scheduled system notifications.
+- **Timeline:** a month calendar or chronological visit list, with date/query/trip filters. Repeated visits stay separate.
+- **Exploration:** places, visits, photos, days, years and milestones. Country/region totals use the labels you enter in a place's editor; tap a label to filter saved pins. These are personal labels, not automatic boundary detection.
+- **Collections:** reusable filters for tags, text, category, country/region, trip, dates, rating, favorites and location. Date/rating/trip rules must match the same visit. The toolbar selectors compose with existing filters.
+- **Nearby:** explicitly enable 250/500/1,000 m reminders for earlier visits. Permission is requested on enable. Checks stop when the app is hidden/paused and resume without prompting. There are no background alerts or recorded location trails. Per-place reminders have a 24-hour cooldown; consent and cooldowns stay on this device and never enter backups.
+
+**Import photos** reads supported embedded date/GPS locally, skips exact original duplicates, and proposes groups only when embedded dates match and GPS points are within 100 m. Missing metadata stays separate and is shown for review. Choose individual-photo mode if preferred. Review each date, coordinates and new-place/return-visit target before one atomic save; no current GPS is assigned to old photos. Limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Reading can be cancelled; failed saves preserve the review and existing journal.
+
+Add up to 30 personal tags plus country/region labels under **Tags & place labels** in the editor. Labels belong to the place and survive return visits, recovery and backup. Collections retain deletion markers so older backups cannot revive deleted collections; removing a collection keeps all memories.
+
+Visit details offer **Memory card** (PNG) and **Geotagged copy** (JPEG using that visit's coordinates). Trip details offer **Create PDF book**, including full paginated stories and optionally all matching visit photos. Prepare and preview before Save. Cards/PDFs default to hiding address/GPS; an area-only or exact-location choice is explicit. Titles, stories and visible photo content can still identify a place. Exports strip original image metadata; saved originals remain byte-for-byte unchanged. Geotagged JPEG copies bake in orientation, add the selected GPS, and limit the long edge to 4,096 px. The original **Export Photo** action still saves the original.
+
+Books are A4 image pages, so story text is not searchable/selectable; glyph coverage follows device fonts. Limits: 100 visits, 300 pages, 80 MB. Cards visibly mark shortened stories; books keep full stories or fail before offering a partial file. Exports run locally and use the existing Android save dialog, now with PDF MIME support.
+
+Full backups now use **format 5**, restore formats 1–4, and include labels, smart collections and the memories preference. Collections merge even when restoring appearance is unchecked; theme/memories restore only when checked. Device nearby permission, recovery drafts and downloaded maps remain outside backups. Existing 150 MB backup and media storage limits apply.
+
+272 automated checks pass, including actual Java save-plugin execution with Android fakes. Mobile/desktop Chromium checks cover legacy restore, all eight tools, labels after restart, failed-save retry, cancellation, privacy, local JPEG/PNG/PDF exports, nearby pause/resume and fresh format-5 restore. Physical Android testing remains necessary. Larger media/streamed backups, worldwide detailed offline map coverage and permanent signing remain as described in [the working queue](docs/ROADMAP.md).

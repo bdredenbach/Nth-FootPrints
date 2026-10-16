@@ -37,14 +37,14 @@ public class BackupFilesPlugin extends Plugin {
         if (picking || active != null) { call.reject("Another export is still active."); return; }
         String name = call.getString("name", "");
         int size = call.getInt("size", -1);
-        if (!name.matches("[A-Za-z0-9._-]{1,160}\\.(nthbackup|jpg|jpeg|png|webp|gif)") || size < 1 || size > MAX_BYTES) {
+        if (!name.matches("[A-Za-z0-9._-]{1,160}\\.(nthbackup|jpg|jpeg|png|webp|gif|pdf)") || size < 1 || size > MAX_BYTES) {
             call.reject("Invalid export name or size."); return;
         }
         picking = true;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         String extension = name.substring(name.lastIndexOf('.') + 1);
-        String mime = extension.equals("nthbackup") ? "application/octet-stream" :
+        String mime = extension.equals("pdf") ? "application/pdf" : extension.equals("nthbackup") ? "application/octet-stream" :
             (extension.equals("jpg") || extension.equals("jpeg")) ? "image/jpeg" : "image/" + extension;
         intent.setType(mime);
         intent.putExtra(Intent.EXTRA_TITLE, name);

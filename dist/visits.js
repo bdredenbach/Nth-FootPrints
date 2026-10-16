@@ -30,7 +30,7 @@ export function coverVisit(record){const visits=visitsOf(record),chosen=visits.f
 export function placeView(record){if(record.visitId)return record;const visit=coverVisit(record);if(!visit)return record;const location=record.lat!==null&&record.lat!==undefined?record:visitsOf(record).find(v=>Number.isFinite(v.lat)&&Number.isFinite(v.lng))??record;return {...visitView(record,visit.id),lat:location.lat,lng:location.lng,visited:latestVisited(record),tripIds:journeyIdsOf(record)};}
 export function journeyIdsOf(record){return [...new Set(visitsOf(record).flatMap(v=>v.tripIds??[]))];}
 export function writeVisit(record,fields,id=INITIAL_VISIT,{newId=()=>crypto.randomUUID()}={}){
- const now=fields.updatedAt??new Date().toISOString(),shared=Object.fromEntries(['title','category','favorite','address','phone','url'].map(key=>[key,fields[key]??record[key]]));
+ const now=fields.updatedAt??new Date().toISOString(),shared=Object.fromEntries(['title','category','favorite','address','phone','url','tags','country','region'].map(key=>[key,fields[key]??record[key]]));
  let next={...record,...shared,updatedAt:now};
  if(id==='new'){
   if((record.visits?.length??0)>=MAX_VISITS-1)throw Error(`Use up to ${MAX_VISITS} visits per place, including removed visits.`);

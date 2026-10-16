@@ -1,5 +1,5 @@
 // Browser sources stay dependency-free. The APK supplies the native plugins.
-export function createDeviceAccess({native=false,plugins,geolocation,fetchPhoto=globalThis.fetch,convertFileSrc=path=>globalThis.Capacitor?.convertFileSrc?.(path)}={}){
+export function createDeviceAccess({native=false,plugins,geolocation,permissions=globalThis.navigator?.permissions,fetchPhoto=globalThis.fetch,convertFileSrc=path=>globalThis.Capacitor?.convertFileSrc?.(path)}={}){
  async function readCameraPhoto(photo){
   const path=photo?.webPath||(photo?.path?convertFileSrc(photo.path):null);
   if(!path)throw Error('The camera did not return a photo. Please try again.');
@@ -14,6 +14,11 @@ export function createDeviceAccess({native=false,plugins,geolocation,fetchPhoto=
    if(!native||!plugins?.Camera)throw Error('Install the updated APK to use the Android camera.');
    const photo=await plugins.Camera.getPhoto({source:'CAMERA',resultType:'uri',quality:100,allowEditing:false,correctOrientation:true,saveToGallery:false});
    return readCameraPhoto(photo);
+  },
+  async watchPositions(onPosition,onError,{request=false}={}){
+   const options={enableHighAccuracy:false,timeout:20000,maximumAge:60000,minimumUpdateInterval:60000,interval:60000};
+   if(native){const gps=plugins?.Geolocation;if(!gps)throw Error('Location tracking is unavailable in this build.');let allowed=await gps.checkPermissions();if(request&&allowed.location!=='granted'&&allowed.coarseLocation!=='granted')allowed=await gps.requestPermissions({permissions:['location']});if(allowed.location!=='granted'&&allowed.coarseLocation!=='granted')throw Error('Enable nearby memories to allow Location for this device.');const id=await gps.watchPosition(options,(position,error)=>{if(error)onError(error);else if(position)onPosition(position);});return ()=>gps.clearWatch({id});}
+   if(!geolocation?.watchPosition)throw Error('This browser cannot watch location.');if(!request){const allowed=await permissions?.query({name:'geolocation'}).catch(()=>null);if(allowed?.state!=='granted')throw Error('Enable nearby memories again to allow Location.');}const id=geolocation.watchPosition(onPosition,onError,options);return async()=>geolocation.clearWatch(id);
   },
   async currentPosition(){
    const options={enableHighAccuracy:true,timeout:20000,maximumAge:0};

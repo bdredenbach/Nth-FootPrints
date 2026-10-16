@@ -29,7 +29,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Journal persistence | IndexedDB on the current browser/origin; browser clearance removes data |
 | Offline map areas | Shipped in 0.3.9: USGS topographic areas, detailed U.S. coverage, progress/cancel/removal, local atlas and picker rendering |
 | App shell caching | Service worker; full offline installation/auth behavior not verified |
-| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v4; v1, v2 and v3 imports supported |
+| Back Up Journal / Restore Journal | Implemented, app-specific .nthbackup v5; v1–v4 imports supported |
 | Individual photo export | Export Photo saves original JPEG, PNG, WebP or GIF; full journal backups remain in Backup & restore |
 | Theme | Warm paper / Evening ink |
 | Native Android test package | Implemented with Capacitor 8; persistent signing remains to do |
@@ -186,7 +186,7 @@ Original Nth outline lettering replaces the dash in the icon, including an even-
 
 Trips & journeys groups footprints without copying photos. Names/descriptions and explicit cover stop IDs live beside records in the same journal state; records retain journey IDs. Member selection is searchable, and a single footprint may belong to up to 20 journeys. Dates/stop order derive from footprint visit dates. Trip selection composes across Journal, Favorites and Map with search/categories/sort. Removing a journey retains the records/media and saves a deletion marker; removing a footprint or membership repairs covers. Metadata and membership writes share the serialized atomic journal transaction. Recovery drafts now include memberships and retain compatibility with previous drafts.
 
-Full backup format 3 round trips trips, deletion markers, covers, memberships and originals. Earlier backup formats import as journals without trips. Restore keeps newer versions and reconciles deleted groups and unavailable covers. Up to 1,000 journey entries (including markers); original gallery/backup bounds remain. All ten new ideas are approved; the remaining nine are queued in docs/ROADMAP.md, beginning with return visits. They are not yet implemented.
+Full backup format 3 round trips trips, deletion markers, covers, memberships and originals. Earlier backup formats import as journals without trips. Restore keeps newer versions and reconciles deleted groups and unavailable covers. Up to 1,000 journey entries (including markers); original gallery/backup bounds remain. All ten ideas subsequently shipped across 0.4.0, 0.4.1 and 0.5.0; see docs/ROADMAP.md for current scope.
 
 219 automated checks and mobile/desktop Chromium end-to-end trip checks passed, with no page errors. Physical Android trip/Back/restore testing remains necessary.
 
@@ -196,4 +196,23 @@ Existing place fields remain the initial visit; return entries add separate date
 
 Trip dates/photos and note searches include only matching member visits when a trip is selected; place counts remain unique. The trip manager adds membership to the latest visit or removes it from all visits in that trip. Recovery metadata version 3 retains visit editor mode and accepts previous metadata; changed/deleted parents recover to new places. Backup format 4 stores originals once per visit and merges each visit using its own update/removal clock. Formats 1/2/3 import. A merge that would leave no active visits is rejected before persistence. Up to 200 entries per place including markers, 30 photos per visit, one completed audio note per visit, 20 journeys per visit and 150 MB total backup size.
 
-242 automated checks pass. Phone/desktop Chromium, native-style restored-camera and changed-parent draft recovery, offline return saving/restart and fresh backup restore passed without page errors. Physical Android checks remain. On this day memories is next.
+242 automated checks pass. Phone/desktop Chromium, native-style restored-camera and changed-parent draft recovery, offline return saving/restart and fresh backup restore passed without page errors. Physical Android checks remain. The remaining eight features ship in 0.5.0.
+
+
+## 0.5.0 journal suite
+
+| Feature | Current behavior |
+| --- | --- |
+| On this day | Earlier-year same-month/day visits; optional home card, no scheduled notifications |
+| Batch import | Local EXIF/date/GPS review, exact duplicate skipping, bounded 100 m/day groups or individual photos, new/return targets and atomic save |
+| Timeline/calendar | Month/day and all-date visit browsing with query/trip filters and independent return visits |
+| Exploration | Unique places, visits, photos, days, years and milestones; user country/region labels filter saved map pins |
+| Tags/collections | 30 tags per place, shared place labels, up to 100 smart collection entries including deletion markers; filters compose and visit rules match one visit |
+| Geotagged copies | New upright JPEG up to 4,096 px with selected-visit GPS; original unchanged; original-photo export retained |
+| Memory cards/books | PNG card or A4 image-page PDF, preview and explicit privacy choice default hidden, full paginated book stories and optional all photos |
+| Nearby memories | Opt-in visible-app watch, 250/500/1,000 m, no trail/background alerts, 24-hour local cooldown, stop/pause/resume handling |
+| Portability/recovery | Backup v5 accepts v1–v4; labels/collections/preferences retained, deleted collections protected; recovery metadata v4 accepts v1–v3 |
+
+Import limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Book limits: 100 visits, 300 pages, 80 MB; text is rasterized and font coverage follows the device. Cards indicate shortened text. PDF save uses the existing Android bounded-chunk document picker with the correct MIME type. Nearby consent/cooldowns, recovery drafts and offline maps stay outside journal backups. Labels are entered by the user, not inferred from boundaries. Original-photo metadata is not copied into cards/PDF images; titles/stories/photo pixels can still reveal locations.
+
+272 automated checks pass. Combined phone/desktop browser tests cover all eight features, failed batch-write rollback/retry, read cancellation, label draft recovery, legacy/fresh backup restore, deletion protection and nearby lifecycle. Exported GPS is independently decoded; PDF pages are rendered and checked through the full long story. Physical Android checks remain.
