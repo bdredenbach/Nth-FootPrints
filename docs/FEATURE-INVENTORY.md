@@ -249,3 +249,14 @@ Loaded category results restore without another request, including session-stale
 Local daily successful-search allowance is 50; failures and cancellations spend no successful-search credit. Separate 100-attempt and 5 MB limits protect the community service, with 3-second minimum pacing, Retry-After and escalating failure cooldowns. Legacy attempt budget migrates without charging it as successes. No automatic external retries or provider failover.
 
 Provider recommendation researched: Geoapify Places supports category/radius search, offset pagination and attributed cache/store reuse with Leaflet. It requires an account/key and has not been enabled. Its OSM-based coverage is not guaranteed to add missing local businesses. Google Places map and storage restrictions make it a larger change for permanent journal data. Sources: https://www.geoapify.com/places-api/ , https://www.geoapify.com/pricing/ , https://developers.google.com/maps/documentation/places/web-service/policies .
+
+
+## 0.6.2 Geoapify Places
+
+Replaced Overpass discovery with Geoapify Places and the owner-supplied client-visible project key. JSON POST plus X-API-Key header uses a fixed category whitelist, approximate area and proximity ranking; no stories/photos/record IDs are sent. All five groups/38 subtypes remain, with local mapped-tag checks for provider category gaps. Up to 500 candidates load in one bounded request and append 30 at a time in the list. Cached switching, radius framing, failed-result retention, pause/cancel guards and external Directions remain.
+
+Geoapify has separate per-device allowance metadata: 50 successes, 100 attempts, 50 MB/day, 2 MB/response, 3-second pacing, Retry-After/backoff and 45-second timeout. Old Overpass counters do not block the new provider. Account quotas are separate and shared by clients using the configured key. No automatic retries or fallback.
+
+Stable OSM identities preserve recognition of older saved places. Geoapify attribution and fallback provider IDs survive editor recovery, saving/return visits, cards/books and backup v7. Recovery metadata v6 reads earlier versions; backup v7 reads versions 1–6. Keys are not in backup or recovery data. Required linked credits appear in discovery and saved details.
+
+297 automated checks plus responsive browser checks pass. Live requests used public NYC fixtures only, confirming listings and localhost CORS/key-header support. Physical Android testing remains necessary.

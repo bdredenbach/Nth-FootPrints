@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.1**.
+A personal travel journal by Nth Experience. Prototype **0.6.2**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -248,3 +248,18 @@ References: https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL , https
 One Refresh control replaces the saved-origin dropdown and lower retry link, and retries map tiles plus the current area. Map framing follows the selected radius; a circle makes that area visible. Loaded categories and complete group/subtype searches reuse the session cache; previous pins/listings remain labeled while a new category is pending or fails. The map’s zoom does not start external searches. Failed/cancelled lookups do not spend successful-search credit, while provider attempt/bandwidth limits and cooldowns remain.
 
 290 automated checks pass. Phone/desktop Chromium covers initial framing, no automatic startup query, zoom without requests, category/subtype cache reuse, failed refresh retention, separate success/attempt accounting, offline cached switching, radius reuse and listing-to-editor prefill. Provider migration is not part of this build: Geoapify is the recommended candidate for a dedicated nearby search service, with an account/key and attributed data reuse; it still mainly uses OSM coverage.
+
+
+### Geoapify Places (0.6.2)
+
+Places now queries `https://api.geoapify.com/v2/places` using the owner-configured project key in `dist/places-config.js`. The owner authorized this client-visible key in the public web/APK source. No key entry is needed in the app. The key is sent in an `X-API-Key` header, outside request URLs and journal backups. Project restrictions/quotas apply across clients using that key; local device counters are not account-wide billing enforcement.
+
+Explicit search sends a fixed category whitelist, rounded three-decimal area center, radius, proximity bias and limit. One bounded request loads at most 500 candidates; the list appends 30 at a time locally, with a busy-area notice at the cap. All five groups and 38 subtypes remain. Brunch, delivery, takeout and live music use mapped tags where the provider has no exact equivalent; no capability is invented. Provider categories supplement raw OSM tags and enriched address/contact/hours/country/region fields fill reviewable drafts. Missing fields remain empty. Other contains miscellaneous mapped categories outside the main four.
+
+Overpass is no longer contacted for Places, and its old device allowance does not consume Geoapify search allowance. The new counter separately bounds 50 completed lookups, 100 actual attempts and 50 MB per local day; each response is at most 2 MB, with one active request, 3-second pacing, failure backoff, Retry-After and a 45-second timeout. These are app guardrails, not a guarantee about the provider’s credit accounting. Cached category switching, complete broad-to-narrow filtering, explicit refresh, previous-result retention, radius framing and no zoom-triggered requests remain. No automatic provider failover or retries.
+
+Existing OSM node/way/relation IDs are retained, so places saved through Overpass are recognized. New source metadata retains Geoapify attribution (`via: geoapify`) and accepts a validated opaque Geoapify ID when no OSM reference is supplied. Source links use fixed hosts, never API request URLs. Required provider/data credits appear in discovery, saved details and sourced cards/books. Portable backup v7 imports v1–v6 and rejects Geoapify metadata in older-labeled files; recovery v6 reads v1–v5. No key is copied into recovery or backups. Directions still opens the external map app.
+
+297 automated checks pass, including GeoJSON/category normalization, invalid metadata/URLs/IDs, authorization/quota errors, cache retention, legacy source recognition, source-credit recovery and old/new backup compatibility. Responsive browser regression checks cover cached categories, errors, offline session reuse, framing and editor prefill. Live public NYC fixtures returned HTTP 200 with actual listings; CORS preflight accepts the API-key header for the Android localhost origin.
+
+Provider references: https://apidocs.geoapify.com/docs/places/ , https://www.geoapify.com/places-api/ , https://www.geoapify.com/pricing/ . Earlier sections describe historical releases; this section supersedes the Overpass Places provider/bounds.

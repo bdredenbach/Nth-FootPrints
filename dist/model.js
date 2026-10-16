@@ -4,7 +4,7 @@ import {validateLabels,validateCollections} from './journal-tools.js';
 import {validateVisitState,latestVisited,visitsOf,mergeVisitRecords} from './visits.js';
 import {recordJourneyIds,validateJourneys,checkJourneyLinks} from './journeys.js';
 export const APP = 'nth-footprints';
-export const VERSION = 6;
+export const VERSION = 7;
 export const MAX_PHOTOS = 30;
 export {CATEGORIES,RECORD_CATEGORIES} from './categories.js';
 export const MAX_BACKUP = 150 * 1024 * 1024;
@@ -66,13 +66,14 @@ export function parseBackup(raw) {
  if(typeof raw!=='string'||raw.length>MAX_BACKUP) throw Error('Backup is too large for this prototype (150 MB maximum).');
  let b;try{b=JSON.parse(raw);}catch{throw Error('This file is not a readable Nth FootPrints backup.');}
  if(b?.app!==APP) throw Error('Choose a Nth FootPrints backup. Backups from other Nth apps cannot be restored here.');
- if(![1,2,3,4,5,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
+ if(![1,2,3,4,5,6,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
  if(!Array.isArray(b.records)||b.records.length>10000) throw Error('Invalid place collection.');
  if(b.formatVersion===1&&b.records.some(r=>r&&typeof r==='object'&&('photos'in r||'coverIndex'in r)))throw Error('Photo galleries require backup version 2.');
  if(b.formatVersion<3&&(b.journeys!==undefined||b.records.some(r=>r&&'tripIds'in r)))throw Error('Journeys require backup version 3.');
  if(b.formatVersion<4&&b.records.some(r=>r&&['visits','mainVisitId','firstVisitUpdatedAt','firstVisitDeleted'].some(key=>key in r)))throw Error('Return visits require backup version 4.');
  if(b.formatVersion<5&&(b.settings?.collections!==undefined||b.settings?.memories!==undefined||b.records.some(r=>r&&['tags','country','region'].some(k=>k in r))))throw Error('Journal tools require backup version 5.');
  if(b.formatVersion<6&&(b.records.some(r=>r&&('placeSource'in r||CATEGORIES.filter(c=>c!=='Other').includes(r.category)))||b.settings?.collections?.some(c=>CATEGORIES.filter(v=>v!=='Other').includes(c.rule?.category))))throw Error('Places discovery requires backup version 6.');
+ if(b.formatVersion<7&&b.records.some(r=>r?.placeSource&&(r.placeSource.via==='geoapify'||r.placeSource.provider==='geoapify')))throw Error('Geoapify place sources require backup version 7.');
  const journeys=validateJourneys(b.formatVersion>=3?b.journeys:[]);
  const records=b.records.map(validateRecord), ids=new Set(records.map(r=>r.id));
  if(ids.size!==records.length) throw Error('Backup contains duplicate place IDs.');

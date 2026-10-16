@@ -76,7 +76,7 @@ test('failed trip persistence leaves both in-memory records and journeys intact;
 });
 test('trip selections survive a recovery draft, including recovery of older draft metadata',async()=>{
  const db=await journal(),store=createDraftStore(db),r=createDraftRecovery({store,uuid:()=> 'draft-1',read:async blob=>'data:'+blob.type+';base64,'+Buffer.from(await blob.arrayBuffer()).toString('base64')});r.begin();
- const values={title:'An unfinished stop',category:'Travel',visited:'2026-10-15',rating:'0',address:'',notes:'',phone:'',url:'',lat:'',lng:''};await r.flush({values,favorite:false,tripIds:['trip-1'],photos:[],coverIndex:0,audio:null});const draft=await store.read();assert.equal(draft.version,5);assert.deepEqual((await r.hydrate(draft)).tripIds,['trip-1']);
+ const values={title:'An unfinished stop',category:'Travel',visited:'2026-10-15',rating:'0',address:'',notes:'',phone:'',url:'',lat:'',lng:''};await r.flush({values,favorite:false,tripIds:['trip-1'],photos:[],coverIndex:0,audio:null});const draft=await store.read();assert.equal(draft.version,6);assert.deepEqual((await r.hydrate(draft)).tripIds,['trip-1']);
  const legacy={...draft,version:1};delete legacy.tripIds;assert.deepEqual((await r.hydrate(legacy)).tripIds,[]);db.close();
 });
 
