@@ -13,7 +13,7 @@ public class MainActivity extends BridgeActivity {
         if (bridge != null) { photoChooser=new PhotoWebChromeClient(bridge); bridge.getWebView().setWebChromeClient(photoChooser); }
     }
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         if (photoChooser != null) photoChooser.dispose();
         super.onDestroy();
     }
