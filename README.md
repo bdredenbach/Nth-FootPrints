@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.4**.
+A personal travel journal by Nth Experience. Prototype **0.6.5**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -65,7 +65,7 @@ Install the newly built APK for these native changes; refreshing GitHub Pages ca
 
 ## Deck counter (0.2.7)
 
-Deck numbers count down from the collection total in the current display order: with two footprints, the newest card shows 02/02 and the older card shows 01/02. The deck heading, card captions and screen-reader announcements use the same number. This changes display numbering only; visit dates, sort order and saved footprints are unchanged.
+Deck numbers count down from the displayed footprint total in the current display order: with two footprints, the newest card shows 02/02 and the older card shows 01/02. The deck heading, card captions and screen-reader announcements use the same number. This changes display numbering only; visit dates, sort order and saved footprints are unchanged.
 
 The current workflow uses each hosted runner's generated debug signing key. These test APKs cannot update an installed build signed by another runner. Export a .nthbackup before uninstalling, install the new APK, then restore the backup. A persistent, securely stored signing key is still needed for reliable updates.
 
@@ -83,7 +83,7 @@ A footprint's detail button is now **Export Photo**. It opens the save picker fo
 
 ## Multi-pin atlas (0.3.0)
 
-Map & directions displays all located footprints in the current search/category view. Tap a footprint pin to open its photo/details, or select a place in the list to focus its pin and reveal directions. Show all pins fits the collection again. Entries without coordinates stay in the list with an Add a location action. Pins at the same coordinates remain separate and can be selected through the list. Trips crossing the date line fit around the shorter longitude arc.
+Map & directions displays all located footprints in the current search/category view. Tap a footprint pin to open its photo/details, or select a place in the list to focus its pin and reveal directions. Show all pins fits all displayed footprints again. Entries without coordinates stay in the list with an Add a location action. Pins at the same coordinates remain separate and can be selected through the list. Trips crossing the date line fit around the shorter longitude arc.
 
 The Leaflet library, styles and original footprint icons are bundled locally. Map background tiles need internet and carry visible OpenStreetMap attribution. Offline or failed tiles leave your saved pins and place list available. The online OpenStreetMap service is never used for offline download jobs; 0.3.9 adds separate explicit USGS downloads. Tile requests occur only while the map is visible; ordinary browser HTTP caching is respected. Android's user agent identifies Nth FootPrints. The APK version name now follows package.json, and its version code follows the workflow run number. Persistent signing is deferred until testing is finished.
 
@@ -149,7 +149,7 @@ Search uses the Photon public demo at https://photon.komoot.io/api/ with OpenStr
 
 This provider permits reasonable usage but gives no availability guarantee and may throttle or ban extensive traffic. The prototype uses explicit submission, five results, at least 1.5 seconds between network requests, Retry-After cooldown, no automatic retry, a 12-second timeout, and a transient ten-query/five-minute memory cache. Responses are bounded to 256 KiB. A dedicated Photon service or contracted provider is required before wider/high-volume distribution; the endpoint is centralized in dist/place-search.js. Public Nominatim endpoints are not queried. Business coverage depends on named places in OpenStreetMap and is not a complete business directory.
 
-159 automated checks pass, covering requests, parsing/escaping, bad and empty responses, rate limits, caching, timeouts, cancellation, stale responses, draft-only previews and preserving existing text, alongside existing navigation/gallery/widget behavior. Live HTTP/CORS checks complement these tests; browser and physical Android keyboard/map/search interaction still need user testing. Offline USGS map areas shipped in 0.3.9; draft recovery shipped in 0.3.10; larger collections and streamed backups are next.
+159 automated checks pass, covering requests, parsing/escaping, bad and empty responses, rate limits, caching, timeouts, cancellation, stale responses, draft-only previews and preserving existing text, alongside existing navigation/gallery/widget behavior. Live HTTP/CORS checks complement these tests; browser and physical Android keyboard/map/search interaction still need user testing. Offline USGS map areas shipped in 0.3.9; draft recovery shipped in 0.3.10; larger media libraries and streamed backups are next.
 
 ## Offline maps (0.3.9)
 
@@ -163,7 +163,7 @@ Limits are 8 areas, 600 tiles and 50 MB per area, and 200 MB total. Remove delet
 
 Unfinished editor work is retained locally with field values, favorite, gallery/cover and completed audio attachments. Wait for “Draft saved on this device,” then an app restart can offer Resume editing or Discard draft. Untouched blank editors create no recovery item. Native camera launch first checkpoints the draft; returned Android camera results are handled through Capacitor App's restored-result listener. Recovered camera photos clear the old coordinates and ask for an explicit location choice. A result arriving after Resume is offered through Recover returned camera photo, without replacing newer text.
 
-Journal Save and matching draft cleanup commit together. Failed saves retain recovery. Explicit discard removes the draft and its media. If the original record changed or disappeared, the recovered draft saves as a new footprint. Recovery uses local device storage outside backups; it cannot survive uninstall/clear-data or recreate an unfinished voice recording/file read or a camera image Android never returns. Larger saved-media collections and streamed backups remain next.
+Journal Save and matching draft cleanup commit together. Failed saves retain recovery. Explicit discard removes the draft and its media. If the original record changed or disappeared, the recovered draft saves as a new footprint. Recovery uses local device storage outside backups; it cannot survive uninstall/clear-data or recreate an unfinished voice recording/file read or a camera image Android never returns. Larger saved-media libraries and streamed backups remain next.
 
 The icon now reads Nth where the lower dash was, across Android and web variants. 204 automated checks pass plus Chromium recovery scenarios; physical Android camera/process-death and launcher testing remain necessary. Integrated navigation is skipped by user choice; Directions retains its external map handoff.
 
@@ -195,25 +195,24 @@ Brad requested the remaining eight ideas in one release. Open **Journal tools** 
 - **Memories:** earlier-year visits on this month/day, with an optional home card. No scheduled system notifications.
 - **Timeline:** a month calendar or chronological visit list, with date/query/trip filters. Repeated visits stay separate.
 - **Exploration:** places, visits, photos, days, years and milestones. Country/region totals use the labels you enter in a place's editor; tap a label to filter saved pins. These are personal labels, not automatic boundary detection.
-- **Collections:** reusable filters for tags, text, category, country/region, trip, dates, rating, favorites and location. Date/rating/trip rules must match the same visit. The toolbar selectors compose with existing filters.
 - **Nearby:** explicitly enable 250/500/1,000 m reminders for earlier visits. Permission is requested on enable. Checks stop when the app is hidden/paused and resume without prompting. There are no background alerts or recorded location trails. Per-place reminders have a 24-hour cooldown; consent and cooldowns stay on this device and never enter backups.
 
 **Import photos** reads supported embedded date/GPS locally, skips exact original duplicates, and proposes groups only when embedded dates match and GPS points are within 100 m of the first photo (nearby) or match to five decimal places (same location). Missing metadata stays separate and is shown for review. Choose individual-photo mode if preferred. Review each date, per-photo GPS and new-place/return-visit target before one atomic save. Optional “Use the same location” assigns chosen reviewed coordinates to checked visits (including missing-GPS photos), grouping by reviewed date; dates stay separate, galleries split at 30, conflicting destinations/labels are rejected, and Undo restores the prior review. Stories and tags are combined; group titles follow the reference visit for its date or the first selected visit on other dates. Original media is unchanged; no current GPS is assigned to old photos. Limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Reading can be cancelled; failed saves preserve the review and existing journal.
 
-Add up to 30 personal tags plus country/region labels under **Tags & place labels** in the editor. Labels belong to the place and survive return visits, recovery and backup. Collections retain deletion markers so older backups cannot revive deleted collections; removing a collection keeps all memories.
+Add up to 30 personal tags plus country/region labels under **Tags & place labels** in the editor. Labels belong to the place and survive return visits, recovery and backup.
 
 Visit details offer **Memory card** (PNG) and **Geotagged copy** (JPEG using that visit's coordinates). Trip details offer **Create PDF book**, including full paginated stories and optionally all matching visit photos. Prepare and preview before Save. Cards/PDFs default to hiding address/GPS; an area-only or exact-location choice is explicit. Titles, stories and visible photo content can still identify a place. Exports strip original image metadata; saved originals remain byte-for-byte unchanged. Geotagged JPEG copies bake in orientation, add the selected GPS, and limit the long edge to 4,096 px. The original **Export Photo** action still saves the original.
 
 Books are A4 image pages, so story text is not searchable/selectable; glyph coverage follows device fonts. Limits: 100 visits, 300 pages, 80 MB. Cards visibly mark shortened stories; books keep full stories or fail before offering a partial file. Exports run locally and use the existing Android save dialog, now with PDF MIME support.
 
-Full backups now use **format 5**, restore formats 1–4, and include labels, smart collections and the memories preference. Collections merge even when restoring appearance is unchecked; theme/memories restore only when checked. Device nearby permission, recovery drafts and downloaded maps remain outside backups. Existing 150 MB backup and media storage limits apply.
+Full backups now use **format 5**, restore formats 1–4, and include labels and the memories preference. Theme/memories restore only when appearance is checked. Retired saved-filter settings in older files are ignored. Device nearby permission, recovery drafts and downloaded maps remain outside backups. Existing 150 MB backup and media storage limits apply.
 
 272 automated checks pass, including actual Java save-plugin execution with Android fakes. Mobile/desktop Chromium checks cover legacy restore, all eight tools, labels after restart, failed-save retry, cancellation, privacy, local JPEG/PNG/PDF exports, nearby pause/resume and fresh format-5 restore. Physical Android testing remains necessary. Larger media/streamed backups, worldwide detailed offline map coverage and permanent signing remain as described in [the working queue](docs/ROADMAP.md).
 
 
 ## Streamlined controls and visit maps (0.5.1)
 
-New footprint, Tag and Collection now share the first row. Below search/trip/sort, the four utility buttons run left to right: Journal tools, Trips & journeys, Backup & restore, Preferences. Both rows fit narrow phones; all controls keep their existing actions.
+New footprint and Tag share the first row. Below search/trip/sort, the four utility buttons run left to right: Journal tools, Trips & journeys, Backup & restore, Preferences. Both rows fit narrow phones; all controls keep their existing actions.
 
 Visit details remove the redundant Use this photo in journal shortcut and shared-fields help paragraph. Swipes/thumbnails still select the journal photo; Delete this visit remains. Located visits gain a small map below their coordinates. Tapping it closes the detail stack, clears filters that could exclude the place and opens Map & directions with that place selected, centered on the chosen visit's coordinates. Return visits can therefore open their own position; this changes only the map display. Missing-coordinate visits omit the preview.
 
@@ -234,7 +233,7 @@ Pins use the original footprint icon; no third-party photos are scraped. Results
 
 Tap a pin or list item for a blurred-backdrop footprint-style listing with mapped description, hours, cuisine, phone, website, map, source credit and Directions. **Save as footprint** opens a reviewable editor with name, new category, coordinates, address, phone/website and country/region when present. Your date defaults to today; no visit story, rating or photo is fabricated. Saving is explicit. The prefilled draft checkpoints immediately and recovers its source across restart. Existing saved source IDs offer Open saved footprint and Log return visit instead of silently creating duplicates. Existing unsourced places are never automatically merged by proximity.
 
-Existing category labels remain intact in records/backups/recovery. New entries use the five new categories; an existing older category is retained as an option when editing that record. Smart collection validation accepts both. Portable backup **v6** accepts v1–v5 and adds a validated `placeSource` reference; older-labeled files cannot contain new source/category fields. Recovery metadata v5 reads v1–v4. Source credit survives edits/returns, backup/restore and appears on sourced cards/books. Originals remain unchanged.
+Existing category labels remain intact in records/backups/recovery. New entries use the five new categories; an existing older category is retained as an option when editing that record. Portable backup **v6** accepts v1–v5 and adds a validated `placeSource` reference; older-labeled files cannot contain new source/category fields. Recovery metadata v5 reads v1–v4. Source credit survives edits/returns, backup/restore and appears on sourced cards/books. Originals remain unchanged.
 
 Prototype lookup bounds: one active request, at least 3 seconds between starts, 45-second client/15-second query timeout, 2 MB response, 600 candidates, 30 in-memory result sets with 30-minute network freshness, and per-device/local-day caps of 50 successful searches, 100 actual attempts and 5 MB. Failed and cancelled requests do not spend the successful-search allowance; attempt/bandwidth protection and increasing failure backoff still apply. Returning to a loaded category restores its session cache even after freshness expires, until evicted; Refresh explicitly fetches updates. Complete broad queries also answer narrower types/radii locally. A failed refresh retains the previous results, which are labeled while another category loads. Legacy attempt metadata migrates without assuming it represents successful searches. Only day/success/attempt/byte budget metadata persists, outside backups; no search history/location trail is stored. No automatic retries after service failures. Cached results may still be browsed in-session offline; new lookups need internet. Offline reload retains saved footprints and downloaded maps, not discovery results.
 
@@ -280,3 +279,9 @@ Matching uses category, subtype, radius and area. A center shift of up to 100 m 
 Two automatic date/GPS modes, per-photo date and coordinate details, and explicit shared-location grouping with Undo. No backup schema change: portable v7 and recovery v6 remain. Shell v31 refreshes the import controls.
 
 Validation for 0.6.4: 311 automated checks pass. Browser checks at 360, 393 and 1280 px cover strict grouping, per-photo coordinates, missing GPS, explicit shared-location merge and Undo, a failed save followed by correction, and unchanged original photos after saving.
+
+### Tags without saved collections (0.6.5)
+
+The collection selector, Journal tools tab/editor, saved-rule filtering and merge logic are removed. Tags, trips, favorites, search, exploration and the batch importer stay available. Old saved-filter settings are discarded on load/restore and omitted from new backups; a failed optional cleanup write leaves the journal usable and retries removal on the next normal save. Footprints, visits, tags, media and journey metadata are preserved. Portable backup v7 still imports v1–v7, and recovery metadata remains v6. Shell v32 refreshes the app.
+
+Validation for 0.6.5: 308 automated checks pass. Browser checks at 360/393/1280 px cover loading old settings without changing records/media, tag/trip/map/favorites filters, all four Journal tools tabs, retained batch import, rejected backup recovery, v5 restore with appearance both off/on, new exports without retired settings and restart. A simulated cleanup quota failure leaves the journal usable; a later normal save completes the cleanup.

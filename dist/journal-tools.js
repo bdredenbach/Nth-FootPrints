@@ -1,6 +1,5 @@
-import {RECORD_CATEGORIES} from './categories.js';
 import {visitsOf,visitView,placeView} from './visits.js';
-export const MAX_TAGS=30,MAX_COLLECTIONS=100;
+export const MAX_TAGS=30;
 const txt=(v,max,label)=>{if(typeof v!=='string'||v.length>max)throw Error(`Invalid ${label}.`);return v.trim();};
 const day=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
 export const validDay=day;
@@ -9,25 +8,19 @@ export function normalizeTags(values=[]){
 }
 export const parseTags=value=>normalizeTags(String(value??'').split(',').map(s=>s.trim()).filter(Boolean));
 export function validateLabels(r){return {...(r.tags!==undefined?{tags:normalizeTags(r.tags)}:{}),...(r.country!==undefined?{country:txt(r.country,80,'country')}:{}),...(r.region!==undefined?{region:txt(r.region,100,'state or province')}:{} )};}
-export function validateRule(value={}){
- const r={query:txt(value.query??'',200,'collection search'),tag:txt(value.tag??'',40,'collection tag'),category:txt(value.category??'All places',30,'collection category'),country:txt(value.country??'',80,'collection country'),region:txt(value.region??'',100,'collection region'),tripId:txt(value.tripId??'',100,'collection trip'),from:txt(value.from??'',10,'collection start'),to:txt(value.to??'',10,'collection end'),favorites:value.favorites??false,minRating:value.minRating??0,hasLocation:value.hasLocation??false};
- if(!['All places',...RECORD_CATEGORIES].includes(r.category)||typeof r.favorites!=='boolean'||typeof r.hasLocation!=='boolean'||!Number.isInteger(r.minRating)||r.minRating<0||r.minRating>5||r.from&&!day(r.from)||r.to&&!day(r.to)||r.from&&r.to&&r.from>r.to||r.tripId&&!/^[a-z0-9_-]{1,100}$/i.test(r.tripId))throw Error('Check the collection filters and date range.');return r;
+// Only current preferences survive loading/restoring older journal settings.
+export function mergeJournalPreferences(current,incoming,appearance=false){
+ return {theme:appearance?(incoming.theme??'paper'):(current.theme??'paper'),...(current.memories!==undefined?{memories:current.memories}:{}),...(appearance&&incoming.memories!==undefined?{memories:incoming.memories}:{})};
 }
-export function validateCollections(values=[]){
- if(!Array.isArray(values)||values.length>MAX_COLLECTIONS)throw Error(`Use up to ${MAX_COLLECTIONS} saved collections, including removed entries.`);const ids=new Set();return values.map(v=>{if(!v||typeof v.id!=='string'||!/^[a-z0-9_-]{1,100}$/i.test(v.id)||ids.has(v.id))throw Error('Invalid or duplicate collection ID.');ids.add(v.id);const title=txt(v.title,100,'collection name');if(!title||!Number.isFinite(Date.parse(v.updatedAt))||typeof v.updatedAt!=='string'||v.updatedAt.length>40||v.deleted!==undefined&&typeof v.deleted!=='boolean')throw Error('Invalid collection.');return {id:v.id,title,rule:validateRule(v.rule),updatedAt:v.updatedAt,...(v.deleted?{deleted:true}:{})};});
-}
-export function nextCollectionUpdate(previous,now=new Date().toISOString()){const old=Date.parse(previous??''),current=Date.parse(now);if(!Number.isFinite(current))throw Error('Invalid update time.');return new Date(Math.max(current,Number.isFinite(old)?old+1:current)).toISOString();}
-export function mergeCollections(old=[],incoming=[]){const map=new Map(old.map(c=>[c.id,c]));for(const c of incoming){const previous=map.get(c.id);if(!previous||Date.parse(c.updatedAt)>Date.parse(previous.updatedAt)||(c.updatedAt===previous.updatedAt&&c.deleted))map.set(c.id,c);}return validateCollections([...map.values()]);}
-export function mergeJournalPreferences(current,incoming,appearance=false){const collections=mergeCollections(current.collections??[],incoming.collections??[]);return {...current,...(appearance?{theme:incoming.theme,...(incoming.memories!==undefined?{memories:incoming.memories}:{})}:{}),...(collections.length||current.collections||incoming.collections?{collections}:{})};}
 const same=(a,b)=>String(a??'').trim().toLocaleLowerCase()===String(b??'').trim().toLocaleLowerCase();
-export function matchesVisit(record,visit,rule={}){
- if(rule.tag&&!(record.tags??[]).some(t=>same(t,rule.tag))||rule.country&&!same(record.country,rule.country)||rule.region&&!same(record.region,rule.region)||rule.favorites&&!record.favorite||rule.category&&rule.category!=='All places'&&record.category!==rule.category||rule.tripId&&!visit.tripIds?.includes(rule.tripId)||rule.from&&visit.visited<rule.from||rule.to&&visit.visited>rule.to||(rule.minRating??0)>visit.rating||rule.hasLocation&&!Number.isFinite(placeView(record).lat))return false;
- const q=(rule.query??'').trim().toLocaleLowerCase();return !q||[record.title,record.address,record.category,visit.notes,...(record.tags??[])].some(s=>String(s??'').toLocaleLowerCase().includes(q));
+function matchesVisit(record,visit,{tripId='',from='',to='',query='',tag=''}={}){
+ if(tag&&!(record.tags??[]).some(t=>same(t,tag))||tripId&&!visit.tripIds?.includes(tripId)||from&&visit.visited<from||to&&visit.visited>to)return false;
+ const q=query.trim().toLocaleLowerCase();return !q||[record.title,record.address,record.category,visit.notes,...(record.tags??[])].some(s=>String(s??'').toLocaleLowerCase().includes(q));
 }
-export function scopeRecords(records,{tripId='',tag='',collection=null,country='',region=''}={}){
- const rule=collection?.rule??{};if(!tripId&&!tag&&!collection&&!country&&!region)return records;
+export function scopeRecords(records,{tripId='',tag='',country='',region=''}={}){
+ if(!tripId&&!tag&&!country&&!region)return records;
  return records.flatMap(record=>{if(tag&&!(record.tags??[]).some(t=>same(t,tag))||country&&!same(country,record.country)||region&&!same(region,record.region))return [];
- const selected=visitsOf(record).filter(v=>(!tripId||v.tripIds?.includes(tripId))&&matchesVisit(record,v,rule));if(!selected.length)return [];const cover=selected.find(v=>v.id===record.mainVisitId&&v.photo)??selected.find(v=>v.photo)??selected[0],location=placeView(record);return [{...visitView(record,cover.id),lat:location.lat,lng:location.lng,visited:selected[0].visited,searchNotes:selected.map(v=>v.notes??''),matchingVisitIds:selected.map(v=>v.id)}];});
+ const selected=visitsOf(record).filter(v=>!tripId||v.tripIds?.includes(tripId));if(!selected.length)return [];const cover=selected.find(v=>v.id===record.mainVisitId&&v.photo)??selected.find(v=>v.photo)??selected[0],location=placeView(record);return [{...visitView(record,cover.id),lat:location.lat,lng:location.lng,visited:selected[0].visited,searchNotes:selected.map(v=>v.notes??''),matchingVisitIds:selected.map(v=>v.id)}];});
 }
 export function flattenVisits(records,{tripId='',from='',to='',query='',tag=''}={}){
  const rule={tripId,from,to,query,tag};return records.flatMap(record=>visitsOf(record).filter(v=>matchesVisit(record,v,rule)).map(visit=>({record,visit}))).sort((a,b)=>b.visit.visited.localeCompare(a.visit.visited)||a.record.title.localeCompare(b.record.title)||a.visit.id.localeCompare(b.visit.id));

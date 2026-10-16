@@ -1,17 +1,13 @@
-import {categoryChoices} from './categories.js';
-import {anniversaryMemories,flattenVisits,calendarMonth,explorationStats,validateRule,validateCollections,nextCollectionUpdate} from './journal-tools.js';
-import {visitsOf,visitView} from './visits.js';
+import {anniversaryMemories,flattenVisits,calendarMonth,explorationStats} from './journal-tools.js';
+import {visitView} from './visits.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function createJournalToolsUI({document,getState,write,onOpen,onMap,onCollection,onImport,onBook,nearby,today,date,art,confirm=globalThis.confirm,onStatus=()=>{}}){
- const $=id=>document.getElementById(id);let tab='memories',month=today().slice(0,7),day='',allDates=false,query='',tripId='',limit=100,collectionId=null,collectionDraft=null,baseline='',busy=false;
- const readDraft=()=>Object.fromEntries(new FormData($('collection-form')).entries());
- const dirty=()=>collectionDraft&&JSON.stringify(collectionDraft)!==baseline;
- function canClose(){if(busy){onStatus('Saving your journal tools. Please wait.');return false;}return !dirty()||confirm('Discard unsaved collection changes?');}
- function reset(){collectionId=null;collectionDraft=null;baseline='';}
+export function createJournalToolsUI({document,getState,write,onOpen,onMap,onImport,onBook,nearby,today,date,art,onStatus=()=>{}}){
+ const $=id=>document.getElementById(id);let tab='memories',month=today().slice(0,7),day='',allDates=false,query='',tripId='',limit=100,busy=false;
+ function canClose(){if(busy){onStatus('Saving your journal tools. Please wait.');return false;}return true;}
  function visitCards(rows){return rows.slice(0,limit).map(({record,visit,years})=>`<button class="tool-memory" data-tool-place="${esc(record.id)}" data-tool-visit="${esc(visit.id)}"><img src="${esc(art(visitView(record,visit.id)))}" alt="" loading="lazy"><span><strong>${esc(record.title)}</strong><small>${esc(date(visit.visited))}${years?` · ${years} ${years===1?'year':'years'} ago`:''}</small><p>${esc((visit.notes??'').slice(0,180))}</p></span></button>`).join('')+(rows.length>limit?'<button type="button" class="secondary" data-tool-more="true">Show more memories</button>':'');}
  function render(){
   const {records,journeys,settings}=getState();for(const button of document.querySelectorAll('[data-tool-tab]')){button.classList.toggle('active',button.dataset.toolTab===tab);button.setAttribute('aria-selected',String(button.dataset.toolTab===tab));}
-  for(const name of ['memories','timeline','explore','collections','nearby'])$('tools-'+name).hidden=name!==tab;
+  for(const name of ['memories','timeline','explore','nearby'])$('tools-'+name).hidden=name!==tab;
   $('show-memories').checked=settings.memories!==false;$('show-memories').disabled=busy;
   if(tab==='memories'){
    const chosen=$('memory-date').value||today();$('memory-date').value=chosen;const rows=anniversaryMemories(records,chosen);$('anniversary-list').innerHTML=visitCards(rows)||'<p class="field-help">No earlier-year visits on this date yet. Choose another date to look back.</p>';
@@ -29,30 +25,20 @@ export function createJournalToolsUI({document,getState,write,onOpen,onMap,onCol
    $('explore-help').textContent=`${stats.located} places have a map position. ${stats.unlabelled} have no country label. Country and region counts use your labels, so you can name them the way you prefer.`;
    $('explore-milestones').innerHTML=stats.milestones.map(m=>`<li class="${m.reached?'reached':''}"><span aria-hidden="true">${m.reached?'✦':'○'}</span> ${esc(m.label)}${m.reached?' · reached':''}</li>`).join('');$('explore-years').innerHTML=stats.years.map(([year,count])=>`<div class="tool-region"><span>${year}</span><b>${count} visits</b></div>`).join('');
   }
-  if(tab==='collections'){
-   $('collection-list').innerHTML=(settings.collections??[]).filter(c=>!c.deleted).map(c=>`<article class="saved-collection"><strong>${esc(c.title)}</strong><p class="field-help">${esc([c.rule.query,c.rule.tag&&'#'+c.rule.tag,c.rule.category!=='All places'&&c.rule.category,c.rule.favorites&&'Favorites',c.rule.from&&'From '+c.rule.from,c.rule.to&&'To '+c.rule.to,c.rule.country,c.rule.region,c.rule.minRating&&c.rule.minRating+'+ stars',c.rule.hasLocation&&'With location',c.rule.tripId&&journeys.find(j=>j.id===c.rule.tripId)?.title].filter(Boolean).join(' · ')||'All saved places')}</p><div class="detail-actions"><button type="button" class="secondary" data-collection-apply="${esc(c.id)}">Browse</button><button type="button" class="text-button" data-collection-edit="${esc(c.id)}">Edit</button><button type="button" class="text-button delete-button" data-collection-delete="${esc(c.id)}">Remove</button></div></article>`).join('')||'<p class="field-help">Save a collection such as Favorite nature visits, 2025 road trips or Places to revisit.</p>';
-   const form=$('collection-form'),select=form.elements.tripId;form.elements.category.innerHTML=['All places',...categoryChoices(collectionDraft?.category)].map(c=>`<option value="${esc(c)}">${esc(c==='All places'?'All saved categories':c)}</option>`).join('');select.innerHTML='<option value="">Every journey</option>'+journeys.filter(j=>!j.deleted).map(j=>`<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('');
-   if(collectionDraft)for(const [name,value]of Object.entries(collectionDraft)){const input=form.elements[name];if(input){if(input.type==='checkbox')input.checked=!!value;else input.value=value;}}
-   $('collection-editor-title').textContent=collectionId?'Edit collection':'Make a smart collection';form.inert=busy;
-  }
   if(tab==='nearby')renderNearby(nearby.state);
 
  }
  function renderNearby(state){$('nearby-enable').textContent=state.enabled?'Turn nearby memories off':'Enable nearby memories';$('nearby-radius').value=state.radius;$('nearby-radius').disabled=state.enabled;$('nearby-memory-status').textContent=state.status;}
- function formValues(){const f=$('collection-form').elements;return {title:f.title.value,query:f.query.value,tag:f.tag.value,category:f.category.value,country:f.country.value,region:f.region.value,tripId:f.tripId.value,from:f.from.value,to:f.to.value,minRating:f.minRating.value,favorites:f.favorites.checked,hasLocation:f.hasLocation.checked};}
- function newCollection(){if(dirty()&&!confirm('Discard unsaved collection changes?'))return;reset();$('collection-form').reset();collectionDraft=formValues();baseline=JSON.stringify(collectionDraft);render();}
  async function action(fn){if(busy)return;busy=true;render();try{await fn();$('tools-status').textContent='Saved.';}catch(error){$('tools-status').textContent=error.message;}finally{busy=false;render();}}
  function wire(){
-  for(const button of document.querySelectorAll('[data-tool-tab]'))button.onclick=()=>{if(!canClose())return;if(dirty()){reset();$('collection-form').reset();}tab=button.dataset.toolTab;limit=100;render();};
+  for(const button of document.querySelectorAll('[data-tool-tab]'))button.onclick=()=>{if(!canClose())return;tab=button.dataset.toolTab;limit=100;render();};
   $('show-memories').onchange=()=>{const enabled=$('show-memories').checked;void action(()=>write(current=>current,settings=>({...settings,memories:enabled})));};
   $('memory-date').value=today();$('memory-date').onchange=()=>{limit=100;try{render();}catch(error){$('tools-status').textContent=error.message;}};
   $('timeline-month').onchange=e=>{if(!e.target.value)return;month=e.target.value;day='';allDates=false;limit=100;render();};$('timeline-query').oninput=e=>{query=e.target.value;limit=100;render();};$('timeline-trip').onchange=e=>{tripId=e.target.value;limit=100;render();};
   for(const [id,delta]of [['timeline-prev',-1],['timeline-next',1]])$(id).onclick=()=>{const d=new Date(month+'-01T12:00:00Z');d.setUTCMonth(d.getUTCMonth()+delta);if(d.getUTCFullYear()<1||d.getUTCFullYear()>9999)return;month=d.toISOString().slice(0,7);day='';allDates=false;limit=100;render();};$('timeline-all').onclick=()=>{allDates=true;day='';limit=100;render();};
   $('tools-import').onclick=onImport;$('tools-book').onclick=()=>onBook();$('explore-map').onclick=()=>onMap({});
-  $('collection-new').onclick=newCollection;$('collection-form').oninput=()=>{collectionDraft=formValues();};$('collection-form').onchange=()=>{collectionDraft=formValues();};
-  $('collection-form').onsubmit=e=>{e.preventDefault();const values=formValues();void action(async()=>{const rule=validateRule({...values,minRating:Number(values.minRating)}),id=collectionId??crypto.randomUUID(),entry=validateCollections([{id,title:values.title,rule,updatedAt:nextCollectionUpdate(getState().settings.collections?.find(c=>c.id===id)?.updatedAt)}])[0];await write(current=>current,settings=>({...settings,collections:validateCollections((settings.collections??[]).filter(c=>c.id!==id).concat(entry))}));collectionId=id;collectionDraft=values;baseline=JSON.stringify(values);});};
   $('nearby-enable').onclick=async()=>{try{if(nearby.state.enabled)await nearby.disable();else await nearby.enable(Number($('nearby-radius').value));}catch(error){$('nearby-memory-status').textContent=error.message;}renderNearby(nearby.state);};
-  $('journal-tools').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.toolMore){limit+=100;render();return;}if(b.dataset.toolPlace){onOpen(b.dataset.toolPlace,b.dataset.toolVisit);return;}if(b.dataset.calendarDay){day=b.dataset.calendarDay;allDates=false;limit=100;render();return;}if(b.dataset.exploreCountry!==undefined){onMap({country:b.dataset.exploreCountry,region:b.dataset.exploreRegion??''});return;}if(b.dataset.collectionApply){if(canClose())onCollection(b.dataset.collectionApply);return;}if(b.dataset.collectionEdit){if(!canClose())return;const c=getState().settings.collections?.find(c=>c.id===b.dataset.collectionEdit);if(!c)return;collectionId=c.id;collectionDraft={title:c.title,...c.rule,minRating:String(c.rule.minRating)};baseline=JSON.stringify(collectionDraft);render();$('collection-form').scrollIntoView({block:'start'});return;}if(b.dataset.collectionDelete&&confirm('Remove this saved collection? Your places and tags will stay.'))void action(()=>write(current=>current,settings=>({...settings,collections:(settings.collections??[]).map(c=>c.id===b.dataset.collectionDelete?{...c,deleted:true,updatedAt:nextCollectionUpdate(c.updatedAt)}:c)})));});
+  $('journal-tools').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.toolMore){limit+=100;render();return;}if(b.dataset.toolPlace){onOpen(b.dataset.toolPlace,b.dataset.toolVisit);return;}if(b.dataset.calendarDay){day=b.dataset.calendarDay;allDates=false;limit=100;render();return;}if(b.dataset.exploreCountry!==undefined){onMap({country:b.dataset.exploreCountry,region:b.dataset.exploreRegion??''});return;}});
  }
- return {wire,renderNearby,hasPending:()=>busy||!!dirty(),open(next='memories'){reset();tab=next;if(next==='memories')$('memory-date').value=today();$('tools-status').textContent='';$('collection-form').reset();render();},refresh(){if($('journal-tools').open)render();},canClose,reset};
+ return {wire,renderNearby,hasPending:()=>busy,open(next='memories'){tab=next;if(next==='memories')$('memory-date').value=today();$('tools-status').textContent='';render();},refresh(){if($('journal-tools').open)render();},canClose,reset(){}};
 }

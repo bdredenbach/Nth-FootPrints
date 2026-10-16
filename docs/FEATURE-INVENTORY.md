@@ -14,7 +14,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 | Capability | Status |
 |---|---|
 | Instant-photo deck with vertical swipe, mouse drag/wheel and Up/Down keys | Implemented, 3D lift-and-tip transition with reduced-motion fallback |
-| Photo Journal | Vertical full-collection stack with search/category filters; descriptions open with the memory |
+| Photo Journal | Vertical full-journal stack with search/category filters; descriptions open with the memory |
 | Journal filters, favorites, six categories, text search and sorting | Implemented across the journal and map views |
 | Create/edit/delete with date, rating, address, notes, phone, website | Implemented |
 | Original photo gallery per place | Implemented in 0.3.3, up to 30 photos per visit, 20 MB each; persisted main image, horizontal browsing and per-photo export |
@@ -42,7 +42,7 @@ A separate HTC Locations APK/manual/video is not supplied. Claims of complete fe
 ## Prototype boundaries
 The original SVG examples and their notes are explicitly labeled samples. Users can remove untouched samples without removing their own places or edited samples. No reverse geocoding, embedded EXIF writing, cloud sync, account system, map tile downloads or routing engine is implemented. Photos and voice notes remain local to the journal unless the user exports them. Opening an external map sends the selected coordinates to that map service. GitHub Pages serves the public browser app; journal data remains local to its browser/app storage.
 
-Media bytes are kept in base64 data URLs without recompression. This first implementation has a 150 MB backup limit, 20 MB per attachment, and loads the journal in memory. A native file-based media store and streaming archive exporter are required before claiming large collection support. Browser media codec playback varies by platform.
+Media bytes are kept in base64 data URLs without recompression. This first implementation has a 150 MB backup limit, 20 MB per attachment, and loads the journal in memory. A native file-based media store and streaming archive exporter are required before claiming large media library support. Browser media codec playback varies by platform.
 
 ## Validation
 Node syntax checks, HTML asset/ID checks and domain tests cover backup round-trip including exact attachment bytes, invalid/incompatible data rejection, revision merge rules, repeated restore, and search/filter/sort. 114 Node tests pass across data, gestures, metadata, native export orchestration and map-controller logic. GPS fixtures are original generated JPEG/PNG/WebP files whose metadata was independently checked using Pillow. Tests include hemisphere signs, zero coordinates, little/big byte order, malformed offsets, invalid rational denominators, missing GPS, media preservation and geotag backup round trips. No browser-control skill is available in this environment; no browser visual QA, direct device testing, live tile-loading test or PWA installation test has been performed here. Map controller tests use a fake Leaflet/DOM boundary, without fetching public tiles. Deployment success is checked separately.
@@ -55,7 +55,7 @@ Geotags belong to the footprint record and survive backups; the app does not rew
 ## 0.2.1 gallery correction
 The supplied 218917.mp4 screen recording (~13.6 seconds) was sampled at twelve points to inspect the reported distinction between swiping directly on cards and in surrounding space. The event handler treated a bubbled lostpointercapture from a touched child as the deck losing capture. It now cancels only when the deck itself is the event target. Regression tests first reproduced the failure on photo/caption targets while surrounding-space gestures succeeded, then passed after this change. Up/down swipes, genuine capture cancellation and tap-to-open are covered. Phone/browser reproduction of the finished correction remains to be checked.
 
-Removed the gallery's entire place-detail preview panel and centered the journal stack. Place descriptions and voice-note playback now appear only in the opened memory dialog; titles, dates and the collection counter remain on the cards. Saved notes and other data are unchanged.
+Removed the gallery's entire place-detail preview panel and centered the journal stack. Place descriptions and voice-note playback now appear only in the opened memory dialog; titles, dates and the footprint counter remain on the cards. Saved notes and other data are unchanged.
 
 ## 0.2.2 navigation simplification
 Removed the entire introductory heading block (eyebrow, slogan, subtitle and atlas edition label) and the second, All Places tab. The three remaining tabs are Photo Journal, Map & Directions and Favorites. The journal retains the working vertical stack and search/category filters; full descriptions remain in the clicked-photo dialog. Old #places bookmarks open the journal. Removed references to the deleted heading IDs so navigation and startup continue to render correctly.
@@ -81,7 +81,7 @@ Gallery selection remains a separate original-file picker with local EXIF inspec
 The browser uses its existing capture-input and geolocation fallbacks. Safe areas from 0.2.5 remain in place. Phone camera launch, permission dialogs and GPS need confirmation on a physical Android device. Camera output may be encoded by the native plugin; gallery bytes are preserved as supplied by Android (which may redact location metadata). Geotags are stored in the journal record. No location permission is requested for gallery-only selection. Activity-death recovery for an unsaved capture draft is not yet implemented.
 
 ## 0.2.7 reverse deck numbering
-The memory deck now numbers each card as total minus its current index. With Latest visit sorting, the newest of two footprints is 02/02 and the older is 01/02. Heading, front/rear captions and accessible announcements agree. Sorting, swipes, local records and backup format are unchanged. Numbers remain relative to the displayed collection after search/filtering, rather than permanent record identifiers.
+The memory deck now numbers each card as total minus its current index. With Latest visit sorting, the newest of two footprints is 02/02 and the older is 01/02. Heading, front/rear captions and accessible announcements agree. Sorting, swipes, local records and backup format are unchanged. Numbers remain relative to the displayed footprints after search/filtering, rather than permanent record identifiers.
 
 ## 0.2.8 native backup saving and transfer dialog
 Replaced APK anchor-download export with an app-local Android Storage Access Framework plugin. Backups are validated/packed in the existing JSON v1 format, then saved through an explicit Save backup action and ACTION_CREATE_DOCUMENT. The bridge opens a new document, accepts bounded base64 byte chunks, checks the expected byte count, and confirms success only after the output stream closes. JS waits for each acknowledged write; its progress tracks actual transferred bytes. Cancel/write failure closes and attempts to delete the incomplete newly created document, never a prior journal record. Cleanup failure is visible. No broad storage access permission is added.
@@ -182,7 +182,7 @@ App restored-camera results are associated with the startup capture token, persi
 
 Original Nth outline lettering replaces the dash in the icon, including an even-odd cutout for the Android themed variant. 204 automated checks and Chromium restart/resume/discard/camera/conflict scenarios pass. Physical Android process-death, camera return and launcher behavior need phone testing.
 
-## 0.4.0 trip collections
+## 0.4.0 trips
 
 Trips & journeys groups footprints without copying photos. Names/descriptions and explicit cover stop IDs live beside records in the same journal state; records retain journey IDs. Member selection is searchable, and a single footprint may belong to up to 20 journeys. Dates/stop order derive from footprint visit dates. Trip selection composes across Journal, Favorites and Map with search/categories/sort. Removing a journey retains the records/media and saves a deletion marker; removing a footprint or membership repairs covers. Metadata and membership writes share the serialized atomic journal transaction. Recovery drafts now include memberships and retain compatibility with previous drafts.
 
@@ -207,11 +207,11 @@ Trip dates/photos and note searches include only matching member visits when a t
 | Batch import | Local EXIF/date/GPS review, exact duplicate skipping, bounded 100 m/day groups or individual photos, new/return targets and atomic save |
 | Timeline/calendar | Month/day and all-date visit browsing with query/trip filters and independent return visits |
 | Exploration | Unique places, visits, photos, days, years and milestones; user country/region labels filter saved map pins |
-| Tags/collections | 30 tags per place, shared place labels, up to 100 smart collection entries including deletion markers; filters compose and visit rules match one visit |
+| Tags | 30 tags per place and shared country/region labels; tag, journey, search and favorite filters compose |
 | Geotagged copies | New upright JPEG up to 4,096 px with selected-visit GPS; original unchanged; original-photo export retained |
 | Memory cards/books | PNG card or A4 image-page PDF, preview and explicit privacy choice default hidden, full paginated book stories and optional all photos |
 | Nearby memories | Opt-in visible-app watch, 250/500/1,000 m, no trail/background alerts, 24-hour local cooldown, stop/pause/resume handling |
-| Portability/recovery | Backup v5 accepts v1–v4; labels/collections/preferences retained, deleted collections protected; recovery metadata v4 accepts v1–v3 |
+| Portability/recovery | Backup v5 accepts v1–v4; labels/preferences retained; recovery metadata v4 accepts v1–v3 |
 
 Import limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Book limits: 100 visits, 300 pages, 80 MB; text is rasterized and font coverage follows the device. Cards indicate shortened text. PDF save uses the existing Android bounded-chunk document picker with the correct MIME type. Nearby consent/cooldowns, recovery drafts and offline maps stay outside journal backups. Labels are entered by the user, not inferred from boundaries. Original-photo metadata is not copied into cards/PDF images; titles/stories/photo pixels can still reveal locations.
 
@@ -220,7 +220,7 @@ Import limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Book 
 
 ## 0.5.1 layout and visit map refinement
 
-User-marked layout implemented: New footprint → Tag → Collection; below search/trip/sort, Journal tools → Trips & journeys → Backup & restore → Preferences. Four utility actions stay in a row on phones, with wrapped labels. Category filters follow. Removed the marked Use this photo in journal shortcut and shared-fields description from detail view; gallery selection and visit removal remain.
+User-marked layout implemented: New footprint → Tag; below search/trip/sort, Journal tools → Trips & journeys → Backup & restore → Preferences. Four utility actions stay in a row on phones, with wrapped labels. Place categories are available on Places. Removed the marked Use this photo in journal shortcut and shared-fields description from detail view; gallery selection and visit removal remain.
 
 Located visits show a small map under GPS. It shares atlas photo pins and online/offline map backgrounds, is lazy while off screen, stops tiles while covered/hidden and destroys on close/switch. Tapping its accessible button closes nested dialogs safely, clears excluding filters and selects/focuses that visit in Map & directions. A temporary display override keeps a return visit's different coordinates/photo in the selected map pin without changing saved place data. Missing coordinates omit the preview. Offline shell v26 includes the new module.
 
@@ -273,3 +273,7 @@ Clear saved searches leaves the journal, downloads and service budget untouched.
 ### Batch import grouping — 0.6.4
 
 Automatic groups require an embedded photo date and GPS: nearby matches within 100 m of the first photo; same location matches both coordinates to five decimal places (about 1 m). Review original dates/GPS per photo. Missing metadata stays separate automatically. Optional shared-location grouping applies reviewed coordinates to checked groups, including missing GPS, with one group per reviewed date and up to 30 photos each. Conflicting destinations/labels block merging, stories/tags are retained, and Undo restores the previous review. Originals and backup formats stay unchanged.
+
+## 0.6.5 — tags as the personal organizer
+
+Removed saved collections throughout the application: toolbar selector, Journal tools tab/editor, rule evaluation, lifecycle draft state and restore merge controls. Tags, trips, favorites, search, timeline, exploration, nearby memories and reviewed photo batch import remain. Loading and restoring omit legacy saved-filter settings; new backups omit them too. Original footprints, return visits, labels, journeys and media remain unchanged. Old v1–v7 backups remain readable.

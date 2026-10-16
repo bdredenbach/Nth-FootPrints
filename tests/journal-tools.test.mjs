@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {validateRecord,makeBackup,parseBackup,validateSettings,filterRecords,mergeRecords,VERSION} from '../dist/model.js';
 import {writeVisit,visitsOf,visitView} from '../dist/visits.js';
-import {parseTags,normalizeTags,validateLabels,validateRule,validateCollections,mergeCollections,nextCollectionUpdate,mergeJournalPreferences,scopeRecords,anniversaryMemories,calendarMonth,explorationStats,flattenVisits} from '../dist/journal-tools.js';
+import {parseTags,normalizeTags,validateLabels,mergeJournalPreferences,scopeRecords,anniversaryMemories,calendarMonth,explorationStats,flattenVisits} from '../dist/journal-tools.js';
 import {preparePhotoBatch,applyPhotoBatch} from '../dist/batch-import.js';
 import {nearbyCandidates,createNearbyMemories} from '../dist/nearby-memories.js';
 import {gpsExif,jpegWithGps,privacyLines,buildPhotoPdf,tripBookVisits,wrapLines,fileStem} from '../dist/export-media.js';
@@ -13,7 +13,6 @@ const first='2025-10-15T12:00:00.000Z',now='2026-10-15T12:00:00.000Z',later='202
 const image='data:image/png;base64,AQID',other='data:image/jpeg;base64,BAUG';
 const place=(patch={})=>validateRecord({id:'one',title:'Our beach',category:'Nature',favorite:true,rating:5,visited:'2025-10-15',notes:'An older visit',lat:43,lng:-71,photos:[image],coverIndex:0,tripIds:['trip-1'],updatedAt:first,...patch});
 const repeat=(r=place(),patch={})=>writeVisit(r,{...r,visited:'2026-10-15',notes:'A recent return',rating:2,photos:[other],updatedAt:now,...patch},'new',{newId:()=> 'visit-2'});
-const collection=(patch={})=>validateCollections([{id:'collection-1',title:'Favorite nature',rule:{category:'Nature',favorites:true},updatedAt:first,...patch}])[0];
 const trip={id:'trip-1',title:'Our trip',notes:'',coverId:null,createdAt:first,updatedAt:first};
 test('place tags normalize case, copy values and reject empty, oversized or malformed labels',()=>{
  assert.deepEqual(parseTags(' Family, Beach , family, '),['Family','Beach']);assert.deepEqual(normalizeTags(['Été','été']),['Été']);for(const value of [null,[''],['a,b'],['x'.repeat(41)],Array(31).fill('tag')])assert.throws(()=>normalizeTags(value));assert.throws(()=>validateLabels({country:'x'.repeat(81)}));assert.throws(()=>validateLabels({region:1}));
@@ -27,24 +26,32 @@ test('anniversaries include each historical visit and exclude same-year, future 
 test('leap day memories stay on leap day and calendar grids use Monday starts with correct month lengths',()=>{
  const r=place({visited:'2024-02-29'});assert.equal(anniversaryMemories([r],'2028-02-29').length,1);assert.equal(anniversaryMemories([r],'2026-02-28').length,0);assert.equal(calendarMonth('2024-02').days.length,29);assert.equal(calendarMonth('2026-02').days.length,28);assert.equal(calendarMonth('2026-06').offset,0);assert.throws(()=>calendarMonth('2026-13'));assert.equal(calendarMonth('0004-02').days.length,29);
 });
-test('collection date/rating/journey filters must match the same visit',()=>{
- const r=repeat(place(),{tripIds:['trip-2']});assert.equal(scopeRecords([r],{collection:collection({rule:{from:'2026-01-01',minRating:5}})}).length,0);const selected=scopeRecords([r],{collection:collection({rule:{from:'2025-01-01',to:'2025-12-31',minRating:5,tripId:'trip-1'}})});assert.equal(selected.length,1);assert.equal(selected[0].visited,'2025-10-15');assert.equal(selected[0].photo,image);assert.deepEqual(selected[0].matchingVisitIds,['initial']);
+test('tag, trip, country, region, search and favorites filters compose without changing saved visits',()=>{
+ const r=repeat(place({tags:['Family'],country:'Canada',region:'Ontario'}),{tripIds:['trip-2']});
+ const scoped=scopeRecords([r],{tag:'family',country:'canada',region:'ontario',tripId:'trip-1'});
+ assert.equal(scoped.length,1);assert.equal(scoped[0].visited,'2025-10-15');assert.equal(scoped[0].photo,image);assert.deepEqual(scoped[0].matchingVisitIds,['initial']);
+ assert.equal(filterRecords(scoped,{query:'older',favorites:true}).length,1);assert.equal(filterRecords(scoped,{query:'recent'}).length,0);assert.equal(scopeRecords([r],{tag:'missing'}).length,0);assert.equal(scopeRecords([r],{tripId:'absent'}).length,0);assert.equal(scopeRecords([r],{country:'elsewhere'}).length,0);assert.equal(scopeRecords([r],{region:'elsewhere'}).length,0);
+ assert.equal(r.visits.length,1);assert.equal(r.photo,image);assert.deepEqual(r.tags,['Family']);
 });
-test('tag, trip, collection, country, region, query and favorites filters compose without changing saved records',()=>{
- const r=repeat(place({tags:['Family'],country:'Canada',region:'Ontario'}));const scoped=scopeRecords([r],{tag:'family',country:'canada',region:'ontario',tripId:'trip-1',collection:collection({rule:{query:'older',favorites:true}})});assert.equal(scoped.length,1);assert.equal(filterRecords(scoped,{query:'Family'}).length,1);assert.equal(scopeRecords([r],{tag:'missing'}).length,0);assert.equal(scopeRecords([r],{collection:collection({rule:{hasLocation:true}})}).length,1);assert.equal(r.visits.length,1);assert.equal(r.photo,image);
-});
-test('collection validation bounds all rules and rejects incompatible ranges/types',()=>{
- for(const rule of [{from:'2026-02-30'},{from:'2026-10-15',to:'2025-10-15'},{favorites:'yes'},{hasLocation:1},{minRating:6},{tripId:'bad id'},{category:'Unknown'}])assert.throws(()=>validateRule(rule));for(const patch of [{title:''},{id:'bad id'},{updatedAt:'bad'},{deleted:'yes'}])assert.throws(()=>collection(patch));assert.throws(()=>validateCollections([collection(),collection()]));assert.throws(()=>validateCollections(Array(101).fill(collection())));
-});
-test('collection deletion markers and independent restore merge cannot revive older filters',()=>{
- const original=collection(),deleted=collection({deleted:true,updatedAt:now});assert.equal(mergeCollections([deleted],[original])[0].deleted,true);assert.equal(mergeCollections([original],[deleted])[0].deleted,true);assert.equal(mergeCollections([{...original,updatedAt:now}],[deleted])[0].deleted,true);assert.equal(mergeCollections([deleted],[{...original,updatedAt:now}])[0].deleted,true);
-});
-test('restoring collections does not silently change local appearance or nearby-device preferences',()=>{
- const current={theme:'night',memories:false,collections:[collection()]},incoming={theme:'paper',memories:true,collections:[collection({id:'second'})]};const merged=mergeJournalPreferences(current,incoming,false);assert.equal(merged.theme,'night');assert.equal(merged.memories,false);assert.equal(merged.collections.length,2);assert.equal(mergeJournalPreferences(current,incoming,true).theme,'paper');assert.equal('nearbyEnabled'in merged,false);assert.deepEqual(validateSettings({theme:'paper'}),{theme:'paper'});
-});
-test('format 5 round trips place labels, independent visits, collections and optional memories; earlier formats reject tool data',()=>{
- const r=repeat(place({tags:['Family'],country:'Canada',region:'Ontario'})),settings={theme:'night',memories:false,collections:[collection()]};const backup=makeBackup([r],settings,[trip]);assert.equal(backup.formatVersion,7);const restored=parseBackup(JSON.stringify(backup));assert.deepEqual(restored.records,[r]);assert.deepEqual(restored.settings,settings);assert.equal(restored.records[0].visits[0].photo,other);
+const retiredFilters=[{id:'old-filter',title:'Old saved filter',rule:{tag:'Family',category:'Nature'},updatedAt:first}];
+test('retired saved filters are omitted from loaded settings and new backups without changing labels, visits or originals',()=>{
+ const r=repeat(place({tags:['Family'],country:'Canada',region:'Ontario'})),settings={theme:'night',memories:false,collections:retiredFilters};
+ assert.deepEqual(validateSettings(settings),{theme:'night',memories:false});assert.equal(settings.collections,retiredFilters);
+ const backup=makeBackup([r],settings,[trip]);assert.equal(backup.formatVersion,7);assert.equal('collections'in backup.settings,false);
+ const restored=parseBackup(JSON.stringify(backup));assert.deepEqual(restored.records,[r]);assert.deepEqual(restored.settings,{theme:'night',memories:false});assert.equal(restored.records[0].visits[0].photo,other);
  for(const formatVersion of [1,2,3,4])assert.throws(()=>parseBackup(JSON.stringify({...backup,formatVersion})));assert.throws(()=>validateSettings({memories:'true'}));
+});
+test('versions 5–7 restore old saved-filter settings without reviving them or losing journal contents',()=>{
+ const r=repeat(place({tags:['Family'],country:'Canada',region:'Ontario'})),before=structuredClone(r);
+ for(const formatVersion of [5,6,7])for(const collections of [retiredFilters,[],null,{obsolete:'ignored'}]){
+  const restored=parseBackup(JSON.stringify({app:'nth-footprints',formatVersion,records:[r],journeys:[trip],settings:{theme:'night',memories:false,collections}}));
+  assert.deepEqual(restored.records,[r]);assert.deepEqual(restored.settings,{theme:'night',memories:false});assert.equal(restored.journeys[0].id,trip.id);assert.equal('collections'in makeBackup(restored.records,restored.settings,restored.journeys).settings,false);
+ }
+ assert.deepEqual(r,before);
+});
+test('restore appearance choice stays independent of retired settings and device permissions',()=>{
+ const current={theme:'night',memories:false,collections:retiredFilters},incoming={theme:'paper',memories:true,collections:retiredFilters,nearbyEnabled:true};
+ assert.deepEqual(mergeJournalPreferences(current,incoming,false),{theme:'night',memories:false});assert.deepEqual(mergeJournalPreferences(current,incoming,true),{theme:'paper',memories:true});assert.deepEqual(mergeJournalPreferences(current,{theme:'paper'},true),{theme:'paper',memories:false});assert.deepEqual(validateSettings({theme:'paper'}),{theme:'paper'});
 });
 test('format 4 backups remain readable and older place restores keep newer labels/visits',()=>{
  const original=place(),raw={app:'nth-footprints',formatVersion:4,records:[original],settings:{theme:'paper'},journeys:[trip]};assert.equal(parseBackup(JSON.stringify(raw)).records[0].id,'one');const newer=repeat(place({tags:['New'],country:'Canada',updatedAt:now}));assert.equal(mergeRecords([newer],[original]).records[0].tags[0],'New');
@@ -102,11 +109,6 @@ test('native device watches use bounded intervals, check permission before resta
 test('overlapping native/browser pause events clear a location watch only once',async()=>{
  let stops=0,release;const gate=new Promise(resolve=>release=resolve),nearby=createNearbyMemories({getRecords:()=>[],today:()=> '2026-10-15',storage:localStore(),watch:async()=>async()=>{stops++;await gate;}});await nearby.enable();const a=nearby.pause(),b=nearby.pause();await Promise.resolve();assert.equal(stops,1);release();await Promise.all([a,b]);assert.equal(nearby.state.watching,false);await nearby.disable();assert.equal(stops,1);
 });
-
-test('collection updates remain newer than their local version when the device clock moves back',()=>{
- const future='2030-01-01T00:00:00.000Z';assert.equal(nextCollectionUpdate(future,now),'2030-01-01T00:00:00.001Z');assert.equal(nextCollectionUpdate(first,now),now);const removed=collection({deleted:true,updatedAt:nextCollectionUpdate(future,now)});assert.equal(mergeCollections([removed],[collection({updatedAt:future})])[0].deleted,true);
-});
-
 
 test('quick foreground resume waits for a pending location-watch stop and starts one replacement',async()=>{
  let watches=0,stops=0,release;const gate=new Promise(resolve=>release=resolve),nearby=createNearbyMemories({getRecords:()=>[],today:()=> '2026-10-15',storage:localStore(),watch:async()=>{watches++;return async()=>{stops++;if(stops===1)await gate;}}});await nearby.enable();const paused=nearby.pause();await Promise.resolve();const resumed=nearby.resume();assert.equal(watches,1);release();await Promise.all([paused,resumed]);assert.equal(watches,2);assert.equal(nearby.state.watching,true);await nearby.disable();assert.equal(stops,2);

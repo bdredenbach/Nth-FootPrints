@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.6.0**.
+GitHub is authoritative. Current prototype: **0.6.5**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -15,18 +15,18 @@ Brad approved all ten ideas on October 15, 2026, then requested all remaining ei
 5. **Timeline and calendar — shipped in 0.5.0.** Browse memories by date, month and journey.
 6. **Exploration map and statistics — shipped in 0.5.0.** Visited countries/states/places, milestones and personal exploration summaries.
 7. **Geotag exported photo copies — shipped in 0.5.0.** Write the footprint coordinates into a new exported copy; preserve the saved original.
-8. **Personal tags and smart collections — shipped in 0.5.0.** Flexible labels and saved filters beyond the current fixed categories.
+8. **Personal tags — shipped in 0.5.0.** Flexible labels; saved filters were removed in 0.6.5 to simplify organization.
 9. **Shareable memory cards and trip books — shipped in 0.5.0.** Export a card or PDF with a deliberate location/privacy choice.
 10. **Opt-in proximity memories — shipped in 0.5.0.** A “you’ve been here before” reminder, with explicit permission/settings and practical battery/privacy limits.
 
 ## Existing engineering queue
 
-- **Larger collections and streamed backups.** Move saved journal media out of in-memory base64 state and stream backup archives. Recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections remain outside recovery.
+- **Larger media libraries and streamed backups.** Move saved journal media out of in-memory base64 state and stream backup archives. Recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections remain outside recovery.
 - **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
 
 ## Journal suite shipped in 0.5.0
 
-All remaining eight approved product ideas are implemented together. Journal tools provides anniversary memories (optional home card), month calendar/visit timeline, exploration totals/years/milestones, editable smart collections, batch photo import and opt-in nearby memories. Existing three-tab navigation remains. Country/region totals and pin filters use user-entered shared place labels; no automatic boundary lookup or country choropleth is included. Tags and smart rules compose with search, trip, category, Favorites and map filters; matching date/rating/trip rules apply to one visit.
+All remaining eight approved product ideas are implemented together. Journal tools provides anniversary memories (optional home card), month calendar/visit timeline, exploration totals/years/milestones, batch photo import and opt-in nearby memories. Existing three-tab navigation remains. Country/region totals and pin filters use user-entered shared place labels; no automatic boundary lookup or country choropleth is included. Tags compose with search, trip, category, Favorites and map filters.
 
 Batch reading is sequential, cancellable and local. Real embedded date plus GPS within 100 m can propose a same-day group; unknown metadata remains separate and today is visibly a proposed date. Individual-photo mode is available. Exact originals already saved or repeated in the batch are skipped. New-place and explicit return-visit targets are reviewed before one atomic journal write. Failure retains the review without partial records. Bounds: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit.
 
@@ -34,9 +34,9 @@ Cards and trip books have an editable title and an explicit hide/area/exact loca
 
 Nearby consent is off by default, requests permission only on explicit enable, and runs only while the app is visible. Hidden/native pause stops the watch; resume checks existing permission without prompting. Radius 250/500/1,000 m, roughly minute updates, bounded accuracy, and a 24-hour per-place cooldown limit repeated checks/reminders. It records no trail, schedules no background/system alerts and stores only local preference/cooldown identifiers. These settings never restore from another device. Anniversary memories also use in-app cards rather than scheduled notifications.
 
-Backup format 5 supports imports 1–4; labels and smart collections validate before writes. Collection deletion markers survive restore, with monotonic local clocks even after clock rollback. Collections always merge; the appearance checkbox controls theme/memories only. Recovery metadata 4 retains new labels and accepts 1–3. Existing base64 media/150 MB backup bounds remain.
+Backup format 5 supports imports 1–4; labels validate before writes. The appearance checkbox controls theme/memories only; retired settings are ignored when restoring. Recovery metadata 4 retains new labels and accepts 1–3. Existing base64 media/150 MB backup bounds remain.
 
-Validation: 272 automated Node/Java/IndexedDB checks; mobile/desktop combined UI tests, old-format restore, draft restart, quota-failure atomic retry, import cancellation/discard, per-visit collection composition, privacy/metadata inspection, independent GPS reading, nine-page PDF rendering and complete-story verification, nearby pause/resume and offline shell-v25 restart, batch save and card/PDF export. Physical Android testing remains necessary. Geolocation API reference: https://capacitorjs.com/docs/apis/geolocation .
+Validation: 272 automated Node/Java/IndexedDB checks; mobile/desktop combined UI tests, old-format restore, draft restart, quota-failure atomic retry, import cancellation/discard, per-visit filtering, privacy/metadata inspection, independent GPS reading, nine-page PDF rendering and complete-story verification, nearby pause/resume and offline shell-v25 restart, batch save and card/PDF export. Physical Android testing remains necessary. Geolocation API reference: https://capacitorjs.com/docs/apis/geolocation .
 
 ## Return visits shipped in 0.4.1
 
@@ -48,7 +48,7 @@ Existing records remain their original visit without rewriting or duplicating th
 
 Full `.nthbackup` format 4 stores original media once per visit and includes all visit clocks, selections and removal markers. Formats 1/2/3 still restore; older apps reject format 4. Restore merges visits independently while keeping newer shared place details, and older backups cannot revive removed visits. If conflicting histories would remove every visit of a place, validation rejects the restore before writing. Recovery draft metadata version 3 retains whether the editor was adding or editing a specific visit; versions 1/2 still resume. Changed or deleted parents recover to a new footprint. Journal Save and matching recovery cleanup remain atomic. Unfinished live recording and uncompleted file reads retain the earlier recovery limitations.
 
-Limits: 200 visit entries per place, including the original entry and removed-entry markers; up to 30 photos and one completed audio attachment per visit, 20 MB per selected media file; 20 journeys per visit; the existing 150 MB total backup bound remains. Place counts continue to count places, not visits. Larger collections/streamed backups remain queued.
+Limits: 200 visit entries per place, including the original entry and removed-entry markers; up to 30 photos and one completed audio attachment per visit, 20 MB per selected media file; 20 journeys per visit; the existing 150 MB total backup bound remains. Place counts continue to count places, not visits. Larger media libraries/streamed backups remain queued.
 
 242 automated Node/Java/IndexedDB checks pass. Chromium phone/desktop checks cover independent galleries and trips, editing earlier visits, dirty Back protection, add/edit recovery, journal cover/latest date, trip dates and a single map place, fresh backup restore, removal and older-backup protection. Native-style process-death/returned-camera checks preserve the visit identity without requesting later GPS; conflict recovery keeps the saved parent and its history. Offline reload, return-visit saving and restart persistence pass through shell cache v24. Screens were checked at phone and desktop sizes. Physical Android testing remains necessary.
 
@@ -135,7 +135,7 @@ A separate HTC Locations reference is still needed to finish its feature invento
 
 ## 0.5.1 layout and visit map refinement
 
-User-marked layout implemented: New footprint → Tag → Collection; below search/trip/sort, Journal tools → Trips & journeys → Backup & restore → Preferences. Four utility actions stay in a row on phones, with wrapped labels. Category filters follow. Removed the marked Use this photo in journal shortcut and shared-fields description from detail view; gallery selection and visit removal remain.
+User-marked layout implemented: New footprint → Tag; below search/trip/sort, Journal tools → Trips & journeys → Backup & restore → Preferences. Four utility actions stay in a row on phones, with wrapped labels. Place categories are available on Places. Removed the marked Use this photo in journal shortcut and shared-fields description from detail view; gallery selection and visit removal remain.
 
 Located visits show a small map under GPS. It shares atlas photo pins and online/offline map backgrounds, is lazy while off screen, stops tiles while covered/hidden and destroys on close/switch. Tapping its accessible button closes nested dialogs safely, clears excluding filters and selects/focuses that visit in Map & directions. A temporary display override keeps a return visit's different coordinates/photo in the selected map pin without changing saved place data. Missing coordinates omit the preview. Offline shell v26 includes the new module.
 
@@ -188,3 +188,7 @@ Clear saved searches leaves the journal, downloads and service budget untouched.
 ### Batch import grouping — 0.6.4
 
 Automatic groups require an embedded photo date and GPS: nearby matches within 100 m of the first photo; same location matches both coordinates to five decimal places (about 1 m). Review original dates/GPS per photo. Missing metadata stays separate automatically. Optional shared-location grouping applies reviewed coordinates to checked groups, including missing GPS, with one group per reviewed date and up to 30 photos each. Conflicting destinations/labels block merging, stories/tags are retained, and Undo restores the previous review. Originals and backup formats stay unchanged.
+
+### Simplified organization — 0.6.5
+
+Saved collections are removed from the toolbar, Journal tools, filtering, editing and settings merges. Tags remain the personal organizing tool; trips, favorites, search and exploration retain their roles. Legacy saved-filter metadata is ignored in device state and v1–v7 restores, and is not exported again. Existing records and attachment bytes remain intact; no backup or recovery version change.
