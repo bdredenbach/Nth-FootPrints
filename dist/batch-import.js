@@ -4,6 +4,8 @@ import {visitsOf,writeVisit} from './visits.js';
 import {normalizeTags} from './journal-tools.js';
 import {proximityKm} from './nearby-memories.js';
 export const MAX_BATCH_FILES=60,MAX_BATCH_BYTES=80*1024*1024;
+const samePoint=(a,b)=>a.lat.toFixed(5)===b.lat.toFixed(5)&&a.lng.toFixed(5)===b.lng.toFixed(5);
+export const batchCoordinates=point=>Number.isFinite(point?.lat)&&Number.isFinite(point?.lng)?`${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`:'No photo GPS';
 const cancelled=signal=>{if(signal?.aborted)throw Error('CANCELLED');};
 export async function preparePhotoBatch(files,{records=[],read,today,signal,grouping='place',onProgress=()=>{}}={}){
  if(!files.length||files.length>MAX_BATCH_FILES)throw Error(`Choose 1–${MAX_BATCH_FILES} photos.`);if(files.reduce((n,f)=>n+f.size,0)>MAX_BATCH_BYTES)throw Error('Choose at most 80 MB of photos in one batch.');
@@ -11,10 +13,31 @@ export async function preparePhotoBatch(files,{records=[],read,today,signal,grou
  const groups=[];let duplicates=0;
  for(let i=0;i<files.length;i++){cancelled(signal);const file=files[i];if(!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)||file.size>20*1024*1024)throw Error(`“${file.name}”: use JPG, PNG, WebP or GIF up to 20 MB each.`);
   onProgress(i,files.length);const bytes=new Uint8Array(await file.arrayBuffer());cancelled(signal);const meta=readPhotoMetadata(bytes),src=await read(file);cancelled(signal);if(seen.has(src)){duplicates++;onProgress(i+1,files.length);continue;}seen.add(src);
-  const visited=meta.takenOn??today(),point=meta.location;let group=grouping==='individual'?null:groups.find(g=>g.visited===visited&&g.photos.length<30&&!!meta.takenOn&&g.metadataDate===meta.takenOn&&point&&g.lat!==null&&proximityKm(point,g)*1000<=100);
-  if(!group){group={id:'batch-'+groups.length,title:String(file.name).replace(/\.[^.]+$/,'').slice(0,160)||'Imported memory',visited,metadataDate:meta.takenOn,dateSource:meta.takenOn?'Photo date':'Today proposed — review date',lat:point?.lat??null,lng:point?.lng??null,category:'Other',notes:'',targetId:'',country:'',region:'',tags:[],tripId:'',photos:[],files:[],selected:true};groups.push(group);}group.photos.push(src);group.files.push(file.name);onProgress(i+1,files.length);
+  const visited=meta.takenOn??today(),point=meta.location;let group=grouping==='individual'?null:groups.find(g=>g.visited===visited&&g.photos.length<30&&!!meta.takenOn&&g.metadataDate===meta.takenOn&&point&&g.lat!==null&&(grouping==='same'?samePoint(point,g):proximityKm(point,g)*1000<=100));
+  if(!group){group={id:'batch-'+groups.length,title:String(file.name).replace(/\.[^.]+$/,'').slice(0,160)||'Imported memory',visited,metadataDate:meta.takenOn,dateSource:meta.takenOn?'Photo date':'Today proposed — review date',lat:point?.lat??null,lng:point?.lng??null,category:'Other',notes:'',targetId:'',country:'',region:'',tags:[],tripId:'',photos:[],files:[],photoMetadata:[],selected:true};groups.push(group);}group.photos.push(src);group.files.push(file.name);group.photoMetadata.push({takenOn:meta.takenOn,location:point?{...point}:null});onProgress(i+1,files.length);
  }
  return {groups,duplicates};
+}
+// This is an explicit review action. Automatic grouping never assigns missing GPS.
+export function groupBatchAtLocation(groups,referenceId){
+ const chosen=groups.filter(g=>g.selected),reference=chosen.find(g=>g.id===referenceId);
+ if(!reference||!Number.isFinite(reference.lat)||!Number.isFinite(reference.lng)||Math.abs(reference.lat)>90||Math.abs(reference.lng)>180)throw Error('Choose a checked visit with valid latitude and longitude first.');
+ if(chosen.length<2)throw Error('Check at least two visits to group at the same location.');
+ const byDate=new Map();
+ for(const g of chosen){
+  if(g.tagsError)throw Error(g.tagsError);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(g.visited))throw Error('Review each selected visit date before grouping.');
+  const rows=byDate.get(g.visited)??[];rows.push(g);byDate.set(g.visited,rows);
+ }
+ const combined=[],usedIds=new Set(groups.map(g=>g.id));let serial=0;const nextId=()=>{let id;do{id=`shared-${serial++}`;}while(usedIds.has(id));usedIds.add(id);return id;};
+ for(const rows of byDate.values()){
+  // Preserve reviewed destinations and labels instead of silently choosing between them.
+  for(const field of ['targetId','category','tripId','country','region'])if(new Set(rows.map(g=>g[field]??'')).size>1)throw Error('Selected visits on the same date have different destinations or labels. Make those fields match before grouping.');
+  const base=rows.includes(reference)?reference:rows[0],photos=rows.flatMap(g=>g.photos),files=rows.flatMap(g=>g.files),metadata=rows.flatMap(g=>g.photoMetadata??g.photos.map(()=>({takenOn:null,location:null}))),notes=[...new Set(rows.map(g=>g.notes).filter(Boolean))].join('\n\n'),tags=normalizeTags(rows.flatMap(g=>g.tags??[]));
+  if(notes.length>20000)throw Error('Combined stories are too long. Shorten them before grouping.');
+  for(let start=0;start<photos.length;start+=30)combined.push({...base,id:nextId(),lat:reference.lat,lng:reference.lng,dateSource:'Reviewed date',locationSource:'Shared location chosen in review',photos:photos.slice(start,start+30),files:files.slice(start,start+30),photoMetadata:metadata.slice(start,start+30),notes,tags:[...tags],selected:true});
+ }
+ return [...groups.filter(g=>!g.selected),...combined];
 }
 export function applyPhotoBatch(records,groups,{journeys=[],now=new Date().toISOString(),uuid=()=>crypto.randomUUID()}={}){
  const chosen=groups.filter(g=>g.selected);if(!chosen.length)throw Error('Select at least one reviewed group.');const active=new Set(journeys.filter(j=>!j.deleted).map(j=>j.id)),next=records.slice();let added=0,returns=0;

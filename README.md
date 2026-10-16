@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.3**.
+A personal travel journal by Nth Experience. Prototype **0.6.4**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -198,7 +198,7 @@ Brad requested the remaining eight ideas in one release. Open **Journal tools** 
 - **Collections:** reusable filters for tags, text, category, country/region, trip, dates, rating, favorites and location. Date/rating/trip rules must match the same visit. The toolbar selectors compose with existing filters.
 - **Nearby:** explicitly enable 250/500/1,000 m reminders for earlier visits. Permission is requested on enable. Checks stop when the app is hidden/paused and resume without prompting. There are no background alerts or recorded location trails. Per-place reminders have a 24-hour cooldown; consent and cooldowns stay on this device and never enter backups.
 
-**Import photos** reads supported embedded date/GPS locally, skips exact original duplicates, and proposes groups only when embedded dates match and GPS points are within 100 m. Missing metadata stays separate and is shown for review. Choose individual-photo mode if preferred. Review each date, coordinates and new-place/return-visit target before one atomic save; no current GPS is assigned to old photos. Limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Reading can be cancelled; failed saves preserve the review and existing journal.
+**Import photos** reads supported embedded date/GPS locally, skips exact original duplicates, and proposes groups only when embedded dates match and GPS points are within 100 m of the first photo (nearby) or match to five decimal places (same location). Missing metadata stays separate and is shown for review. Choose individual-photo mode if preferred. Review each date, per-photo GPS and new-place/return-visit target before one atomic save. Optional “Use the same location” assigns chosen reviewed coordinates to checked visits (including missing-GPS photos), grouping by reviewed date; dates stay separate, galleries split at 30, conflicting destinations/labels are rejected, and Undo restores the prior review. Stories and tags are combined; group titles follow the reference visit for its date or the first selected visit on other dates. Original media is unchanged; no current GPS is assigned to old photos. Limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Reading can be cancelled; failed saves preserve the review and existing journal.
 
 Add up to 30 personal tags plus country/region labels under **Tags & place labels** in the editor. Labels belong to the place and survive return visits, recovery and backup. Collections retain deletion markers so older backups cannot revive deleted collections; removing a collection keeps all memories.
 
@@ -274,3 +274,9 @@ Up to 30 searches / 20 MB are retained, evicting least-recently-used entries whe
 Matching uses category, subtype, radius and area. A center shift of up to 100 m reuses the original saved circle, and the map/distance labels follow that original center. A complete larger circle may answer a fully covered smaller circle. Truncated broad results cannot substitute for missing subtype/area searches. Cache identity includes the local subtype, fixing a collision when two types use identical provider request bodies but different local filtering. Persistent rows are validated and sanitized before use; no API key or raw provider payload is stored. Attribution and source IDs remain intact. There is no timed eviction or automatic online refresh; the timestamp makes old listings clear.
 
 306 automated checks pass. Browser checks at 360/393/1280 px verify cold restoration, recall of a simulated 40-day-old snapshot during an offline shell restart, small GPS drift without a lookup, switching saved categories, saving a source-prefilled footprint, clearing history without touching the journal/budget, and a subsequent explicit refresh. No backup schema change: portable v7 and recovery v6 remain. Shell v30 caches the new store module.
+
+### Reviewed batch grouping (0.6.4)
+
+Two automatic date/GPS modes, per-photo date and coordinate details, and explicit shared-location grouping with Undo. No backup schema change: portable v7 and recovery v6 remain. Shell v31 refreshes the import controls.
+
+Validation for 0.6.4: 311 automated checks pass. Browser checks at 360, 393 and 1280 px cover strict grouping, per-photo coordinates, missing GPS, explicit shared-location merge and Undo, a failed save followed by correction, and unchanged original photos after saving.
