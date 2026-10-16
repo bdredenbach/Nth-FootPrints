@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.6.5**.
+GitHub is authoritative. Current prototype: **0.6.6**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -192,3 +192,7 @@ Automatic groups require an embedded photo date and GPS: nearby matches within 1
 ### Simplified organization — 0.6.5
 
 Saved collections are removed from the toolbar, Journal tools, filtering, editing and settings merges. Tags remain the personal organizing tool; trips, favorites, search and exploration retain their roles. Legacy saved-filter metadata is ignored in device state and v1–v7 restores, and is not exported again. Existing records and attachment bytes remain intact; no backup or recovery version change.
+
+### Explicit one-footprint photo import — 0.6.6
+
+The grouping dropdown offers “All selected photos in one footprint”: one shared review and one new footprint for up to 30 unique photos, regardless of missing GPS or differing dates. Its shared date/GPS start from the first detected values, or today/no location when absent. Per-group saved-place destinations and manual date-based grouping controls are hidden in this mode. Every included image is previewed; no photos are silently split or dropped. Switching modes reuses the selected original media; edited fields require confirmation before rebuilding. Existing duplicate skipping, atomic saves, cancellation and automatic GPS/date modes remain. Backup v7 and recovery v6 are unchanged; shell v33 refreshes the UI.

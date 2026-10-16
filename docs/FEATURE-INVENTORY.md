@@ -277,3 +277,7 @@ Automatic groups require an embedded photo date and GPS: nearby matches within 1
 ## 0.6.5 — tags as the personal organizer
 
 Removed saved collections throughout the application: toolbar selector, Journal tools tab/editor, rule evaluation, lifecycle draft state and restore merge controls. Tags, trips, favorites, search, timeline, exploration, nearby memories and reviewed photo batch import remain. Loading and restoring omit legacy saved-filter settings; new backups omit them too. Original footprints, return visits, labels, journeys and media remain unchanged. Old v1–v7 backups remain readable.
+
+### Explicit one-footprint photo import — 0.6.6
+
+The grouping dropdown offers “All selected photos in one footprint”: one shared review and one new footprint for up to 30 unique photos, regardless of missing GPS or differing dates. Its shared date/GPS start from the first detected values, or today/no location when absent. Per-group saved-place destinations and manual date-based grouping controls are hidden in this mode. Every included image is previewed; no photos are silently split or dropped. Switching modes reuses the selected original media; edited fields require confirmation before rebuilding. Existing duplicate skipping, atomic saves, cancellation and automatic GPS/date modes remain. Backup v7 and recovery v6 are unchanged; shell v33 refreshes the UI.

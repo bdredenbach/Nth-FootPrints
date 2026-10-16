@@ -109,3 +109,5 @@ body{padding-left:var(--app-safe-left);padding-right:var(--app-safe-right)}
 .batch-shared{border:1px solid var(--line);border-radius:5px;padding:0 14px 14px;margin-bottom:24px}.batch-shared select{max-width:100%;text-overflow:ellipsis}.batch-group-heading>div{min-width:0}.batch-group .field-help{overflow-wrap:anywhere}#batch-grouping{max-width:100%;text-overflow:ellipsis}#batch-undo-grouping{display:block;margin-top:12px}#batch-undo-grouping[hidden]{display:none}
 
 @media(max-width:680px){#journal-tools .tools-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}#journal-tools .tools-tabs button{white-space:normal;min-height:38px}}
+
+.batch-one-label{font-size:13px;margin:12px 0}.batch-photos{display:flex;gap:8px;overflow-x:auto;padding:0 0 12px;margin-bottom:20px}.batch-photos img{width:70px;height:76px;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex-shrink:0}

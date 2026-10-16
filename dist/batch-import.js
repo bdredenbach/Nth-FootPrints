@@ -1,5 +1,5 @@
 import {readPhotoMetadata} from './geotags.js';
-import {validateRecord} from './model.js';
+import {validateRecord,MAX_PHOTOS} from './model.js';
 import {visitsOf,writeVisit} from './visits.js';
 import {normalizeTags} from './journal-tools.js';
 import {proximityKm} from './nearby-memories.js';
@@ -7,16 +7,27 @@ export const MAX_BATCH_FILES=60,MAX_BATCH_BYTES=80*1024*1024;
 const samePoint=(a,b)=>a.lat.toFixed(5)===b.lat.toFixed(5)&&a.lng.toFixed(5)===b.lng.toFixed(5);
 export const batchCoordinates=point=>Number.isFinite(point?.lat)&&Number.isFinite(point?.lng)?`${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`:'No photo GPS';
 const cancelled=signal=>{if(signal?.aborted)throw Error('CANCELLED');};
+function draftGroup(source,index,today){return {id:'batch-'+index,title:String(source.name).replace(/\.[^.]+$/,'').slice(0,160)||'Imported memory',visited:source.takenOn??today(),metadataDate:source.takenOn,dateSource:source.takenOn?'Photo date':'Today proposed — review date',lat:source.location?.lat??null,lng:source.location?.lng??null,category:'Other',notes:'',targetId:'',country:'',region:'',tags:[],tripId:'',photos:[],files:[],photoMetadata:[],selected:true};}
+export function proposePhotoGroups(sources,{grouping='place',today}={}){
+ if(!['place','same','individual','together'].includes(grouping))throw Error('Choose a photo grouping option.');
+ if(grouping==='together'&&sources.length>MAX_PHOTOS)throw Error(`One footprint holds up to ${MAX_PHOTOS} photos. Choose fewer photos or another grouping option. Nothing has been saved.`);
+ const groups=[];
+ for(const source of sources){const point=source.location;let group=grouping==='individual'?null:grouping==='together'?groups[0]:groups.find(g=>g.visited===(source.takenOn??'')&&g.photos.length<MAX_PHOTOS&&!!source.takenOn&&g.metadataDate===source.takenOn&&point&&g.lat!==null&&(grouping==='same'?samePoint(point,g):proximityKm(point,g)*1000<=100));
+  if(!group){group=draftGroup(source,groups.length,today);groups.push(group);}
+  group.photos.push(source.photo);group.files.push(source.name);group.photoMetadata.push({takenOn:source.takenOn,location:point?{...point}:null});
+ }
+ if(grouping==='together'&&groups.length){const g=groups[0],dated=sources.find(p=>p.takenOn),located=sources.find(p=>p.location);g.singleFootprint=true;g.visited=dated?.takenOn??g.visited;g.metadataDate=dated?.takenOn??null;g.dateSource=dated?'First detected photo date — review shared date':'Today proposed — review shared date';g.lat=located?.location.lat??null;g.lng=located?.location.lng??null;g.locationSource=located?`Shared coordinates proposed from ${located.name}`:'No photo GPS — shared location is optional';}
+ return groups;
+}
 export async function preparePhotoBatch(files,{records=[],read,today,signal,grouping='place',onProgress=()=>{}}={}){
  if(!files.length||files.length>MAX_BATCH_FILES)throw Error(`Choose 1–${MAX_BATCH_FILES} photos.`);if(files.reduce((n,f)=>n+f.size,0)>MAX_BATCH_BYTES)throw Error('Choose at most 80 MB of photos in one batch.');
  const seen=new Set();for(const r of records)for(const v of visitsOf(r))for(const src of v.photos??(v.photo?[v.photo]:[]))seen.add(src);
- const groups=[];let duplicates=0;
+ const sources=[];let duplicates=0;
  for(let i=0;i<files.length;i++){cancelled(signal);const file=files[i];if(!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)||file.size>20*1024*1024)throw Error(`“${file.name}”: use JPG, PNG, WebP or GIF up to 20 MB each.`);
   onProgress(i,files.length);const bytes=new Uint8Array(await file.arrayBuffer());cancelled(signal);const meta=readPhotoMetadata(bytes),src=await read(file);cancelled(signal);if(seen.has(src)){duplicates++;onProgress(i+1,files.length);continue;}seen.add(src);
-  const visited=meta.takenOn??today(),point=meta.location;let group=grouping==='individual'?null:groups.find(g=>g.visited===visited&&g.photos.length<30&&!!meta.takenOn&&g.metadataDate===meta.takenOn&&point&&g.lat!==null&&(grouping==='same'?samePoint(point,g):proximityKm(point,g)*1000<=100));
-  if(!group){group={id:'batch-'+groups.length,title:String(file.name).replace(/\.[^.]+$/,'').slice(0,160)||'Imported memory',visited,metadataDate:meta.takenOn,dateSource:meta.takenOn?'Photo date':'Today proposed — review date',lat:point?.lat??null,lng:point?.lng??null,category:'Other',notes:'',targetId:'',country:'',region:'',tags:[],tripId:'',photos:[],files:[],photoMetadata:[],selected:true};groups.push(group);}group.photos.push(src);group.files.push(file.name);group.photoMetadata.push({takenOn:meta.takenOn,location:point?{...point}:null});onProgress(i+1,files.length);
+  sources.push({photo:src,name:file.name,takenOn:meta.takenOn,location:meta.location?{...meta.location}:null});onProgress(i+1,files.length);
  }
- return {groups,duplicates};
+ return {groups:proposePhotoGroups(sources,{grouping,today}),duplicates,sources};
 }
 // This is an explicit review action. Automatic grouping never assigns missing GPS.
 export function groupBatchAtLocation(groups,referenceId){
