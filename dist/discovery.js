@@ -1,6 +1,7 @@
 import {proximityKm} from './nearby-memories.js';
 import {hasLocation} from './atlas.js';
 import {validatePlaceSource} from './place-source.js';
+import {createDiscoveryStore,trimSavedSearches} from './discovery-store.js';
 import {GEOAPIFY_API_KEY} from './places-config.js';
 export const DISCOVERY_ENDPOINT='https://api.geoapify.com/v2/places';
 export const MAX_DISCOVERY=500;
@@ -62,7 +63,7 @@ export function normalizeDiscovery(payload,{center,groupId='food',filterId='',ra
   const kind=group.filters.find(f=>kinds.includes(f.id))?.label||clean(t.shop??t.amenity??t.tourism??categories.at(-1)??group.label).replaceAll('_',' ').split('.').at(-1);
   const name=clean(p.name)||clean(t.name)||clean(t['name:en'])||clean(t.brand),title=name||kind;
   const address=clean(p.address_line2,500)||[clean(p.housenumber??t['addr:housenumber'],40),clean(p.street??t['addr:street']),clean(p.city??t['addr:city']),clean(p.state??t['addr:state']),clean(p.postcode??t['addr:postcode'],40),clean(p.country??t['addr:country'],80)].filter(Boolean).join(', ').slice(0,500)||clean(p.formatted,500);
-  const row={id:source.provider==='openstreetmap'?`osm-${source.type}-${source.id}`:`geo-place-${source.id}`,title,category:group.label,kind,kinds,lat:point.lat,lng:point.lng,km,address,phone:clean(p.contact?.phone??p.phone??t['contact:phone']??t.phone,80),url:safePlaceURL(p.website)||safePlaceURL(t['contact:website']??t.website),country:countryName(p.country??String(p.country_code??t['addr:country']??'').toUpperCase()),region:clean(p.state??t['addr:state'],100),description:clean(p.description??t.description,1200),hours:clean(p.opening_hours??t.opening_hours,400),cuisine:clean(Array.isArray(p.catering?.cuisine)?p.catering.cuisine.filter(v=>typeof v==='string').slice(0,20).join(';'):p.catering?.cuisine??t.cuisine,160).replaceAll(';',', '),brand:clean(p.brand??t.brand,160),placeSource:source,approximate:source.type!=='node'};
+  const row={id:source.provider==='openstreetmap'?`osm-${source.type}-${source.id}`:`geo-place-${source.id}`,title,category:group.label,kind,kinds,locality:clean(p.city??p.town??p.village,160),lat:point.lat,lng:point.lng,km,address,phone:clean(p.contact?.phone??p.phone??t['contact:phone']??t.phone,80),url:safePlaceURL(p.website)||safePlaceURL(t['contact:website']??t.website),country:countryName(p.country??String(p.country_code??t['addr:country']??'').toUpperCase()),region:clean(p.state??t['addr:state'],100),description:clean(p.description??t.description,1200),hours:clean(p.opening_hours??t.opening_hours,400),cuisine:clean(Array.isArray(p.catering?.cuisine)?p.catering.cuisine.filter(v=>typeof v==='string').slice(0,20).join(';'):p.catering?.cuisine??t.cuisine,160).replaceAll(';',', '),brand:clean(p.brand??t.brand,160),placeSource:source,approximate:source.type!=='node'};
   if(name&&rows.some(r=>r.title.toLocaleLowerCase()===name.toLocaleLowerCase()&&proximityKm(r,row)<.025))continue;
   seen.add(key);rows.push(row);
  }
@@ -77,25 +78,51 @@ async function boundedJSON(response,remaining=2*1024*1024,onBytes=()=>{}){
  const reader=response.body.getReader(),parts=[];let size=0;try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>max){await reader.cancel();throw Error('This area has too much place data. Choose a smaller area.');}parts.push(value);}}finally{reader.releaseLock();onBytes(size);}
  const bytes=new Uint8Array(size);let at=0;for(const p of parts){bytes.set(p,at);at+=p.length;}return {payload:JSON.parse(new TextDecoder().decode(bytes)),bytes:size};
 }
-export function createDiscoveryClient({fetch=globalThis.fetch,now=Date.now,wait=delay,network=globalThis.navigator,storage,apiKey=GEOAPIFY_API_KEY}={}){
+export function createDiscoveryClient({fetch=globalThis.fetch,now=Date.now,wait=delay,network=globalThis.navigator,storage,apiKey=GEOAPIFY_API_KEY,cacheStore=createDiscoveryStore()}={}){
  if(storage===undefined){try{storage=globalThis.localStorage;}catch{storage=null;}}
- let active=null,generation=0,nextAllowed=0,failures=0;const cache=new Map();let budget={day:'',successes:0,attempts:0,bytes:0};
+ let active=null,generation=0,nextAllowed=0,failures=0;const cache=new Map();let lastParams=null,storeAvailable=false;let budget={day:'',successes:0,attempts:0,bytes:0};
  const day=()=>{const d=new Date(now());return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);};
  try{const saved=JSON.parse(storage?.getItem('nth-geoapify-budget-v1')??'null');if(saved?.day===day()&&['successes','attempts','bytes'].every(k=>Number.isInteger(saved[k])&&saved[k]>=0))budget=saved;}catch{}
  function saveBudget(){try{storage?.setItem('nth-geoapify-budget-v1',JSON.stringify(budget));}catch{}}
  function allowance(){if(budget.day!==day())budget={day:day(),successes:0,attempts:0,bytes:0};if(budget.successes>=50)throw Error('Today’s 50 successful Places searches are used. Loaded categories are still available. Try new areas tomorrow.');if(budget.attempts>=100||budget.bytes>=50*1024*1024)throw Error('Places has reached today’s service safety limit. Loaded categories are still available. Try new searches tomorrow.');}
- function cached(params,{fresh=false}={}){
-  const query=discoveryQuery(params);let hit=cache.get(query);
-  // A complete broad result can answer narrower types/radii locally. A truncated
-  // result cannot promise that a missing subtype is absent from the area.
-  if(!hit)hit=[...cache.values()].reverse().find(h=>!h.result.limited&&h.params.groupId===params.groupId&&!h.params.filterId&&h.params.center.lat.toFixed(3)===params.center.lat.toFixed(3)&&h.params.center.lng.toFixed(3)===params.center.lng.toFixed(3)&&h.params.radius>=params.radius);
-  if(!hit||fresh&&now()-hit.at>=1800000)return null;
-  const result=structuredClone(hit.result);result.items=result.items.filter(p=>!params.filterId||p.kinds.includes(params.filterId)).map(p=>({...p,km:proximityKm(params.center,p)})).filter(p=>p.km<=params.radius/1000).sort((a,b)=>a.km-b.km||a.title.localeCompare(b.title));return {...result,cached:true,loadedAt:hit.at};
+ const cacheKey=params=>{discoveryQuery(params);return JSON.stringify(['geoapify-v1',params.groupId??'food',params.filterId??'',Number(params.center.lat.toFixed(3)),Number(params.center.lng.toFixed(3)),params.radius??2000]);};
+ const canonical=params=>{discoveryQuery(params);return {center:{lat:params.center.lat,lng:params.center.lng},groupId:params.groupId??'food',filterId:params.filterId??'',radius:params.radius??2000};};
+ function validateEntry(value){
+  try{
+   if(value?.revision!==1||value.id!==cacheKey(value.params)||!Number.isFinite(value.at)||value.at<0||value.at>now()+300000||!Number.isFinite(value.usedAt)||value.usedAt>now()+300000||!Array.isArray(value.result?.items)||value.result.items.length>MAX_DISCOVERY||typeof value.result.limited!=='boolean')return null;
+   const params=canonical(value.params),group=discoveryGroup(params.groupId),ids=new Set(),items=[];
+   for(const row of value.result.items){
+    if(!row||!hasLocation(row)||typeof row.title!=='string'||!Array.isArray(row.kinds)||row.kinds.some(k=>!group.filters.some(f=>f.id===k))||proximityKm(params.center,row)>params.radius/1000+.001)return null;
+    const source=validatePlaceSource(row.placeSource),id=source.provider==='openstreetmap'?`osm-${source.type}-${source.id}`:`geo-place-${source.id}`;if(row.id!==id||ids.has(id))return null;ids.add(id);
+    const r={id,lat:row.lat,lng:row.lng,placeSource:source,category:group.label,kinds:[...new Set(row.kinds)],km:proximityKm(params.center,row),approximate:!!row.approximate};
+    for(const [field,max]of Object.entries({title:160,kind:160,locality:160,address:500,phone:80,country:80,region:100,description:1200,hours:400,cuisine:160,brand:160}))r[field]=clean(row[field],max);r.url=safePlaceURL(row.url);items.push(r);
+   }
+   return {revision:1,id:value.id,params,result:{items,limited:value.result.limited},label:clean(value.label,160),at:value.at,usedAt:value.usedAt,retained:true};
+  }catch{return null;}
  }
+ const ready=Promise.resolve().then(()=>cacheStore.load()).then(saved=>{storeAvailable=!!saved.available;for(const raw of saved.entries??[]){const entry=validateEntry(raw);if(entry)cache.set(entry.id,entry);}const trim=trimSavedSearches(cache.values());for(const id of trim.remove)cache.delete(id);try{if(saved.last)lastParams=canonical(saved.last);}catch{};}).catch(()=>{});
+ function cached(params){
+  params=canonical(params);let hit=cache.get(cacheKey(params)),area=params,nearby=false;
+  if(hit)area={...params,center:{...hit.params.center}};
+  if(!hit){
+   const compatible=[...cache.values()].filter(h=>h.params.groupId===params.groupId&&(h.params.filterId===params.filterId||!h.params.filterId&&!h.result.limited));
+   const same=compatible.filter(h=>h.params.radius===params.radius&&proximityKm(h.params.center,params.center)<=.1).sort((a,b)=>proximityKm(a.params.center,params.center)-proximityKm(b.params.center,params.center)||b.at-a.at);
+   if(same.length){hit=same[0];area={...params,center:{...hit.params.center}};nearby=true;}
+   else hit=compatible.filter(h=>!h.result.limited&&h.params.radius>params.radius&&proximityKm(h.params.center,params.center)*1000+params.radius<=h.params.radius).sort((a,b)=>a.params.radius-b.params.radius||b.at-a.at)[0];
+  }
+  if(!hit)return null;
+  const result=structuredClone(hit.result);result.items=result.items.filter(p=>!params.filterId||p.kinds.includes(params.filterId)).map(p=>({...p,km:proximityKm(area.center,p)})).filter(p=>p.km<=area.radius/1000).sort((a,b)=>a.km-b.km||a.title.localeCompare(b.title));
+  return {...result,cached:true,loadedAt:hit.at,area,nearby,retained:!!hit.retained,cacheId:hit.id,areaLabel:hit.label};
+ }
+ async function retain(entry,params){
+  entry.usedAt=Math.max(now(),...[...cache.values()].map(e=>e.usedAt+1));cache.delete(entry.id);cache.set(entry.id,entry);lastParams=canonical(params);const trim=trimSavedSearches(cache.values());for(const id of trim.remove)cache.delete(id);
+  try{const result=await cacheStore.put({...entry,retained:undefined},lastParams);entry.retained=!!result.saved;storeAvailable=!!result.saved;for(const id of result.removed??[])cache.delete(id);}catch{entry.retained=false;storeAvailable=false;}
+ }
+ function recent(){return [...cache.values()].reverse().sort((a,b)=>b.usedAt-a.usedAt||b.at-a.at).map(e=>({id:e.id,params:structuredClone(e.params),at:e.at,count:e.result.items.length,label:e.label,retained:!!e.retained}));}
 
  function cancel(){generation++;active?.abort();active=null;}
- return {cancel,cached,async search(params,{force=false}={}){
-  const query=discoveryQuery(params);cancel();const token=generation,hit=!force&&cached(params,{fresh:true});if(hit)return hit;
+ return {cancel,cached,ready,recent,get storageAvailable(){return storeAvailable;},last(){return lastParams?cached(lastParams):null;},async recall(id){await ready;const entry=cache.get(id);if(!entry)return null;return this.search(entry.params);},async clear(){cancel();await ready;cache.clear();lastParams=null;const cleared=await cacheStore.clear().catch(()=>false);storeAvailable=!!cleared;return cleared;},async search(params,{force=false}={}){
+  const query=discoveryQuery(params);params=canonical(params);cancel();const token=generation;await ready;if(token!==generation)throw cancelError();const hit=!force&&cached(params);if(hit){await retain(cache.get(hit.cacheId),hit.area);if(token!==generation)throw cancelError();return {...hit,retained:!!cache.get(hit.cacheId)?.retained};}
   if(network?.onLine===false)throw Error('Places discovery needs internet. Saved footprints and downloaded maps are still available.');
   if(typeof apiKey!=='string'||!apiKey.trim())throw Error('The Geoapify Places key is not configured. Your saved footprints are still available.');
   allowance();const abort=new AbortController();active=abort;let timer;
@@ -104,7 +131,7 @@ export function createDiscoveryClient({fetch=globalThis.fetch,now=Date.now,wait=
    timer=setTimeout(()=>abort.abort('timeout'),45000);
    const response=await fetch(DISCOVERY_ENDPOINT,{method:'POST',body:query,headers:{'Content-Type':'application/json','X-API-Key':apiKey},signal:abort.signal,credentials:'omit',referrerPolicy:'no-referrer'});
    if(!response.ok){if(response.status===402)throw Error('Geoapify’s project quota or billing limit was reached. Loaded categories are still available.');if(response.status===400)throw Error('Geoapify could not search this place category. Try another type or refresh later.');if(response.status===401||response.status===403)throw Error('Geoapify could not authorize this Places key. Check its project and allowed origins.');if(response.status===429||response.status===503){const retry=response.headers?.get?.('retry-after'),seconds=/^\d+$/.test(retry??'')?Number(retry):Math.max(0,(Date.parse(retry)-now())/1000)||30;nextAllowed=now()+Math.min(300,Math.max(3,seconds))*1000;throw Error('Geoapify is busy or its quota is reached. Wait, then tap Refresh.');}throw Error('Places could not load. Check your connection and tap Refresh.');}
-   const body=await boundedJSON(response,50*1024*1024-budget.bytes,n=>{budget.bytes+=n;saveBudget();});const payload=body.payload;if(token!==generation||abort.signal.aborted)throw cancelError();const result=normalizeDiscovery(payload,params);budget.successes++;failures=0;saveBudget();cache.set(query,{at:now(),result,params:structuredClone(params)});while(cache.size>30)cache.delete(cache.keys().next().value);return {...structuredClone(result),cached:false,loadedAt:now()};
+   const body=await boundedJSON(response,50*1024*1024-budget.bytes,n=>{budget.bytes+=n;saveBudget();});const payload=body.payload;if(token!==generation||abort.signal.aborted)throw cancelError();const result=normalizeDiscovery(payload,params);budget.successes++;failures=0;saveBudget();const locality=result.items.find(p=>p.locality),entry={revision:1,id:cacheKey(params),at:now(),usedAt:now(),result,params:structuredClone(params),label:locality?[locality.locality,locality.region].filter(Boolean).join(', '):[params.center.lat.toFixed(3)+'°',params.center.lng.toFixed(3)+'°'].join(', '),retained:false};cache.set(entry.id,entry);await retain(entry,params);if(token!==generation)throw cancelError();return {...structuredClone(result),cached:false,loadedAt:entry.at,area:params,areaLabel:entry.label,retained:entry.retained};
   }catch(error){if(token!==generation||abort.signal.reason!=='timeout'&&abort.signal.aborted)throw cancelError();failures++;nextAllowed=Math.max(nextAllowed,now()+Math.min(120000,5000*2**Math.min(failures-1,5)));if(abort.signal.reason==='timeout')throw Error('Places took too long to respond. Try a smaller area or tap Refresh.');if(error instanceof SyntaxError)throw Error('Places returned unreadable data. Tap Refresh later.');if(error instanceof TypeError)throw Error('Places could not connect. Check your internet connection and tap Refresh.');throw error;}finally{clearTimeout(timer);if(token===generation)active=null;}
  }};
 }

@@ -175,3 +175,12 @@ Geoapify has separate per-device allowance metadata: 50 successes, 100 attempts,
 Stable OSM identities preserve recognition of older saved places. Geoapify attribution and fallback provider IDs survive editor recovery, saving/return visits, cards/books and backup v7. Recovery metadata v6 reads earlier versions; backup v7 reads versions 1–6. Keys are not in backup or recovery data. Required linked credits appear in discovery and saved details.
 
 297 automated checks plus responsive browser checks pass. Live requests used public NYC fixtures only, confirming listings and localhost CORS/key-header support. Physical Android testing remains necessary.
+
+
+## 0.6.3 Saved Places searches
+
+Completed Geoapify searches persist across app restarts in separate IndexedDB storage. Places restores the last successful area/category/type/radius without GPS or a network request. Saved searches above the map recalls recent areas; timestamps identify when listings were last fetched. Explicit Refresh updates the provider results. Old/offline snapshots remain usable. Base-map downloads are separate.
+
+Limits are 30 queries / 20 MB, with LRU eviction. Cache identity includes the local subtype even when two provider bodies are identical. Up to 100 m of center drift reuses and displays the original saved circle; fully covered smaller circles can reuse complete larger searches. Partial/truncated broad results are not treated as complete subtype coverage. Persisted rows validate coordinates, sources, enum values, size and safe metadata before display. Failed refreshes and cancellations cannot replace successful snapshots. Storage failures identify session-only results.
+
+Clear saved searches leaves the journal, downloads and service budget untouched. Cached area centers/listings stay on this device, outside portable journal backups; uninstalling or clearing app data removes them. Existing 0.6.2 in-memory results need a fresh initial query in 0.6.3. No backup/recovery format change. 306 automated checks and responsive restart/offline/recall/clear browser checks pass.

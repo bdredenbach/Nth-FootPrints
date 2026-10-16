@@ -35,3 +35,6 @@ Optional shared-place `placeSource` is `{ "provider":"openstreetmap", "type":"no
 ## Geoapify place attribution (v7)
 
 OSM sources may add `"via":"geoapify"` without changing provider/type/id identity. When no OSM identity is supplied, `{ "provider":"geoapify", "id":"bounded hexadecimal place ID" }` preserves the provider identity. Credits are generated from this validated metadata and retained in saved details and sourced card/book exports. The `via` value is restricted to geoapify, source URLs use fixed attribution/source hosts, and older-labeled backups reject Geoapify metadata. Version 6 sources without `via` remain accepted. The API key and request budget are outside backups and recovery drafts; editor recovery metadata v6 retains the new source fields while reading earlier draft versions.
+
+
+Saved Places searches (0.6.3) live in a separate local IndexedDB database and are not journal records or portable backup content. They retain approximate-area search metadata, normalized public POI listings, provider/source attribution and timestamps across ordinary app restarts. No API key is stored in that cache. Uninstalling/clearing app data removes it; journal backup/restore does not transfer saved searches. Clear saved searches does not touch journal state or lookup-budget metadata.

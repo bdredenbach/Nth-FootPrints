@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.2**.
+A personal travel journal by Nth Experience. Prototype **0.6.3**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -263,3 +263,14 @@ Existing OSM node/way/relation IDs are retained, so places saved through Overpas
 297 automated checks pass, including GeoJSON/category normalization, invalid metadata/URLs/IDs, authorization/quota errors, cache retention, legacy source recognition, source-credit recovery and old/new backup compatibility. Responsive browser regression checks cover cached categories, errors, offline session reuse, framing and editor prefill. Live public NYC fixtures returned HTTP 200 with actual listings; CORS preflight accepts the API-key header for the Android localhost origin.
 
 Provider references: https://apidocs.geoapify.com/docs/places/ , https://www.geoapify.com/places-api/ , https://www.geoapify.com/pricing/ . Earlier sections describe historical releases; this section supersedes the Overpass Places provider/bounds.
+
+
+### Saved Places searches (0.6.3)
+
+Completed searches now persist in a separate `nth-places-searches` IndexedDB database. Places restores the last successful category/type/radius/area when reopened, without requesting GPS or contacting Geoapify. Expand **Saved searches** above the map to recall an older area. Results show the original last-updated time; **Refresh** explicitly requests new data. Saved results can be reused even when old or offline. Base-map availability remains independent and may require downloaded maps.
+
+Up to 30 searches / 20 MB are retained, evicting least-recently-used entries when full. A failed or cancelled refresh never replaces a good snapshot. Clear saved searches removes discovery history only; it leaves footprints, original media, downloads and API budget counters intact. Storage failure retains usable session results and clearly identifies that they could not be kept for reopening. Searches remain local to this device, outside journal backups; clearing app storage or uninstalling removes them. The first search must be loaded once in this release; earlier in-memory pulls cannot be recovered from the old app.
+
+Matching uses category, subtype, radius and area. A center shift of up to 100 m reuses the original saved circle, and the map/distance labels follow that original center. A complete larger circle may answer a fully covered smaller circle. Truncated broad results cannot substitute for missing subtype/area searches. Cache identity includes the local subtype, fixing a collision when two types use identical provider request bodies but different local filtering. Persistent rows are validated and sanitized before use; no API key or raw provider payload is stored. Attribution and source IDs remain intact. There is no timed eviction or automatic online refresh; the timestamp makes old listings clear.
+
+306 automated checks pass. Browser checks at 360/393/1280 px verify cold restoration, recall of a simulated 40-day-old snapshot during an offline shell restart, small GPS drift without a lookup, switching saved categories, saving a source-prefilled footprint, clearing history without touching the journal/budget, and a subsequent explicit refresh. No backup schema change: portable v7 and recovery v6 remain. Shell v30 caches the new store module.
