@@ -2,12 +2,13 @@ const TAG='nth-footprints-navigation';
 const views=new Set(['journal','map','places','favorites']);
 export function navigationRoute(route){
  const view=views.has(route?.view)?route.view:'journal',dialogs=[];
- const allowed=new Set(['details','place-preview','editor','pin-picker','backup','settings','roadmap','offline-maps','journeys','journal-tools','batch-import','memory-export']);
+ const allowed=new Set(['details','photo-lightbox','place-preview','editor','pin-picker','backup','settings','roadmap','offline-maps','journeys','journal-tools','batch-import','memory-export']);
  for(const item of Array.isArray(route?.dialogs)?route.dialogs:[]){
   if(!allowed.has(item?.id)||dialogs.some(d=>d.id===item.id))break;
   if(item.id==='details'&&!/^[a-z0-9_-]{1,100}$/i.test(item.recordId??''))break;
   if(item.id==='editor'&&item.recordId!=null&&!/^[a-z0-9_-]{1,100}$/i.test(item.recordId))break;
   if(item.id==='editor'&&item.visitId!==undefined&&(!item.recordId||typeof item.visitId!=='string'||!/^[a-z0-9_-]{1,100}$/i.test(item.visitId)))break;
+  if(item.id==='photo-lightbox'&&!['details','editor'].includes(dialogs.at(-1)?.id))break;
   if(item.id==='pin-picker'&&dialogs.at(-1)?.id!=='editor')break;
   dialogs.push({id:item.id,...(['details','editor'].includes(item.id)?{recordId:item.recordId??null,...(item.id==='editor'&&item.visitId!==undefined?{visitId:item.visitId}:{})}:{})});
  }

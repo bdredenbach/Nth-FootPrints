@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.6.8**.
+A personal travel journal by Nth Experience. Prototype **0.6.9**.
 
 **[Open Nth FootPrints](https://bdredenbach.github.io/Nth-FootPrints/)**
 
@@ -312,3 +312,12 @@ Reverse lookup sends only the selected coordinates and configured key, not photo
 Android image file inputs use the system Files/Documents chooser and request ACCESS_MEDIA_LOCATION on Android 10+. Grant it to permit embedded photo GPS when the source supports original media. Selected document URIs are converted to their equivalent MediaStore URI where supported and requested with setRequireOriginal; unreadable/unsupported originals fall back to the supplied selected copy. Camera capture, audio selection and backup file selection retain their existing paths. No broad gallery permission, image rewriting or substitution of today's device position is used. Shared/resized/cloud copies may lack GPS even when a gallery knows the original location; missing metadata cannot be reconstructed from those bytes. Choose an original local photo or assign the location manually.
 
 Validation: 319 automated checks, including actual Java chooser/helper classes compiled against API boundary mocks, pass. Browser checks at 320/360/393/684/1280 px verify filter alignment, borderless controls and offline country/subdivision choices. Full flows cover photo GPS autofill, changed coordinates, manual/stale-response protection, offline labels, draft recovery, original-byte preservation in one-footprint batch import and located batch autofill. The Android workflow compiles against the real SDK; permission/provider behavior still needs testing on a physical phone.
+
+
+### Enlarged photos — 0.6.9
+
+Tap the two diagonal double-ended arrows in the corner of a saved footprint's photo or an editor's selected-photo preview. A full-screen view fits the complete original image without cropping. Pinch, double-tap, use the zoom controls or a mouse wheel to zoom up to 5×, then drag to inspect. Fit resets the view; previous/next buttons or horizontal swipes at fitted size browse that visit's photos locally. Enlarged browsing never changes the saved cover, attachment bytes, visit metadata or unfinished form fields. The button stays hidden when no real photo is attached.
+
+Close, Escape, browser Back or Android Back returns to the parent footprint/editor; focus returns to the corner button. Browser Forward reconstructs the view from its parent. Arrow keys browse when fitted and pan while zoomed; +/− zoom and 0 fits. Controls respect device insets, viewport rotation and reduced screen sizes. The image reference and gesture state are cleared on close. No external image service or fullscreen permission is required; local photos work offline.
+
+Validation: 322 automated checks pass. Browser checks at 360×800, 393×852, 1280×900 and 844×390 verify actual touch pinch, pan, double-tap, whole-image fitting, orientation changes, local gallery browsing, Back/Forward, focus return and unchanged originals/cover/editor fields. Additional checks cover offline viewing, safe-area insets and failed-image feedback. Portable backup v7 and recovery v6 remain unchanged; shell v36 caches the new viewer module.
