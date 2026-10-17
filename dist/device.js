@@ -10,6 +10,16 @@ export function createDeviceAccess({native=false,plugins,geolocation,permissions
  }
  return {
   native,readCameraPhoto,
+  async requestLocationPermission(){
+   if(native){
+    const gps=plugins?.Geolocation;if(!gps)throw Error('Location access is unavailable in this build.');
+    try{let allowed=await gps.checkPermissions();if(allowed.location==='granted'||allowed.coarseLocation==='granted')return {state:'granted'};allowed=await gps.requestPermissions({permissions:['location']});return {state:allowed.location==='granted'||allowed.coarseLocation==='granted'?'granted':'denied'};}
+    catch(error){throw Error(/disabled|location services|OS-PLUG-GLOC-0007|OS-PLUG-GLOC-0009/i.test(String(error?.message??error?.code??''))?'Turn on Location in your phone’s quick settings, then try again. You can also continue without location.':error.message||'Location permission could not be requested. You can continue without it.');}
+   }
+   if(!geolocation?.getCurrentPosition)return {state:'unavailable'};
+   const allowed=await permissions?.query({name:'geolocation'}).catch(()=>null);if(allowed?.state==='granted')return {state:'granted'};if(allowed?.state==='denied')return {state:'denied'};
+   try{await new Promise((resolve,reject)=>geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:10000,maximumAge:60000}));return {state:'granted'};}catch(error){if(error?.code===1)return {state:'denied'};throw Error('Location could not be reached. Check device location settings, retry, or continue without it.');}
+  },
   async takePhoto(){
    if(!native||!plugins?.Camera)throw Error('Install the updated APK to use the Android camera.');
    const photo=await plugins.Camera.getPhoto({source:'CAMERA',resultType:'uri',quality:100,allowEditing:false,correctOrientation:true,saveToGallery:false});

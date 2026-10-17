@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.8.3**.
+A personal travel journal by Nth Experience. Prototype **0.8.4**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -11,6 +11,8 @@ GitHub Pages serves this repository from `main` / root. The root entry page open
 Browse your memories in a vertically swipeable photo stack. Tap a photo to open its place details, notes, rating and voice recording.
 
 ## Included
+
+- A 13-chapter, first-launch FootPrints field guide, with chapter selection, saved progress, Preferences replay and location setup afterward.
 
 - Places: borderless area search with contextual suggestions, selected-category/radius discovery, a center marker, Explore around here and source-aware trip visit drafts.
 - Borderless controls and italic feature hints, with visible selected, disabled and focus states.
@@ -354,3 +356,13 @@ Photo import now uses the same transfer-panel design as Backup: a progress bar, 
 Each original is copied into binary media storage before the next photo is processed. Review scopes protect staged originals from other saves and restore cleanup. Cancellation, failed preparation, replaced reviews and discarded reviews release only their unused originals; published journal data remains intact. Final writes publish all reviewed visits atomically; a failed final write retains the review for retry. Duplicate matching uses content keys even if storage has refreshed a photo URL.
 
 Validation: 362 automated checks, including a real 96 MiB batch through binary storage, scoped cleanup, cancellation and injected write failure. Browser checks cover a 96 MiB import/save, duplicate-only import, cancellation, storage failure and the transfer layout at 320/360/412/684/1280 px. These are desktop Chromium checks; device-specific capacity and Android performance still need physical-phone testing.
+
+## FootPrints field guide and startup location (0.8.4)
+
+A themed field guide opens immediately on first launch after this update, for new and existing installations that have not completed it. Thirteen chapters explain the real controls: journal browsing/filtering; new footprints and media; original photo dates/GPS; batch grouping, progress and atomic save; return visits and galleries; pins, directions and offline maps; Places discovery centers, category/radius and sorting; journeys and PDF books; journal tools; streamed backups; appearance/widgets; and location setup. Warm paper/Evening ink use existing theme tokens, borderless controls and italic feature hints. Chapters have exact navigation paths, local examples and Back/Next plus a chapter menu.
+
+Unfinished guides resume their last chapter. Skip goes to the location chapter; Continue without location completes setup. Finish & allow location opens the native permission request if needed. An existing precise/approximate grant is reused; denial and disabled system services offer retry/manual setup/continue choices. A successful grant finishes the guide. Android requests permission without obtaining or storing a startup position; the browser fallback may obtain one fix to trigger its own permission prompt, but does not apply it to journal data. Nearby memories remains a separate opt-in. Replays and Location access are available in Preferences, with correct Android Back and history-forward behavior. Device-local progress/completion is outside journal backups, so a new device gets its own introduction. No app-wide location tracking or background permission was added.
+
+Photo GPS remains independent of current device permission: Android requests photo-location metadata access from the existing original-photo chooser. Batch import proposes supported embedded GPS/dates; the single-photo editor offers Use photo location for explicit application. Missing GPS, provider-redacted copies and separate gallery estimates still require an original with embedded GPS or a manually chosen location.
+
+Validation: 373 automated checks; browser layout checks cover all 13 chapters at 320/360/412/684/1280 px in both themes, including a 320 × 568 screen. First-launch order, no early prompt, denial, disabled services, approximate access, replay, startup completion, native Back and history-forward replay pass with a mocked native boundary. The existing 96 MiB import/save/cancel/quota/retry browser regression also passes. Actual Android permission dialogs, provider behavior and device rendering still need phone testing.

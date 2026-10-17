@@ -1,3 +1,4 @@
+import {createTutorialUI} from './tutorial.js';
 import {joinBackupParts} from './backup-parts.js';
 import {prepareJournalArchive,inspectJournalArchive,restoreJournalArchive} from './journal-archive.js';
 import {openJournalDatabase,createJournalStorage} from './journal-storage.js';
@@ -219,6 +220,7 @@ const navigation=createNavigation({history:window.history,location:window.locati
  apply:applyNavigation,canLeave:canLeaveNavigation,onError:toast,onSettled:()=>widgetLaunch.flush(),
  onRoot:()=>{if(device.native)window.NthNative?.App?.minimizeApp().catch(()=>toast('Could not return to the home screen.'));}
 });
+const tutorialUI=createTutorialUI({document,storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},requestLocation:()=>device.requestLocationPermission(),show,close,icon,onStatus:toast});
 function editorSnapshot(){return {fields:JSON.stringify([...new FormData($('place-form')).entries()]),favorite:$('favorite').checked,photo:draftPhoto,photos:draftPhotos.slice(),cover:draftCover,audio:draftAudio,art:draftArt};}
 function editorDirty(){
  if(!$('editor').open||!draftBaseline)return false;
@@ -226,6 +228,7 @@ function editorDirty(){
  const next=editorSnapshot();return ['fields','favorite','photo','cover','audio','art'].some(key=>next[key]!==draftBaseline[key])||next.photos.length!==draftBaseline.photos.length||next.photos.some((photo,i)=>photo!==draftBaseline.photos[i]);
 }
 function canLeaveNavigation(previous,next){
+ if(previous.dialogs.some(item=>item.id==='tutorial')&&!next.dialogs.some(item=>item.id==='tutorial')&&!tutorialUI.canClose())return false;
  const removed=previous.dialogs.filter(item=>!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId&&target.visitId===item.visitId));
  for(const [id,ui]of [['journal-tools',toolsUI],['batch-import',batchUI],['memory-export',exportsUI]])if(removed.some(item=>item.id===id)&&!ui.canClose())return false;
  if(removed.some(item=>item.id==='journeys')&&!journeyUI.canClose())return false;
@@ -252,6 +255,7 @@ function setView(next){return navigation.view(next);}
 function syncMapVisibility(){const clear=!mapsPaused&&!document.hidden&&!document.querySelector('dialog[open]');atlas?.setVisible(view==='map'&&clear);placesUI.syncVisibility(clear,mapsPaused);detailMap?.setVisible(!mapsPaused&&!document.hidden&&$('details').open&&![...document.querySelectorAll('dialog[open]')].some(d=>d.id!=='details'));}
 function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});syncMapVisibility();}
 function cleanupDialog(id){
+ if(id==='tutorial')tutorialUI.reset();
  if(id==='photo-lightbox')photoLightbox.reset();
  if(id==='place-preview')placesUI.closePreview();if(id==='journal-tools')toolsUI.reset();if(id==='batch-import')batchUI.reset();if(id==='memory-export')exportsUI.reset();
  if(id==='journeys')journeyUI.reset();
@@ -300,6 +304,7 @@ async function applyNavigation(route,previous){
   else if(item.id==='journal-tools'){if(!$('journal-tools').open)openJournalTools();}
   else if(item.id==='batch-import'){if(!$('batch-import').open)openBatchImport();}
   else if(item.id==='memory-export'){if(!$('memory-export').open)openMemoryExport();}
+  else if(item.id==='tutorial'){if(!$('tutorial').open)tutorialUI.start({replay:true});}
   else if(item.id==='journeys'){if(!$('journeys').open)openJourneys();}
   else if(item.id==='offline-maps'){if(!$('offline-maps').open)openOfflineMaps();}
   else if(!$(item.id).open)show(item.id);
@@ -815,6 +820,7 @@ function wire(){
  if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
  icons();renderReleases();$('enlarge-draft').onclick=openEnlargedPhoto;$('place-search-form').onsubmit=searchPlaces;$('place-query').oninput=()=>placeSearch.cancel();$('place-search-cancel').onclick=()=>placeSearch.cancel();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  window.addEventListener('pagehide',()=>{mapsPaused=true;syncMapVisibility();});window.addEventListener('pageshow',()=>{mapsPaused=false;syncMapVisibility();});
+ tutorialUI.wire();$('settings-tutorial').onclick=()=>tutorialUI.start({replay:true});$('settings-location').onclick=()=>tutorialUI.start({replay:true,chapter:'location'});
  placesUI.wire();$('tools-favorites').onclick=()=>void browseFavorites();toolsUI.wire();batchUI.wire();exportsUI.wire();$('tools-open').onclick=()=>openJournalTools();$('settings-tools').onclick=()=>openJournalTools();$('memory-banner-open').onclick=()=>openJournalTools('memories');$('nearby-memory-open').onclick=()=>{if(nearbyMatch)openDetail(nearbyMatch.recordId,nearbyMatch.visitId);};$('nearby-memory-dismiss').onclick=()=>{nearbyMatch=null;renderNearbyBanner();};
  $('tag-filter').onchange=e=>{tagFilter=e.target.value;deckIndex=0;render();};$('clear-exploration').onclick=()=>{explorationCountry='';explorationRegion='';render();};
  document.addEventListener('visibilitychange',()=>{syncMapVisibility();if(document.hidden)void nearbyMemories.pause();else if(storageReady){void nearbyMemories.resume();renderToolFilters();}});if(device.native)void window.NthNative?.App?.addListener('resume',()=>{mapsPaused=false;syncMapVisibility();if(storageReady){void nearbyMemories.resume();renderToolFilters();}}).catch(()=>{});
@@ -833,7 +839,7 @@ function wire(){
 
 }
 // Retired preferences are already ignored in memory; optional cleanup can wait for the next save if storage is full.
-async function init(){const initial=location.hash.slice(1);if(['journal','map','places','favorites'].includes(initial))view=initial;navigation.start(view);wire();
+async function init(){const initial=location.hash.slice(1);if(['journal','map','places','favorites'].includes(initial))view=initial;navigation.start(view);wire();tutorialUI.start();
  try{db=await dbOpen();const state=await dbGet();if(state){if(state.storageWarning)toast(state.storageWarning);const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);journeys=validateJourneys(state.journeys??[]);const linked=reconcileJourneys(records,journeys);records=linked.records;journeys=linked.journeys;if(records.length!==loaded.length)await dbPut(records,settings);else if(Object.hasOwn(state.settings??{},'collections'))await dbPut(records,settings).catch(()=>{});}else{records=seeds;await dbPut(records,settings);}storageReady=true;await journalStorage.collect().catch(()=>{});}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
  applyTheme();render();if(view==='places')placesUI.setActive(true);if(storageReady){await initialiseDraftRecovery();if(!document.hidden)void nearbyMemories.resume();}void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }

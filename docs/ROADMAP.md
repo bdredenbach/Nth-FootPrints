@@ -229,3 +229,9 @@ Responsive browser checks at 360/393/1280 px cover migration, original photo vie
 ## Photo import progress (0.8.3)
 
 Backup-style transfer panel for photo preparation and final save, with photo/byte progress, filename, cancellation and review handoff. The previous 80 MB aggregate limit is removed; 60 files × 20 MiB remain, subject to device storage/quota. Independent media staging scopes keep memory tied to one original at a time and preserve concurrent review/restore media. Cancelling or discarding removes unused staging; failed final saves retain the review and prior journal. Content-key duplicate checks survive refreshed Blob URLs. 362 automated checks and a real 96 MiB browser import/save pass, with cancellation, storage failure and 320–1280 px layout checks. Physical-phone capacity remains device-specific.
+
+## First-launch field guide (0.8.4)
+
+Thirteen themed chapters explain FootPrints controls and workflows with paths, chapter selection, Back/Next, skip and Preferences replay. First launch opens the guide immediately; interrupted progress resumes. The final location chapter requests native permission only when Finish & allow location is chosen. Existing precise/approximate permission is reused without a fresh fix. Denial, system-services-off and unavailable access have retry/continue choices; continuing without access completes onboarding. Device-local completion is outside backups. Nearby memories stays independently opt-in. Photo-location metadata access still occurs in the original-photo chooser; imported GPS is never replaced by startup coordinates.
+
+373 automated checks pass. All chapters fit five tested widths in both themes; browser flows verify permission order, denial, disabled services, approximate access, completion/relaunch, replay and Android Back/history navigation. Native permission/provider behavior needs a physical phone check.
