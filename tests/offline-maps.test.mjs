@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {planOfflineArea,tileURL,readMapTile,createOfflineMaps,MAP_LIMITS,OFFLINE_SOURCE} from '../dist/offline-maps.js';
+import {planOfflineArea,tileURL,readMapTile,createOfflineMaps,MAP_LIMITS,OFFLINE_SOURCE,pointInOfflineArea} from '../dist/offline-maps.js';
 import {createMapBackground,createLocalTileLayer} from '../dist/map-background.js';
 import {navigationRoute} from '../dist/navigation.js';
 const center={lat:43.04,lng:-74.85};
@@ -11,12 +11,12 @@ const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {
 const tick=()=>new Promise(r=>setImmediate(r));
 function memoryStore(){const areas=new Map(),tiles=new Map();return {areas,tiles,ready:async()=>{},list:async()=>[...areas.values()],put:async(id,key,blob)=>tiles.set(id+'|'+key,blob),commit:async area=>areas.set(area.id,area),remove:async id=>{areas.delete(id);for(const key of tiles.keys())if(key.startsWith(id+'|'))tiles.delete(key);},tile:async key=>{for(const [id,value]of tiles)if(id.endsWith('|'+key)&&areas.has(id.split('|')[0]))return value;return null;}};}
 function fixture(options={}){const store=memoryStore(),calls=[],states=[];let count=0;const maps=createOfflineMaps({store,fetcher:async(url,opts)=>{calls.push({url,opts});return image();},wait:async()=>{},uuid:()=>String(++count),network:{onLine:true},storage:null,...options});maps.subscribe(s=>states.push(s));return {store,calls,states,maps};}
-test('offline area planning covers the requested square at every zoom and respects its cap',()=>{
+test('offline area planning covers the requested square at every zoom without a fixed package tile cap',()=>{
  const plan=planOfflineArea(center,5,15);assert.ok(plan.tiles.length>50&&plan.tiles.length<600);assert.equal(new Set(plan.tiles.map(t=>t.key)).size,plan.tiles.length);
  assert.equal(plan.tiles[0].key,'0/0/0');assert.equal(plan.tiles.at(-1).z,15);assert.ok(plan.bounds.west<center.lng&&plan.bounds.east>center.lng);
  assert.ok(planOfflineArea(center,2,13).tiles.length<plan.tiles.length);
  for(const input of [{lat:81,lng:0},{lat:NaN,lng:1},{lat:1,lng:181}])assert.throws(()=>planOfflineArea(input),/valid location/);
- assert.throws(()=>planOfflineArea(center,100,19),/valid location/);assert.throws(()=>planOfflineArea({lat:75,lng:0},10,15),/too many tiles/);
+ assert.throws(()=>planOfflineArea(center,100,19),/valid location/);assert.ok(planOfflineArea({lat:75,lng:0},10,15).tiles.length>600);
 });
 test('date-line packages wrap tile x coordinates and never duplicate a tile',()=>{
  const plan=planOfflineArea({lat:0,lng:179.999},5,15);for(const t of plan.tiles){assert.ok(t.x>=0&&t.x<2**t.z);assert.ok(t.y>=0&&t.y<2**t.z);}
@@ -55,10 +55,11 @@ test('HTTP, non-image, and quota failures remove staged packages without affecti
   assert.equal(f.maps.areas.length,1);assert.equal(f.maps.areas[0].id,saved.id);assert.equal(f.store.tiles.size,before);
  }
 });
-test('area and capacity limits fail before requesting another tile',async()=>{
- const f=fixture();for(let i=0;i<MAP_LIMITS.areas;i++)f.store.areas.set(String(i),{id:String(i),bytes:1});
- await assert.rejects(f.maps.download(planOfflineArea(center,2,13),'extra'),/Remove a saved area/);assert.equal(f.calls.length,0);
- const noSpace=fixture({storage:{estimate:async()=>({usage:990,quota:1000})}});await assert.rejects(noSpace.maps.download(planOfflineArea(center,2,13),'extra'),/enough device storage/);assert.equal(noSpace.calls.length,0);
+test('saved area count and bytes have no app cap; actual capacity and connectivity still stop downloads',async()=>{
+ const f=fixture();for(let i=0;i<12;i++)f.store.areas.set('old'+i,{id:'old'+i,bytes:25*1024*1024});
+ const area=await f.maps.download(planOfflineArea(center,2,13),'extra');assert.equal(f.maps.areas.length,13);assert.ok(area.bytes>0);assert.ok(f.calls.length>0);
+ const noSpace=fixture({storage:{estimate:async()=>({usage:1000,quota:1000})}});await assert.rejects(noSpace.maps.download(planOfflineArea(center,2,13),'extra'),/storage is full/);assert.equal(noSpace.calls.length,0);
+ const small=fixture({storage:{estimate:async()=>({usage:990,quota:1000})}});assert.ok(await small.maps.download(planOfflineArea(center,2,13),'fits actual DB')); // Estimates cannot predict compressed tile sizes; writes determine capacity.
  const offline=fixture({network:{onLine:false}});await assert.rejects(offline.maps.download(planOfflineArea(center,2,13),'extra'),/Connect to the internet/);
 });
 test('untrusted caller tiles are replaced by the bounded plan; area names are bounded',async()=>{
@@ -123,4 +124,22 @@ test('IndexedDB commit rejects an incomplete area, and overlapping areas delete 
 });
 test('storage errors and interrupted commit leave no ready package',async()=>{
  for(const method of ['put','commit']){const f=fixture();f.store[method]=async()=>{throw Error('Disk failure');};await assert.rejects(f.maps.download(planOfflineArea(center,2,13),'Fail'),/Disk failure/);assert.equal(f.store.areas.size,0);assert.equal(f.store.tiles.size,0);}
+});
+
+test('missing detailed tiles save usable overviews with explicit partial-coverage metadata',async()=>{
+ const f=fixture({fetcher:async url=>Number(url.slice(OFFLINE_SOURCE.length+1).split('/')[0])>8?new Response('',{status:404}):image()});
+ const plan=planOfflineArea({lat:51.32,lng:-116.18},5,15),area=await f.maps.download(plan,'Moraine Lake');assert.equal(area.availableMaxZoom,8);assert.equal(area.requestedCount,plan.tiles.length);assert.equal(area.count+area.missingCount,area.requestedCount);assert.ok(area.missingCount>0);assert.equal(f.store.tiles.size,area.count);assert.ok(await f.maps.tile('0/0/0'));assert.equal(f.states.at(-1).phase,'idle');
+ const unavailable=fixture({fetcher:async()=>new Response('',{status:404})});await assert.rejects(unavailable.maps.download(plan,'No coverage'),/No offline map coverage/);assert.equal(unavailable.store.tiles.size,0);assert.equal(unavailable.store.areas.size,0);
+});
+test('overview bounds support the date line and prevent borrowing another saved area',()=>{
+ const area={bounds:{south:-1,north:1,west:179,east:181}};assert.equal(pointInOfflineArea(area,{lat:0,lng:-179.5}),true);assert.equal(pointInOfflineArea(area,{lat:0,lng:179.5}),true);assert.equal(pointInOfflineArea(area,{lat:0,lng:0}),false);assert.equal(pointInOfflineArea(area,{lat:2,lng:180}),false);
+});
+test('real store restricts overview fallback to saved bounds and keeps earlier packages after missing-only attempts',async()=>{
+ const {IDBFactory}=await import('fake-indexeddb');const {createOfflineStore}=await import('../dist/offline-maps.js');const store=createOfflineStore({indexedDB:new IDBFactory()});await store.ready();const blob=new Blob([png]);await store.put('lake','0/0/0',blob);await store.commit({id:'lake',count:1,bounds:{south:51.3,north:51.4,west:-116.2,east:-116.1}});
+ assert.ok(await store.tile('0/0/0',{point:{lat:51.32,lng:-116.18}}));assert.equal(await store.tile('0/0/0',{point:{lat:42.5,lng:-70.9}}),null);assert.ok(await store.tile('0/0/0'));
+});
+test('lower-level overview loads offline within saved bounds when street coverage is missing',async()=>{
+ let definition;const calls=[],point={lat:51.32,lng:-116.18};const n=2**15,x=Math.floor((point.lng+180)/360*n),y=Math.floor((1-Math.asinh(Math.tan(point.lat*Math.PI/180))/Math.PI)/2*n);
+ const layer=createLocalTileLayer({L:{GridLayer:{extend:d=>{definition=d;return class{on(){}};}}},document:{createElement:()=>({style:{},children:[],append(c){this.children.push(c);},classList:{add(){}}})},offlineMaps:{tile:async(key,options)=>{calls.push({key,options});return key.startsWith('8/')?new Blob([png]):null;}},urls:{createObjectURL:()=> 'blob:overview'}});
+ const tile=definition.createTile({z:15,x,y},()=>{});await tick();assert.equal(tile.children.length,1);assert.match(tile.children[0].style.cssText,/width:32768px/);assert.ok(calls.at(-1).options.point.lat>51.3);assert.ok(calls.at(-1).options.point.lng< -116.1);assert.ok(layer);
 });

@@ -1,8 +1,9 @@
-// Explicit, bounded downloads from the public-domain USGS Topo service.
+// Explicit, cancellable downloads from the public-domain USGS Topo service.
 // The interactive OSM tile service is never used for package downloads.
 export const OFFLINE_SOURCE='https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile';
 export const OFFLINE_CREDIT='Map services and data available from U.S. Geological Survey, National Geospatial Program.';
-export const MAP_LIMITS=Object.freeze({tiles:600,areaBytes:50*1024*1024,totalBytes:200*1024*1024,tileBytes:512*1024,areas:8});
+// Bound each decoded network image; saved area count and total size follow device capacity.
+export const MAP_LIMITS=Object.freeze({tileBytes:512*1024});
 const LAT_LIMIT=85.05112878;
 const check=signal=>{if(signal?.aborted)throw Error('CANCELLED');};
 export function planOfflineArea(center,radiusKm=5,maxZoom=15){
@@ -15,13 +16,13 @@ export function planOfflineArea(center,radiusKm=5,maxZoom=15){
   for(let tx=x(bounds.west);tx<=x(bounds.east);tx++)for(let ty=y(bounds.north);ty<=y(bounds.south);ty++){
    const wrapped=((tx%n)+n)%n,key=`${z}/${wrapped}/${ty}`;
    if(!keys.has(key)){keys.add(key);tiles.push({z,x:wrapped,y:ty,key});}
-   if(tiles.length>MAP_LIMITS.tiles)throw Error('This area needs too many tiles. Choose a smaller area or Town detail.');
   }
  }
  return {center:{lat:center.lat,lng:center.lng},bounds,radiusKm,maxZoom,tiles};
 }
 export function tileURL({z,x,y}){return `${OFFLINE_SOURCE}/${z}/${y}/${x}`;}
 export async function readMapTile(response,signal){
+ check(signal);if(response.status===404||response.status===204){await response.body?.cancel?.().catch(()=>{});return null;}
  if(!response.ok)throw Error(`Map service returned ${response.status}. Try again later.`);
  if(Number(response.headers.get('content-length'))>MAP_LIMITS.tileBytes)throw Error('Map tile is too large.');
  let bytes;
@@ -39,8 +40,13 @@ export async function readMapTile(response,signal){
  if(globalThis.createImageBitmap){const image=await createImageBitmap(blob);const valid=image.width===256&&image.height===256;image.close();if(!valid)throw Error('Map service returned an invalid tile size.');}
  check(signal);return blob;
 }
+export function pointInOfflineArea(area,point){
+ const b=area?.bounds;if(!b||![b.south,b.north,b.west,b.east,point?.lat,point?.lng].every(Number.isFinite))return false;
+ const middle=(b.west+b.east)/2,lng=point.lng+360*Math.round((middle-point.lng)/360);
+ return point.lat>=b.south&&point.lat<=b.north&&lng>=b.west&&lng<=b.east;
+}
 export function createOfflineStore({indexedDB=globalThis.indexedDB}={}){
- let database=null,opening=null;const complete=new Set();
+ let database=null,opening=null;const complete=new Map();
  function open(){
   if(opening)return opening;
   opening=new Promise((resolve,reject)=>{
@@ -51,7 +57,7 @@ export function createOfflineStore({indexedDB=globalThis.indexedDB}={}){
    request.onsuccess=()=>{database=request.result;database.onversionchange=()=>database.close();
     // A process kill can leave staged tiles. Never expose them as a ready area.
     const tx=database.transaction(['areas','tiles'],'readwrite');
-    tx.objectStore('areas').getAll().onsuccess=e=>{for(const area of e.target.result)complete.add(area.id);const cursor=tx.objectStore('tiles').openCursor();cursor.onsuccess=e=>{const c=e.target.result;if(c){if(!complete.has(c.value.areaId))c.delete();c.continue();}};};
+    tx.objectStore('areas').getAll().onsuccess=e=>{for(const area of e.target.result)complete.set(area.id,area);const cursor=tx.objectStore('tiles').openKeyCursor();cursor.onsuccess=e=>{const c=e.target.result;if(c){if(!complete.has(c.primaryKey[0]))tx.objectStore('tiles').delete(c.primaryKey);c.continue();}};};
     tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);
    };
   });return opening;
@@ -61,9 +67,9 @@ export function createOfflineStore({indexedDB=globalThis.indexedDB}={}){
   ready:open,
   list:()=>run(['areas'],'readonly',(tx,set)=>{tx.objectStore('areas').getAll().onsuccess=e=>set(e.target.result);}),
   put:(id,key,blob)=>run(['tiles'],'readwrite',tx=>tx.objectStore('tiles').put({areaId:id,key,blob})),
-  async commit(area){await run(['areas','tiles'],'readwrite',tx=>{const count=tx.objectStore('tiles').index('area').count(area.id);count.onsuccess=()=>{if(count.result!==area.count){tx.abort();return;}tx.objectStore('areas').put(area);};});complete.add(area.id);},
+  async commit(area){await run(['areas','tiles'],'readwrite',tx=>{const count=tx.objectStore('tiles').index('area').count(area.id);count.onsuccess=()=>{if(count.result!==area.count){tx.abort();return;}tx.objectStore('areas').put(area);};});complete.set(area.id,area);},
   async remove(id){await run(['areas','tiles'],'readwrite',tx=>{tx.objectStore('areas').delete(id);const cursor=tx.objectStore('tiles').index('area').openCursor(id);cursor.onsuccess=e=>{const c=e.target.result;if(c){c.delete();c.continue();}};});complete.delete(id);},
-  tile:key=>run(['tiles'],'readonly',(tx,set)=>{const request=tx.objectStore('tiles').index('key').getAll(key);request.onsuccess=()=>set(request.result.find(r=>complete.has(r.areaId))?.blob??null);})
+  tile:(key,{point}={})=>run(['tiles'],'readonly',(tx,set)=>{const request=tx.objectStore('tiles').index('key').openCursor(key);request.onsuccess=()=>{const c=request.result;if(!c){set(null);return;}if(complete.has(c.value.areaId)&&(!point||pointInOfflineArea(complete.get(c.value.areaId),point)))set(c.value.blob);else c.continue();};})
  };
 }
 const delay=(ms,signal)=>new Promise((resolve,reject)=>{check(signal);const cancel=()=>{clearTimeout(timer);reject(Error('CANCELLED'));};const timer=setTimeout(()=>{signal?.removeEventListener('abort',cancel);resolve();},ms);signal?.addEventListener('abort',cancel,{once:true});});
@@ -76,34 +82,32 @@ export function createOfflineMaps({store=createOfflineStore(),fetcher=globalThis
   subscribe(fn){listeners.add(fn);return ()=>listeners.delete(fn);},
   setPreferred(value){preferred=!!value;notify();},
   async ready(){await store.ready();areas=await store.list();notify();},
-  tile:key=>store.tile(key),
+  tile:(key,options)=>store.tile(key,options),
   cancel(){if(phase==='downloading'){controller.abort();return true;}return false;},
   async download(plan,name){
    idle();if(network?.onLine===false)throw Error('Connect to the internet to download a map.');
    // Recompute rather than trusting a caller-supplied tile list or URL.
    plan=planOfflineArea(plan.center,plan.radiusKm,plan.maxZoom);
    controller=new AbortController();const signal=controller.signal;phase='downloading';notify({done:0,total:plan.tiles.length,bytes:0});
-   const id=uuid();let bytes=0,done=0;
+   const id=uuid();let bytes=0,done=0,saved=0,missing=0,availableMaxZoom=0;
    try{
     areas=await store.list();check(signal);
-    if(areas.length>=MAP_LIMITS.areas)throw Error('Remove a saved area before downloading another.');
-    const used=areas.reduce((n,a)=>n+a.bytes,0);
-    if(used>=MAP_LIMITS.totalBytes)throw Error('Offline maps have reached the 200 MB limit. Remove an area.');
-    const estimate=await storage?.estimate?.();check(signal);
-    if(estimate&&estimate.quota-estimate.usage<Math.min(MAP_LIMITS.areaBytes,plan.tiles.length*64000))throw Error('There may not be enough device storage. Free space and try again.');
+    await storage?.persist?.().catch(()=>false);check(signal);
+    const estimate=await storage?.estimate?.().catch(()=>null);check(signal);
+    if(Number.isFinite(estimate?.quota)&&Number.isFinite(estimate?.usage)&&estimate.quota<=estimate.usage)throw Error('Device storage is full. Free space or remove a saved map.');
     for(const tile of plan.tiles){
      check(signal);const request=new AbortController(),abort=()=>request.abort();signal.addEventListener('abort',abort,{once:true});
      const timer=setTimeout(()=>request.abort(),20000);let blob;
      try{blob=await readMapTile(await fetcher(tileURL(tile),{signal:request.signal,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'}),request.signal);}
      catch(error){check(signal);if(request.signal.aborted)throw Error('Map download timed out. Try again when your connection improves.');throw error;}
      finally{clearTimeout(timer);signal.removeEventListener('abort',abort);}
-     check(signal);bytes+=blob.size;
-     if(bytes>MAP_LIMITS.areaBytes||used+bytes>MAP_LIMITS.totalBytes)throw Error('Map storage limit reached. Choose a smaller area or remove an old download.');
-     await store.put(id,tile.key,blob);check(signal);done++;notify({done,total:plan.tiles.length,bytes});
+     check(signal);
+     if(blob){await store.put(id,tile.key,blob);check(signal);bytes+=blob.size;saved++;availableMaxZoom=Math.max(availableMaxZoom,tile.z);}else missing++;
+     done++;notify({done,total:plan.tiles.length,bytes,saved,missing});
      if(done<plan.tiles.length)await wait(120,signal);
     }
-    check(signal);phase='committing';notify({done,total:done,bytes});
-    const area={id,name:String(name||'Saved area').trim().slice(0,100)||'Saved area',center:plan.center,bounds:plan.bounds,radiusKm:plan.radiusKm,maxZoom:plan.maxZoom,count:done,bytes,createdAt:new Date().toISOString(),source:'USGSTopo'};
+    check(signal);if(!saved)throw Error('No offline map coverage is available for this area. Your earlier downloads are unchanged.');phase='committing';notify({done,total:done,bytes,saved,missing});
+    const area={id,name:String(name||'Saved area').trim().slice(0,100)||'Saved area',center:plan.center,bounds:plan.bounds,radiusKm:plan.radiusKm,maxZoom:plan.maxZoom,availableMaxZoom,count:saved,requestedCount:done,missingCount:missing,bytes,createdAt:new Date().toISOString(),source:'USGSTopo'};
     await store.commit(area);areas.push(area);preferred=true;notify();return area;
    }catch(error){try{await store.remove(id);}catch{throw Error('Download could not finish. Reopen the app to clear its incomplete map files.');}if(signal.aborted)throw Error('CANCELLED');if(error?.name==='QuotaExceededError')throw Error('Device storage is full. Free space or remove a saved map.');throw error;}
    finally{controller=null;phase='idle';notify();}

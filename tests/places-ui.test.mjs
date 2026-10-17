@@ -7,18 +7,18 @@ import {createPlaceSearch} from '../dist/place-search.js';
 const turn=()=>new Promise(r=>setImmediate(r));
 const point={lat:42.52,lng:-70.9};
 const place={id:'poi',title:'Courtyard Cafe',address:'10 Main Street, Salem, Massachusetts, United States',lat:42.525,lng:-70.9,km:.56,category:'Food & Drink',kind:'Cafe',description:'A quiet courtyard.',placeSource:{provider:'openstreetmap',type:'node',id:'123'}};
-function fixture({saved=false,trips=true,description=async()=>place.description}={}){
- const nodes=new Map(),calls=[],drafts=[],statuses=[];let results=[],cancelled=0,explored=0;
+function fixture({saved=false,trips=true,description=async()=>place.description,locate=async()=>{throw Error('Location unavailable');},listings=[place]}={}){
+ const nodes=new Map(),calls=[],drafts=[],statuses=[],queries=[];let results=[],cancelled=0,explored=0;
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,value:id==='places-radius'?'2000':'',hidden:false,open:false,isConnected:true,textContent:'',innerHTML:'',setAttribute(){},replaceChildren(){},focus(){},scrollIntoView(){}});return nodes.get(id);};
  const document={hidden:false,getElementById:node,querySelector:s=>s==='.places-type-picker'?node('types'):null,querySelectorAll:()=>[],createElement:()=>node('created')};
  const journeys=trips?[{id:'trip',title:'Weekend <away>',updatedAt:'2026-10-17T12:00:00Z'},{id:'deleted',title:'Old trip',updatedAt:'2026-10-17T12:00:00Z',deleted:true}]:[];
- const client={ready:Promise.resolve(),cancel(){cancelled++;},recent:()=>[],last:()=>null,search:async(params,options)=>{calls.push(structuredClone({params,options}));return {items:[{...place}],limited:false,loadedAt:1,retained:true,area:params,areaLabel:'Salem'};}};
+ const client={ready:Promise.resolve(),cancel(){cancelled++;},recent:()=>[],last:()=>null,search:async(params,options)=>{calls.push(structuredClone({params,options}));return {items:listings.map(p=>({...p})),limited:false,loadedAt:1,retained:true,area:params,areaLabel:'Salem'};}};
  let emit;
- const ui=createPlacesUI({document,events:{},network:{onLine:true},Observer:null,getRecords:()=>saved?[{...place,id:'saved'}]:[],getJourneys:()=>journeys,icon:()=>'',client,details:{description},onPreview:()=>{node('place-preview').open=true;},onSave:(p,id)=>drafts.push({prefill:p,id}),onSaved:()=>{},onStatus:s=>statuses.push(s),onExplore:async()=>{explored++;ui.closePreview();node('place-preview').open=false;},searchFactory:({onState})=>{emit=onState;return {cancel:()=>{results=[];emit({busy:false,results:[],status:''});},search:async()=>{results=[{name:'Salem',address:'Massachusetts, United States',position:point}];emit({busy:false,results,status:'Choose an area'});},result:i=>results[i]};}});
+ const ui=createPlacesUI({document,events:{},network:{onLine:true},Observer:null,locate,getRecords:()=>saved?[{...place,id:'saved'}]:[],getJourneys:()=>journeys,icon:()=>'',client,details:{description},onPreview:()=>{node('place-preview').open=true;},onSave:(p,id)=>drafts.push({prefill:p,id}),onSaved:()=>{},onStatus:s=>statuses.push(s),onExplore:async()=>{explored++;ui.closePreview();node('place-preview').open=false;},searchFactory:({onState})=>{emit=onState;return {cancel:()=>{results=[];emit({busy:false,results:[],status:''});},search:async(text,options)=>{queries.push({text,options});results=[{name:'Salem',address:'Massachusetts, United States',position:point}];emit({busy:false,results,status:'Choose an area'});},result:i=>results[i]};}});
  ui.wire();ui.setActive(true);
  const click=(id,data)=>node(id).onclick({target:{closest:()=>({dataset:data})}});
  async function choose(){node('places-query').value='Salem';await node('places-query-form').onsubmit({preventDefault(){}});click('places-query-results',{areaResult:'0'});await turn();}
- return {ui,node,calls,drafts,statuses,journeys,choose,click,get explored(){return explored;},get cancelled(){return cancelled;}};
+ return {ui,node,calls,drafts,statuses,journeys,choose,click,queries,get explored(){return explored;},get cancelled(){return cancelled;}};
 }
 test('choosing an area uses selected type and radius, clears text filter and requests discovery only after selection',async()=>{
  const f=fixture();await turn();f.node('places-radius').value='5000';f.click('places-types',{discoveryFilter:'coffee'});f.node('places-filter').oninput({target:{value:'old filter'}});assert.equal(f.calls.length,0);await f.choose();assert.equal(f.calls.length,1);assert.deepEqual(f.calls[0].params,{center:point,groupId:'food',filterId:'coffee',radius:5000});assert.equal(f.node('places-filter').value,'');assert.match(f.node('places-area').textContent,/Salem.*Massachusetts.*5 km/);assert.match(f.node('places-results').innerHTML,/Courtyard Cafe/);
@@ -42,4 +42,23 @@ test('editor receives trip membership for both new places and return visits befo
 });
 test('Places search has area-specific feedback while existing editor search defaults remain unchanged',async()=>{
  let state;const search=createPlaceSearch({network:{onLine:false},messages:{offline:'Area search needs internet.'},onState:s=>state=s});await search.search('Salem');assert.equal(state.status,'Area search needs internet.');const old=createPlaceSearch({network:{onLine:false},onState:s=>state=s});await old.search('Salem');assert.match(state.status,/enter coordinates in the editor/);
+});
+
+test('Search requests device location before sending a query and uses it without moving the chosen discovery area',async()=>{
+ let resolve;const f=fixture({locate:()=>new Promise(r=>resolve=r)});await turn();f.node('places-query').value='Dunkin';const pending=f.node('places-query-form').onsubmit({preventDefault(){}});assert.equal(f.queries.length,0);assert.match(f.node('places-query-status').textContent,/Finding your location/);resolve({coords:{latitude:point.lat,longitude:point.lng}});await pending;assert.deepEqual(f.queries[0].options.near,point);assert.equal(f.queries[0].options.sort,'closest');assert.equal(f.calls.length,0);
+});
+test('native permission pause preserves search intent and waits for foreground before requesting results',async()=>{
+ let resolve;const f=fixture({locate:()=>new Promise(r=>resolve=r)});await turn();f.node('places-query').value='Dunkin';const pending=f.node('places-query-form').onsubmit({preventDefault(){}});f.ui.syncVisibility(false,true);resolve({coords:{latitude:point.lat,longitude:point.lng}});await pending;assert.equal(f.queries.length,0);f.ui.syncVisibility(true,false);await turn();assert.equal(f.queries.length,1);assert.deepEqual(f.queries[0].options.near,point);
+});
+test('editing, cancelling and leaving Places discard pending location results',async()=>{
+ for(const cancel of [f=>f.node('places-query').oninput(),f=>f.node('places-query-cancel').onclick(),f=>f.ui.setActive(false)]){
+  let resolve;const f=fixture({locate:()=>new Promise(r=>resolve=r)});await turn();f.node('places-query').value='Dunkin';const pending=f.node('places-query-form').onsubmit({preventDefault(){}});cancel(f);resolve({coords:{latitude:point.lat,longitude:point.lng}});await pending;assert.equal(f.queries.length,0);
+ }
+});
+test('denied location uses the current area if available and otherwise leaves suggestions usable',async()=>{
+ const f=fixture();await turn();f.node('places-query').value='Dunkin';await f.node('places-query-form').onsubmit({preventDefault(){}});assert.equal(f.queries[0].options.near,null);assert.match(f.node('places-query-status').textContent,/Location unavailable/);assert.match(f.node('places-query-results').innerHTML,/Salem/);
+ const saved=fixture({saved:true});await turn();saved.node('places-query').value='Dunkin';await saved.node('places-query-form').onsubmit({preventDefault(){}});assert.deepEqual(saved.queries[0].options.near,{lat:place.lat,lng:place.lng});
+});
+test('closest and name sort reorder nearby listings locally using device distance',async()=>{
+ const f=fixture({locate:async()=>({coords:{latitude:point.lat,longitude:point.lng}}),listings:[{...place,id:'far',title:'A far cafe',lat:42.529,km:.1},{...place,id:'near',title:'Z near cafe',lat:42.521,km:9}]});await f.choose();let html=f.node('places-results').innerHTML;assert.ok(html.indexOf('Z near')<html.indexOf('A far'));assert.match(html,/from you/);const calls=f.calls.length;f.node('places-sort').value='name';f.node('places-sort').onchange();html=f.node('places-results').innerHTML;assert.ok(html.indexOf('A far')<html.indexOf('Z near'));assert.equal(f.calls.length,calls);
 });

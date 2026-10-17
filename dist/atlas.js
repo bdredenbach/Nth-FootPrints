@@ -86,6 +86,6 @@ export function createAtlas({container,L,onPick=()=>{},onStatus=()=>{},pinHTML='
  }
  function setVisible(value){visible=value;if(!value){background?.setVisible(false);previews.pause();}else if(map){map.invalidateSize({pan:false});connect();syncPreviews();}}
  function retry(){background?.retry();}
- function showArea(area){if(!init())return;viewportRequest++;visible=true;map.setView([area.center.lat,area.center.lng],Math.min(13,area.maxZoom),{animate:false});map.invalidateSize({pan:false});connect();syncPreviews();}
+ function showArea(area){if(!init())return;viewportRequest++;visible=true;map.setView([area.center.lat,area.center.lng],Math.min(13,area.availableMaxZoom??area.maxZoom),{animate:false});map.invalidateSize({pan:false});connect();syncPreviews();}
  return {update,select,fitAll,showArea,setVisible,retry,previewsIdle:()=>previews.idle(),destroy(){previews.destroy();background?.destroy();map?.remove();map=null;markers.clear();faces.clear();}};
 }

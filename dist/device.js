@@ -20,8 +20,8 @@ export function createDeviceAccess({native=false,plugins,geolocation,permissions
    if(native){const gps=plugins?.Geolocation;if(!gps)throw Error('Location tracking is unavailable in this build.');let allowed=await gps.checkPermissions();if(request&&allowed.location!=='granted'&&allowed.coarseLocation!=='granted')allowed=await gps.requestPermissions({permissions:['location']});if(allowed.location!=='granted'&&allowed.coarseLocation!=='granted')throw Error('Enable nearby memories to allow Location for this device.');const id=await gps.watchPosition(options,(position,error)=>{if(error)onError(error);else if(position)onPosition(position);});return ()=>gps.clearWatch({id});}
    if(!geolocation?.watchPosition)throw Error('This browser cannot watch location.');if(!request){const allowed=await permissions?.query({name:'geolocation'}).catch(()=>null);if(allowed?.state!=='granted')throw Error('Enable nearby memories again to allow Location.');}const id=geolocation.watchPosition(onPosition,onError,options);return async()=>geolocation.clearWatch(id);
   },
-  async currentPosition(){
-   const options={enableHighAccuracy:true,timeout:20000,maximumAge:0};
+  async currentPosition({enableHighAccuracy=true,maximumAge=0}={}){
+   const options={enableHighAccuracy:!!enableHighAccuracy,timeout:20000,maximumAge:maximumAge===60000?60000:0};
    let position;
    if(native){
     const gps=plugins?.Geolocation;

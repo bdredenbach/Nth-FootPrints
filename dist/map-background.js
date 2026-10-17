@@ -7,11 +7,12 @@ export function createLocalTileLayer({L,offlineMaps,document=globalThis.document
    const tile=document.createElement('div');tile.className='offline-tile';tile._released=false;
    const missing=()=>{tile.classList.add('offline-tile-missing');done(null,tile);};
    async function load(){
-    // Town packages can be enlarged at street zoom without inventing detail.
-    // Stop at z13 so an unrelated low-zoom ancestor never fills a missing area.
-    for(let z=coords.z;z>=Math.min(coords.z,13);z--){
+    // Missing detail can use an available overview within the saved bounds.
+    // Limit enlargement to eight levels and never borrow a distant area's overview.
+    const nRequest=2**coords.z,point={lat:Math.atan(Math.sinh(Math.PI*(1-2*(coords.y+.5)/nRequest)))*180/Math.PI,lng:(((coords.x+.5)/nRequest*360)%360+360)%360-180};
+    for(let z=coords.z;z>=Math.max(0,coords.z-8);z--){
      const scale=2**(coords.z-z),n=2**z,x=Math.floor(coords.x/scale),y=Math.floor(coords.y/scale);
-     const blob=await offlineMaps.tile(`${z}/${((x%n)+n)%n}/${y}`);
+     const blob=await offlineMaps.tile(`${z}/${((x%n)+n)%n}/${y}`,z<coords.z?{point}:undefined);
      if(tile._released)return;if(!blob)continue;
      const image=document.createElement('img'),url=urls.createObjectURL(blob);tile._blobURL=url;tile._image=image;image.alt='';
      image.style.cssText=`position:absolute;max-width:none;width:${256*scale}px;height:${256*scale}px;left:${-((coords.x%scale+scale)%scale)*256}px;top:${-((coords.y%scale+scale)%scale)*256}px;`;
@@ -37,7 +38,7 @@ export function createMapBackground({map,L,offlineMaps,onStatus=()=>{},events=gl
  function connect(){
   if(!active||!visible)return;
   localMode=!!offlineMaps&&(!online()||offlineMaps.preferred);
-  if(localMode){detach(tiles);local??=createLocalTileLayer({L,offlineMaps});if(!map.hasLayer(local))local.addTo(map);else local.redraw();status('downloaded','Downloaded USGS map · detailed U.S. coverage. Hatched areas or zoom levels were not downloaded.');return;}
+  if(localMode){detach(tiles);local??=createLocalTileLayer({L,offlineMaps});if(!map.hasLayer(local))local.addTo(map);else local.redraw();status('downloaded','Downloaded USGS map · available detail only. Missing detail uses a saved overview; hatched areas have no saved coverage.');return;}
   detach(local);
   if(!online()){detach(tiles);status('offline','Offline. Your saved pins and places are available; download a map area before going offline.');return;}
   if(!map.hasLayer(tiles)){failures=0;status('loading','Loading the map…');tiles.addTo(map);}

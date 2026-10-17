@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.8.0**.
+A personal travel journal by Nth Experience. Prototype **0.8.1**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -151,7 +151,7 @@ Only latest and explicitly pinned records receive derived native photo previews.
 
 In New footprint or Edit, open **Find or choose a location**. Enter an address or a business/place name plus its town or city, then tap **Search**. Choose one of up to five results to preview the pin; check its location and tap **Use this spot**. **Fill empty name and address fields** is optional and never replaces existing text. Save the footprint normally to keep the change. Moving the pin away clears the result’s name/address association. Cancel or Back leaves the editor unchanged.
 
-Search uses the Photon public demo at https://photon.komoot.io/api/ with OpenStreetMap data. Two live probes returned HTTP 200 with wildcard CORS, including a named-business response normalized by the app controller. The UI shows provider/data attribution and explains that queries are sent when Search is pressed. Requests omit credentials/referrers and do not include GPS coordinates, journal records or media. No API key or billing account is configured.
+Search uses the Photon public demo at https://photon.komoot.io/api/ with OpenStreetMap data. Two live probes returned HTTP 200 with wildcard CORS, including a named-business response normalized by the app controller. The UI shows provider/data attribution and explains that queries are sent when Search is pressed. Requests omit credentials/referrers and never include journal records or media. Starting in 0.8.1, Places Search uses permission-based approximate device coordinates for location bias; the editor’s independent position search retains its existing no-bias behavior. No API key or billing account is configured.
 
 This provider permits reasonable usage but gives no availability guarantee and may throttle or ban extensive traffic. The prototype uses explicit submission, five results, at least 1.5 seconds between network requests, Retry-After cooldown, no automatic retry, a 12-second timeout, and a transient ten-query/five-minute memory cache. Responses are bounded to 256 KiB. A dedicated Photon service or contracted provider is required before wider/high-volume distribution; the endpoint is centralized in dist/place-search.js. Public Nominatim endpoints are not queried. Business coverage depends on named places in OpenStreetMap and is not a complete business directory.
 
@@ -161,7 +161,7 @@ This provider permits reasonable usage but gives no availability guarantee and m
 
 Open Map & directions → Offline maps, or Preferences → Offline maps. Choose a saved footprint with coordinates, a 4/10/20 km area, and Town or Street detail, then Download area. Progress shows tile count and actual size; Cancel removes incomplete tiles. View centers a saved area; Downloaded maps previews local data while connected. The atlas and position picker switch to saved USGS topographic tiles offline. Detailed coverage is U.S.-focused. Unavailable tiles are hatched; no online fallback runs in downloaded-map mode.
 
-Limits are 8 areas, 600 tiles and 50 MB per area, and 200 MB total. Remove deletes just that map package. Downloads stay on this device outside journal backups; uninstall/clear data removes them. Keep the app open during a download; interrupted packages are cleaned up at startup. Search and external directions still need a connection. No integrated routing or voice guidance is included.
+Starting in 0.8.1 there is no app-set total-byte, per-package-byte, tile-count or saved-area-count cap; actual app storage capacity determines when downloads must stop. Per-image validation and paced, cancellable transfers remain. Missing USGS detail is recorded as limited coverage while available map levels are saved. Remove deletes just that map package. Downloads stay on this device outside journal backups; uninstall/clear data removes them. Keep the app open during a download; interrupted packages are cleaned up at startup. Search and external directions still need a connection. No integrated routing or voice guidance is included.
 
 179 Node/Java/IndexedDB checks pass. Chromium tests passed mobile layout, package save, local tile decode, offline shell reload, persisted maps, safe cancellation, and removal with no page errors. A complete 17-tile live USGS area downloaded and validated. Real Android airplane-mode/restart testing remains necessary. USGS data licensing/source details are in THIRD_PARTY_NOTICES.md.
 

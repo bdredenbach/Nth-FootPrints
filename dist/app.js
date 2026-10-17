@@ -93,7 +93,7 @@ const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
 const widgetPreferences=createWidgetPreferences({plugin:widgetPlugin,refresh:()=>widgetSync.refresh(records),onState:renderWidgetPreferences,onStatus:message=>{$('widget-status').textContent=message;}});
 function openPreferences(widgetId=null){show('settings');if(widgetPlugin)void widgetPreferences.load(widgetId);}
 const journeyUI=createJourneysUI({document,getState:()=>({records,journeys}),write:({records:transform=current=>current,journeys:trips=current=>current})=>changeJournal(transform,undefined,{journeys:trips}),onOpen:openDetail,onBrowse:id=>browseJourney(id,'journal'),onMap:id=>browseJourney(id,'map'),onStatus:toast,onBook:id=>openMemoryExport({kind:'trip',tripId:id}),confirm:message=>confirm(message),date,art});
-const placesUI=createPlacesUI({document,L:window.L,offlineMaps,getRecords:()=>records,getJourneys:()=>journeys,locate:()=>device.currentPosition(),icon,onPreview:()=>show('place-preview'),onExplore:async()=>{close('place-preview');await navigation.idle();},onSave:(prefill,id)=>openEditor(id??null,null,id?'new':null,prefill),onSaved:async id=>{close('place-preview');await navigation.idle();await openDetail(id);},onStatus:toast});
+const placesUI=createPlacesUI({document,L:window.L,offlineMaps,getRecords:()=>records,getJourneys:()=>journeys,locate:options=>device.currentPosition(options),icon,onPreview:()=>show('place-preview'),onExplore:async()=>{close('place-preview');await navigation.idle();},onSave:(prefill,id)=>openEditor(id??null,null,id?'new':null,prefill),onSaved:async id=>{close('place-preview');await navigation.idle();await openDetail(id);},onStatus:toast});
 async function browseFavorites(){close('journal-tools');await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}query='';journeyFilter='';tagFilter='';explorationCountry='';explorationRegion='';category='All places';$('search').value='';await setView('favorites');render();}
 function openJourneys(){journeyUI.open();show('journeys');}
 async function browseJourney(id,next){close('journeys',{force:true});await navigation.idle();journeyFilter=id;query='';category='All places';$('search').value='';deckIndex=0;await setView(next);render();}
@@ -770,7 +770,7 @@ function offlinePlan(){
 }
 function offlineEstimate(){
  let valid=false;
- try{const {plan}=offlinePlan();$('offline-estimate').textContent=`${plan.radiusKm*2} km across · ${plan.tiles.length} tiles · up to 50 MB. Actual size appears during download.`;valid=true;}
+ try{const {plan}=offlinePlan();$('offline-estimate').textContent=`${plan.radiusKm*2} km across · ${plan.tiles.length} tiles to check. Actual size and available coverage appear during download.`;valid=true;}
  catch(error){$('offline-estimate').textContent=error.message;}
  $('offline-download').disabled=!offlineReady||!valid||offlineMaps.phase!=='idle';
 }
@@ -780,10 +780,10 @@ function renderOfflineMaps(){
  for(const id of ['offline-place','offline-radius','offline-detail'])$(id).disabled=busy;
  $('offline-cancel').hidden=!busy;$('offline-cancel').disabled=!working;
  $('offline-transfer').hidden=!busy;$('offline-transfer').setAttribute('aria-busy',String(busy));
- if(busy){const p=offlineProgress;$('offline-progress').value=p?.total?Math.round(p.done/p.total*100):0;$('offline-progress-label').textContent=working?`${p?.done??0} / ${p?.total??0} tiles · ${fileSize(p?.bytes??0)}`:offlineMaps.phase==='committing'?'Finishing saved area…':'Removing saved area…';}
+ if(busy){const p=offlineProgress;$('offline-progress').value=p?.total?Math.round(p.done/p.total*100):0;$('offline-progress-label').textContent=working?`${p?.done??0} / ${p?.total??0} checked · ${fileSize(p?.bytes??0)}${p?.missing?` · ${p.missing} unavailable`:''}`:offlineMaps.phase==='committing'?'Finishing saved area…':'Removing saved area…';}
  const areas=offlineMaps.areas,total=areas.reduce((n,a)=>n+a.bytes,0);
- $('offline-storage').textContent=`${areas.length} / 8 saved areas · ${fileSize(total)} / 200 MB`;
- $('offline-areas').innerHTML=areas.length?areas.map(a=>`<article class="offline-area"><div><strong>${esc(a.name)}</strong><p>${a.radiusKm*2} km across · ${a.maxZoom===15?'Street':'Town'} detail · ${fileSize(a.bytes)}</p><small>Downloaded ${esc(date(a.createdAt.slice(0,10)))}</small></div><div class="detail-actions"><button type="button" class="secondary" data-offline-view="${esc(a.id)}" ${busy?'disabled':''}>View</button><button type="button" class="text-button" data-offline-remove="${esc(a.id)}" ${busy?'disabled':''}>Remove</button></div></article>`).join(''):'<p class="field-help">No maps downloaded yet.</p>';
+ $('offline-storage').textContent=`${areas.length} saved ${areas.length===1?'area':'areas'} · ${fileSize(total)} used · no app-set storage limit`;
+ $('offline-areas').innerHTML=areas.length?areas.map(a=>`<article class="offline-area"><div><strong>${esc(a.name)}</strong><p>${a.radiusKm*2} km across · ${a.availableMaxZoom!==undefined&&a.availableMaxZoom<a.maxZoom?'Limited detail':a.maxZoom===15?'Street detail':'Town detail'} · ${fileSize(a.bytes)}${a.missingCount?` · ${a.missingCount} tiles unavailable`:''}</p><small>Downloaded ${esc(date(a.createdAt.slice(0,10)))}</small></div><div class="detail-actions"><button type="button" class="secondary" data-offline-view="${esc(a.id)}" ${busy?'disabled':''}>View</button><button type="button" class="text-button" data-offline-remove="${esc(a.id)}" ${busy?'disabled':''}>Remove</button></div></article>`).join(''):'<p class="field-help">No maps downloaded yet.</p>';
  $('offline-areas').querySelectorAll('[data-offline-remove]').forEach(button=>{button.onclick=async()=>{try{await offlineMaps.remove(button.dataset.offlineRemove);$('offline-status').textContent='Map area removed. Your footprints are unchanged.';}catch(error){$('offline-status').textContent=error.message;}};});
  $('offline-areas').querySelectorAll('[data-offline-view]').forEach(button=>{button.onclick=async()=>{const area=offlineMaps.areas.find(a=>a.id===button.dataset.offlineView);if(!area)return;offlineMaps.setPreferred(true);close('offline-maps');await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}await setView('map');renderMap(filtered());atlas?.showArea(area);};});
  offlineEstimate();
@@ -791,7 +791,7 @@ function renderOfflineMaps(){
 async function downloadOfflineArea(){
  if(offlineMaps.phase!=='idle'||!offlineReady)return;
  try{const {place,plan}=offlinePlan();$('offline-status').textContent='Downloading… Keep the app open.';offlineProgress=null;
-  const area=await offlineMaps.download(plan,place.title);$('offline-status').textContent=`Saved “${area.name}” · ${fileSize(area.bytes)}. Use View, or turn on Downloaded maps in the atlas.`;
+  const area=await offlineMaps.download(plan,place.title);$('offline-status').textContent=`Saved “${area.name}” · ${fileSize(area.bytes)}.${area.missingCount?` ${area.count} of ${area.requestedCount} tiles available; some detail is missing here.`:''} Use View, or turn on Downloaded maps in the atlas.`;
   void navigator.storage?.persist?.().catch(()=>{});
  }catch(error){$('offline-status').textContent=error.message==='CANCELLED'?'Download cancelled. Incomplete tiles were removed.':error.message;}
 }

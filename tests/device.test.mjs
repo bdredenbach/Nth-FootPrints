@@ -70,3 +70,7 @@ test('native camera stays closed when its before-launch draft checkpoint fails',
 test('restored camera attaches its photo with empty coordinates and never requests later device GPS',async()=>{
  let queried=false;const f=editor({currentPosition:async()=>{queried=true;return fix;}});await f.context.finishCameraPhoto('returned-photo',1,{restored:true});assert.equal(f.context.draftPhoto,'returned-photo');assert.equal(f.nodes.lat.value,'');assert.equal(f.nodes.lng.value,'');assert.equal(queried,false);assert.match(f.nodes['location-status'].textContent,/photo recovered/);
 });
+
+test('search location uses a recent approximate fix without prompting again for an existing grant',async()=>{
+ let prompts=0,options;const device=createDeviceAccess({native:true,plugins:{Geolocation:{checkPermissions:async()=>({coarseLocation:'granted',location:'denied'}),requestPermissions:async()=>{prompts++;},getCurrentPosition:async o=>{options=o;return fix;}}}});assert.deepEqual(await device.currentPosition({maximumAge:60000,enableHighAccuracy:false}),fix);assert.equal(prompts,0);assert.deepEqual(options,{enableHighAccuracy:false,timeout:20000,maximumAge:60000});
+});

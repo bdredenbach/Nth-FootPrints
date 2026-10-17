@@ -85,3 +85,14 @@ test('closing the picker cancels search and discards its result without altering
 test('result labels are escaped when the actual UI renders provider text',()=>{
  const f=editorFixture();f.c.renderPlaceSearch({busy:false,status:'Done',results:[{name:'<img onerror=bad>',address:'<script>bad</script>',position:{lat:0,lng:0}}]});assert.doesNotMatch(f.nodes['place-results'].innerHTML,/<img|<script/);assert.match(f.nodes['place-results'].innerHTML,/&lt;img/);
 });
+
+test('location-biased search requests nearby candidates, sorts closest first, and reorders locally by name',async()=>{
+ const calls=[],states=[];const client=createPlaceSearch({fetcher:async url=>{calls.push(new URL(url));return response(payload(feature('A distant cafe',[-120,40]),feature('Z nearby cafe',[-70.9,42.52]),feature('M middle cafe',[-70.91,42.51])));},network:{onLine:true},minInterval:0,onState:s=>states.push(s)});
+ await client.search('Cafe',{near:{lat:42.520123,lng:-70.900321}});assert.equal(calls[0].searchParams.get('lat'),'42.520');assert.equal(calls[0].searchParams.get('lon'),'-70.900');assert.equal(calls[0].searchParams.get('limit'),'20');assert.equal(calls[0].searchParams.get('location_bias_scale'),'0.1');assert.equal(client.result(0).name,'Z nearby cafe');assert.ok(client.result(0).km<.1);client.sort('name');assert.equal(client.result(0).name,'A distant cafe');assert.equal(calls.length,1);
+ await client.search('Cafe',{near:{lat:40,lng:-120}});assert.equal(calls.length,2);assert.equal(client.result(0).name,'A distant cafe');await client.search('Cafe',{near:{lat:42.520123,lng:-70.900321}});assert.equal(calls.length,2);assert.equal(client.result(0).name,'Z nearby cafe');
+});
+test('bias candidate pool is bounded and only the five closest are exposed; invalid bias never leaves the device',async()=>{
+ const states=[],calls=[];const c=createPlaceSearch({fetcher:async url=>{calls.push(new URL(url));return response(payload(...Array.from({length:20},(_,i)=>feature('Cafe '+i,[-70.9,42.5+i*.001]))));},network:{onLine:true},minInterval:0,onState:s=>states.push(s)});
+ await c.search('Cafe',{near:{lat:42.519,lng:-70.9}});assert.equal(states.at(-1).results.length,5);assert.equal(c.result(0).name,'Cafe 19');assert.equal(c.result(5),null);
+ await c.search('Other Cafe',{near:{lat:999,lng:0}});assert.equal(calls.at(-1).searchParams.has('lat'),false);assert.equal(calls.at(-1).searchParams.get('limit'),'5');
+});
