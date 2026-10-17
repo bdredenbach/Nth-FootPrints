@@ -14,8 +14,11 @@ The rescue/export/restore code and debugging transport were exercised against th
 
    ```sh
    pkg update
+   pkg upgrade -y
    pkg install android-tools python
    ```
+
+   If upgrading asks whether to replace a configuration file and shows `[default=N]`, press Enter to keep it. Wait for the normal `$` prompt before entering another command. Run `adb version` before pairing. If it reports a missing library symbol, run `apt install --reinstall libc++ android-tools`, then check `adb version` again.
 
 4. Connect the phone to Wi-Fi. In Android **Settings → System → Developer options → Wireless debugging**, turn Wireless debugging on. If Developer options is absent, Android's guide explains enabling it: https://developer.android.com/studio/debug/dev-options .
 5. Put Settings and Termux in split screen. In Wireless debugging choose **Pair device with pairing code**. In Termux run the following, replacing `PAIR_PORT` with the port shown in that pairing dialog:

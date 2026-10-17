@@ -2,6 +2,7 @@ import {proximityKm} from './nearby-memories.js';
 import {hasLocation} from './atlas.js';
 import {validatePlaceSource} from './place-source.js';
 import {createDiscoveryStore,trimSavedSearches} from './discovery-store.js';
+import {detailsId,placeDescription} from './place-details.js';
 import {GEOAPIFY_API_KEY} from './places-config.js';
 export const DISCOVERY_ENDPOINT='https://api.geoapify.com/v2/places';
 export const MAX_DISCOVERY=500;
@@ -63,13 +64,13 @@ export function normalizeDiscovery(payload,{center,groupId='food',filterId='',ra
   const kind=group.filters.find(f=>kinds.includes(f.id))?.label||clean(t.shop??t.amenity??t.tourism??categories.at(-1)??group.label).replaceAll('_',' ').split('.').at(-1);
   const name=clean(p.name)||clean(t.name)||clean(t['name:en'])||clean(t.brand),title=name||kind;
   const address=clean(p.address_line2,500)||[clean(p.housenumber??t['addr:housenumber'],40),clean(p.street??t['addr:street']),clean(p.city??t['addr:city']),clean(p.state??t['addr:state']),clean(p.postcode??t['addr:postcode'],40),clean(p.country??t['addr:country'],80)].filter(Boolean).join(', ').slice(0,500)||clean(p.formatted,500);
-  const row={id:source.provider==='openstreetmap'?`osm-${source.type}-${source.id}`:`geo-place-${source.id}`,title,category:group.label,kind,kinds,locality:clean(p.city??p.town??p.village,160),lat:point.lat,lng:point.lng,km,address,phone:clean(p.contact?.phone??p.phone??t['contact:phone']??t.phone,80),url:safePlaceURL(p.website)||safePlaceURL(t['contact:website']??t.website),country:countryName(p.country??String(p.country_code??t['addr:country']??'').toUpperCase()),region:clean(p.state??t['addr:state'],100),description:clean(p.description??t.description,1200),hours:clean(p.opening_hours??t.opening_hours,400),cuisine:clean(Array.isArray(p.catering?.cuisine)?p.catering.cuisine.filter(v=>typeof v==='string').slice(0,20).join(';'):p.catering?.cuisine??t.cuisine,160).replaceAll(';',', '),brand:clean(p.brand??t.brand,160),placeSource:source,approximate:source.type!=='node'};
+  const row={id:source.provider==='openstreetmap'?`osm-${source.type}-${source.id}`:`geo-place-${source.id}`,title,category:group.label,kind,kinds,locality:clean(p.city??p.town??p.village,160),lat:point.lat,lng:point.lng,km,address,phone:clean(p.contact?.phone??p.phone??t['contact:phone']??t.phone,80),url:safePlaceURL(p.website)||safePlaceURL(t['contact:website']??t.website),country:countryName(p.country??String(p.country_code??t['addr:country']??'').toUpperCase()),region:clean(p.state??t['addr:state'],100),detailsId:detailsId(p.place_id),description:placeDescription(p),hours:clean(p.opening_hours??t.opening_hours,400),cuisine:clean(Array.isArray(p.catering?.cuisine)?p.catering.cuisine.filter(v=>typeof v==='string').slice(0,20).join(';'):p.catering?.cuisine??t.cuisine,160).replaceAll(';',', '),brand:clean(p.brand??t.brand,160),placeSource:source,approximate:source.type!=='node'};
   if(name&&rows.some(r=>r.title.toLocaleLowerCase()===name.toLocaleLowerCase()&&proximityKm(r,row)<.025))continue;
   seen.add(key);rows.push(row);
  }
  rows.sort((a,b)=>a.km-b.km||a.title.localeCompare(b.title)||a.id.localeCompare(b.id));return {items:rows,limited};
 }
-export function placePrefill(place){return {title:place.title,category:place.category,address:place.address,lat:place.lat,lng:place.lng,phone:place.phone,url:place.url,country:place.country,region:place.region,notes:'',placeSource:validatePlaceSource(place.placeSource)};}
+export function placePrefill(place){return {title:place.title,category:place.category,address:place.address,lat:place.lat,lng:place.lng,phone:place.phone,url:place.url,country:place.country,region:place.region,notes:placeDescription({description:place.description}),placeSource:validatePlaceSource(place.placeSource)};}
 const cancelError=()=>Error('CANCELLED');
 function delay(ms,signal){return new Promise((resolve,reject)=>{const timer=setTimeout(done,ms);function done(){signal.removeEventListener('abort',abort);resolve();}function abort(){clearTimeout(timer);reject(cancelError());}signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();});}
 async function boundedJSON(response,remaining=2*1024*1024,onBytes=()=>{}){
@@ -95,7 +96,7 @@ export function createDiscoveryClient({fetch=globalThis.fetch,now=Date.now,wait=
     if(!row||!hasLocation(row)||typeof row.title!=='string'||!Array.isArray(row.kinds)||row.kinds.some(k=>!group.filters.some(f=>f.id===k))||proximityKm(params.center,row)>params.radius/1000+.001)return null;
     const source=validatePlaceSource(row.placeSource),id=source.provider==='openstreetmap'?`osm-${source.type}-${source.id}`:`geo-place-${source.id}`;if(row.id!==id||ids.has(id))return null;ids.add(id);
     const r={id,lat:row.lat,lng:row.lng,placeSource:source,category:group.label,kinds:[...new Set(row.kinds)],km:proximityKm(params.center,row),approximate:!!row.approximate};
-    for(const [field,max]of Object.entries({title:160,kind:160,locality:160,address:500,phone:80,country:80,region:100,description:1200,hours:400,cuisine:160,brand:160}))r[field]=clean(row[field],max);r.url=safePlaceURL(row.url);items.push(r);
+    for(const [field,max]of Object.entries({title:160,kind:160,locality:160,address:500,phone:80,country:80,region:100,description:1200,hours:400,cuisine:160,brand:160}))r[field]=clean(row[field],max);r.url=safePlaceURL(row.url);r.detailsId=detailsId(row.detailsId);items.push(r);
    }
    return {revision:1,id:value.id,params,result:{items,limited:value.result.limited},label:clean(value.label,160),at:value.at,usedAt:value.usedAt,retained:true};
   }catch{return null;}

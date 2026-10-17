@@ -11,12 +11,17 @@ export function dataBlob(source,kind){
  if(!m||kind&&!m[1].startsWith(kind+'/')||m[2].length%4||m[2].length>28*1024*1024)throw Error('This attachment could not be read.');
  const blob=new Blob([Uint8Array.from(atob(m[2]),c=>c.charCodeAt(0))],{type:m[1].toLowerCase()});if(blob.size>MEDIA_LIMIT)throw Error('This attachment exceeds 20 MB.');return blob;
 }
-export async function registerMedia(blob,{key,crc}={}){
+export async function prepareMedia(blob,{key,crc}={}){
  if(!(blob instanceof Blob)||blob.size>MEDIA_LIMIT||!/^image\/(jpeg|png|webp|gif)$|^audio\/[a-z0-9.+-]+$/i.test(blob.type))throw Error('Unsupported original attachment.');
  let bytes;if(!key||crc===undefined){bytes=new Uint8Array(await blob.arrayBuffer());const hex=b=>[...new Uint8Array(b)].map(n=>n.toString(16).padStart(2,'0')).join(''),hash=hex(await crypto.subtle.digest('SHA-256',bytes)),identity=hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(blob.type+':'+hash)));const calculated=MEDIA_PREFIX+identity;if(key&&key!==calculated)throw Error('Attachment checksum does not match the backup.');key=calculated;crc=crc32(bytes);}
  if(!isMediaKey(key)||!Number.isInteger(crc)||crc<0||crc>0xffffffff)throw Error('Invalid stored attachment.');
- const old=byKey.get(key);if(old){if(old.size!==blob.size||old.type!==blob.type)throw Error('Conflicting attachment data.');return old.url;}
- const row={key,crc,blob,type:blob.type,size:blob.size,url:URL.createObjectURL(blob)};row.aliases=new Set([row.url]);byURL.set(row.url,row);byKey.set(key,row);return row.url;
+ // A selected File/ZIP slice must be independent before it reaches IndexedDB.
+ if(bytes)blob=new Blob([bytes],{type:blob.type});
+ return {key,crc,blob,type:blob.type,size:blob.size};
+}
+export async function registerMedia(blob,options={}){
+ const prepared=await prepareMedia(blob,options),old=byKey.get(prepared.key);if(old){if(old.size!==blob.size||old.type!==blob.type)throw Error('Conflicting attachment data.');return old.url;}
+ const row={...prepared,url:URL.createObjectURL(prepared.blob)};row.aliases=new Set([row.url]);byURL.set(row.url,row);byKey.set(row.key,row);return row.url;
 }
 export function adoptStoredMedia(key,blob){const old=byKey.get(key);if(!old||old.size!==blob.size||old.type!==blob.type)throw Error('Stored attachment does not match its original.');const url=URL.createObjectURL(blob),row={...old,blob,url};row.aliases.add(url);for(const alias of row.aliases){const previous=byURL.get(alias);if(previous)previous.blob=blob;}byURL.set(url,row);byKey.set(key,row);return url;}
 export function visitMedia(records,transform){

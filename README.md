@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.7.0**.
+A personal travel journal by Nth Experience. Prototype **0.7.1**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -338,3 +338,9 @@ The real capacity regression writes and restores 128 file-backed transport fixtu
 Responsive browser checks at 360/393/1280 px cover migration, original photo viewing/export, archive saving, missing/reordered multi-part inputs, cold reload and binary draft recovery. The unchanged 0.6.9 bundle and a legacy database also exercise a read-only rescue: five forced small volumes restore successfully and leave the old database byte-identical. The Python helper's actual CDP/WebSocket transport passes against that old app context. Physical Android wireless pairing/document providers still need validation.
 
 **Existing installed test APKs:** their signing certificates differ, so a new binary cannot simply update the old app in place. Do not uninstall its only journal copy. A compatibility rescue writes numbered parts through the old handler, and the new reader accepts them together. See [phone-only rescue steps](docs/PHONE-RESCUE.md). It requires a user-authorized local debugging connection; no journal data is uploaded. Private signing-key continuity remains a separate testing/release task.
+
+## 0.7.1 — independent imports and place descriptions
+
+A selected photo or archive slice is copied into an app-owned Blob before storage. This prevents a later original-file change or expired document permission from breaking photo reads and backups. Each attachment remains bounded to 20 MiB; whole journals are still streamed. Restoring the same complete backup overwrites its verified media keys, repairing 0.7.0 file-linked originals without duplicating footprints. Existing inaccessible copies require that restore; an update cannot recover bytes whose document access was already lost. Keep the manual backup until the corrected journal exports successfully.
+
+Places request mapped descriptions only when opened, use exact provider/OSM identity to reject neighbouring coordinate results, cache available and unavailable descriptions on this device, and keep saving available offline or on lookup failure. A saved description becomes the editable story in the new footprint. Searches and description lookups have separate bounded budgets; no website scraping or generated descriptions are used.
