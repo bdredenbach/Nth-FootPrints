@@ -194,7 +194,7 @@ function renderMap(items){
  items=mapDisplayRecords(items);renderMapList(items);
  if(!atlas)atlas=createAtlas({container:$('map-content'),L:window.L,offlineMaps,pinHTML:icon('footprint'),
   onPick:id=>{mapId=id;renderMapList(filtered());openDetail(id,mapVisit?.recordId===id?mapVisit.visitId:undefined);},
-  onStatus:({state,message})=>{$('map-status').textContent=message;$('retry-map').hidden=state!=='error';}
+  onStatus:({state,message})=>{$('map-status').textContent=message;$('map-status').classList.toggle('feature-hint',state==='ready');$('retry-map').hidden=state!=='error';}
  });
  atlas.update(items,{selectedId:mapId});syncMapVisibility();
 }

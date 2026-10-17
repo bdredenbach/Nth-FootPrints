@@ -337,3 +337,8 @@ USGS HTTP 404/204 tiles are unavailable coverage, not a complete-package failure
 Use my location and Refresh have matching 44 px heights and equal widths. Atlas tools use two aligned actions, with the downloaded-maps checkbox on its own row. Controls stay borderless; feature hints remain italic.
 
 Primary references: https://github.com/komoot/photon/blob/master/docs/api-v1.md and https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer?f=pjson . Live “Dunkin donuts” search with bias at 42.5,-70.9 returned five Salem/Swampscott branches ordered by device distance (0.9–1.9 km). Live Moraine Lake check at 51.32,-116.18 saved 15 of 19 planned tiles (585,613 bytes, available through zoom 12), retained four missing-detail entries and reopened stored map data successfully. Browser QA covers location-biased requests, local sorting, new and return-visit trip drafts, equal action dimensions, toolbar layout, partial offline download and local viewing without a connection. Android permission dialogs, physical-device storage exhaustion and location quality still need phone validation.
+
+
+## Compact map header (0.8.2)
+
+The atlas header contains only the two existing map actions in one 44 px button row. Pin counts and the downloaded-maps checkbox move together into the footer above the map status/guidance. Footer items wrap on narrow screens and longer count labels; the checkbox retains a 44 px touch row. Existing IDs, counts, toggle behavior and retry handling remain. Ready-map explanatory guidance uses italic styling; loading/errors remain standard.
