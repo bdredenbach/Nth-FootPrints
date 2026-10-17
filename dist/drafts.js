@@ -1,3 +1,4 @@
+import {knownMedia,dataBlob,registerMedia} from './media-store.js';
 import {recordJourneyIds} from './journeys.js';
 import {validatePlaceSource} from './place-source.js';
 import {RECORD_CATEGORIES,MAX_PHOTOS} from './model.js';
@@ -49,13 +50,14 @@ export function createDraftStore(db){
  };
 }
 export function draftBlob(source,kind){
+ if(knownMedia(source,kind))return dataBlob(source,kind);
  if(typeof source!=='string')throw Error('A draft attachment could not be saved.');
  const match=source.match(/^data:([a-z0-9.+-]+\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$/i);
  if(!match||!match[1].startsWith(kind+'/')||(kind==='image'&&!/^image\/(jpeg|png|webp|gif)$/i.test(match[1]))||match[2].length%4||match[2].length>28*1024*1024)throw Error('A draft attachment is not supported.');
  const bytes=Uint8Array.from(atob(match[2]),c=>c.charCodeAt(0));if(bytes.length>20*1024*1024)throw Error('A draft attachment exceeds 20 MB.');
  return new Blob([bytes],{type:match[1]});
 }
-const blobData=blob=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('A draft attachment could not be opened.'));reader.readAsDataURL(blob);});
+const blobData=blob=>registerMedia(blob);
 export function createDraftRecovery({store,onState=()=>{},read=blobData,uuid=()=>crypto.randomUUID(),delay=250}={}){
  let id=null,pending=null,timer=null,writing=null,frozen=false,cache=new Map(),eligible=null,hasWritten=false;
  const emit=(state,message)=>onState({state,message,id});

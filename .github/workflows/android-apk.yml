@@ -74,7 +74,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.6.9 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.7.0 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",
@@ -86,6 +86,9 @@ jobs:
           }, null, 2));
           NODE
           npx esbuild native/bridge.js --bundle --format=iife --outfile=native-web/native-bridge.js
+
+      - name: Verify backup and restore beyond 2 GiB
+        run: npm run test:large
 
       - name: Create Android project
         run: npx cap add android

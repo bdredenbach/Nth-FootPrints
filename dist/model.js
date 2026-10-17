@@ -1,3 +1,4 @@
+import {knownMedia,visitMedia} from './media-store.js';
 import {CATEGORIES,RECORD_CATEGORIES} from './categories.js';
 import {validatePlaceSource} from './place-source.js';
 import {validateLabels} from './journal-tools.js';
@@ -19,6 +20,7 @@ export function withoutStarterSamples(records) {
 const text = (v, max, key) => { if (typeof v !== 'string' || v.length > max) throw Error(`Invalid ${key}.`); return v; };
 const media = (v, kind) => {
   if(v == null || v === '') return null;
+  if(knownMedia(v,kind))return v;
   if(typeof v !== 'string' || v.length > 30*1024*1024 || !new RegExp(`^data:${kind}/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]*={0,2}$`,'i').test(v)) throw Error(`Invalid ${kind} attachment.`);
   if(kind === 'image' && !/^data:image\/(jpeg|png|webp|gif);/i.test(v)) throw Error('Use JPG, PNG, WebP or GIF photographs.');
   const payload=v.slice(v.indexOf(',')+1);
@@ -68,6 +70,7 @@ export function parseBackup(raw) {
  if(b?.app!==APP) throw Error('Choose a Nth FootPrints backup. Backups from other Nth apps cannot be restored here.');
  if(![1,2,3,4,5,6,VERSION].includes(b.formatVersion)) throw Error('This backup version is not supported. Your saved places have not changed.');
  if(!Array.isArray(b.records)||b.records.length>10000) throw Error('Invalid footprint list.');
+ visitMedia(b.records,(source)=>{if(typeof source!=='string'||!/^data:/i.test(source))throw Error('Legacy JSON backups must contain their original attachments.');return source;});
  if(b.formatVersion===1&&b.records.some(r=>r&&typeof r==='object'&&('photos'in r||'coverIndex'in r)))throw Error('Photo galleries require backup version 2.');
  if(b.formatVersion<3&&(b.journeys!==undefined||b.records.some(r=>r&&'tripIds'in r)))throw Error('Journeys require backup version 3.');
  if(b.formatVersion<4&&b.records.some(r=>r&&['visits','mainVisitId','firstVisitUpdatedAt','firstVisitDeleted'].some(key=>key in r)))throw Error('Return visits require backup version 4.');

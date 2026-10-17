@@ -24,5 +24,5 @@ test('browser save picker receives the photo MIME and extension rather than back
  const image=preparePhotoExport({title:'A place',photo:'data:image/jpeg;base64,/9j/2Q=='});let options,written;
  const picker=async value=>{options=value;return{createWritable:async()=>({write:async blob=>{written=blob;},close:async()=>{}})};};
  const result=await saveBackupFile(image.blob,image.name,{...image,picker});
- assert.equal(result.confirmed,true);assert.equal(options.suggestedName,'A-place.jpg');assert.deepEqual(options.types,[{description:'Photograph',accept:{'image/jpeg':['.jpg']}}]);assert.deepEqual(Buffer.from(await written.arrayBuffer()),Buffer.from(await image.blob.arrayBuffer()));
+ assert.equal(result.confirmed,true);assert.equal(options.suggestedName,'A-place.jpg');assert.deepEqual(options.types,[{description:'Photograph',accept:{'image/jpeg':['.jpg']}}]);assert.deepEqual(Buffer.from(await new Blob([written]).arrayBuffer()),Buffer.from(await image.blob.arrayBuffer()));
 });

@@ -1,6 +1,6 @@
 # Nth FootPrints working queue
 
-GitHub is authoritative. Current prototype: **0.6.9**.
+GitHub is authoritative. Current prototype: **0.7.0**.
 
 Completed foundations: vertical photo stack and three-tab layout, local footprint editing/media, native camera + device GPS, supported photo GPS inspection, safe areas, automatic starter cleanup, `.nthbackup` preparation/save/restore progress, original-photo export, the multi-pin atlas, draft map position selection, nearest saved places, chronological in-app release notes, the Android home-screen widget, multiple photos per footprint with persisted main-photo selection, photo thumbnail map pins, the original Android/web app icon, shared Android/browser backward navigation, independent widget locations, online address/named-business search, downloadable USGS offline map areas, and local editor/camera draft recovery.
 
@@ -21,7 +21,7 @@ Brad approved all ten ideas on October 15, 2026, then requested all remaining ei
 
 ## Existing engineering queue
 
-- **Larger media libraries and streamed backups.** Move saved journal media out of in-memory base64 state and stream backup archives. Recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections remain outside recovery.
+- **Larger media libraries and streamed backups — shipped in 0.7.0.** Binary originals are separated from metadata; ZIP64 backup/restore and native 64-bit verification pass the 2.28 GB transport regression. Physical-phone capacity/provider checks remain. Recovery shipped in 0.3.10; unfinished live voice recording and in-flight file selections remain outside recovery.
 - **Worldwide detailed offline coverage.** Add an offline-capable global dataset/provider and package import or download flow. USGS detailed coverage is U.S.-focused.
 
 ## Journal suite shipped in 0.5.0
@@ -212,3 +212,16 @@ Tap the two diagonal double-ended arrows in the corner of a saved footprint's ph
 Close, Escape, browser Back or Android Back returns to the parent footprint/editor; focus returns to the corner button. Browser Forward reconstructs the view from its parent. Arrow keys browse when fitted and pan while zoomed; +/− zoom and 0 fits. Controls respect device insets, viewport rotation and reduced screen sizes. The image reference and gesture state are cleared on close. No external image service or fullscreen permission is required; local photos work offline.
 
 Validation: 322 automated checks pass. Browser checks at 360×800, 393×852, 1280×900 and 844×390 verify actual touch pinch, pan, double-tap, whole-image fitting, orientation changes, local gallery browsing, Back/Forward, focus return and unchanged originals/cover/editor fields. Additional checks cover offline viewing, safe-area insets and failed-image feedback. Portable backup v7 and recovery v6 remain unchanged; shell v36 caches the new viewer module.
+
+
+## 0.7.0 — binary originals and streamed backups
+
+Original photos/audio now live once in a dedicated content-addressed Blob store; journal records keep small references. Existing journals migrate atomically on first opening, with original bytes, visits, labels and choices retained. A failed migration leaves the legacy journal intact and offers an actionable message; metadata-only edits never rewrite existing media.
+
+Create backup writes a ZIP64 archive directly in bounded chunks. Android uses 64-bit counters and confirms a closed, exact-length file only after reading it back for SHA-256 verification. Restore checks index/paths/CRC/media identities, stages attachments separately and publishes the merged journal atomically. Cancellation, failed storage writes and interrupted staging preserve the old journal. Legacy JSON v1–v7 and recovery v6 remain supported. Browsers with direct save pickers stream; download-only browsers have a bounded 128 MiB fallback. Existing individual-attachment limits remain 20 MiB.
+
+The real capacity regression writes and restores 128 file-backed transport fixtures: 2,281,806,590 archive bytes / 2,281,701,376 original bytes, beyond the signed 32-bit boundary. Node runs with a 96 MiB heap; native Java ZIP64 read/CRC/SHA verification runs with 32 MiB. This proves transport and byte integrity in the test environment, not physical-phone timings. The workflow repeats this test before packaging.
+
+Responsive browser checks at 360/393/1280 px cover migration, original photo viewing/export, archive saving, missing/reordered multi-part inputs, cold reload and binary draft recovery. The unchanged 0.6.9 bundle and a legacy database also exercise a read-only rescue: five forced small volumes restore successfully and leave the old database byte-identical. The Python helper's actual CDP/WebSocket transport passes against that old app context. Physical Android wireless pairing/document providers still need validation.
+
+**Existing installed test APKs:** their signing certificates differ, so a new binary cannot simply update the old app in place. Do not uninstall its only journal copy. A compatibility rescue writes numbered parts through the old handler, and the new reader accepts them together. See [phone-only rescue steps](PHONE-RESCUE.md). It requires a user-authorized local debugging connection; no journal data is uploaded. Private signing-key continuity remains a separate testing/release task.

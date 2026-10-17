@@ -1,3 +1,4 @@
+import {createJournalStorage} from '../dist/journal-storage.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -87,7 +88,7 @@ test('same-date return visits remain distinct and sorting is stable when the fir
 test('history preserves the intended visit editor and rejects malformed visit references',()=>{
  const route=visitId=>navigationRoute({view:'journal',dialogs:[{id:'details',recordId:'home'},{id:'editor',recordId:'home',visitId}]});assert.equal(route('new').dialogs[1].visitId,'new');assert.equal(route('return-1').dialogs[1].visitId,'return-1');assert.equal(route('bad id').dialogs.length,1);assert.equal(navigationRoute({dialogs:[{id:'editor',recordId:null,visitId:'new'}]}).dialogs.length,0);
 });
-async function dbOpen(){return new Promise((resolve,reject)=>{const q=new IDBFactory().open('visits',1);q.onupgradeneeded=()=>q.result.createObjectStore('journal');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});}
+async function dbOpen(){return new Promise((resolve,reject)=>{const q=new IDBFactory().open('visits',1);q.onupgradeneeded=()=>{q.result.createObjectStore('journal');q.result.createObjectStore('media');};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});}
 test('visit editor drafts retain their mode, media and trips through restart and reject missing-parent metadata',async()=>{
  let seq=0;const db=await dbOpen(),store=createDraftStore(db),r=createDraftRecovery({store,uuid:()=> 'draft-'+(++seq),read:async blob=>'data:'+blob.type+';base64,'+Buffer.from(await blob.arrayBuffer()).toString('base64')});r.begin();
  const values={title:'Our beach',category:'Nature',visited:'2026-10-15',rating:'5',address:'',notes:'Unfinished return',phone:'',url:'',lat:'44',lng:'-72'};
@@ -96,7 +97,7 @@ test('visit editor drafts retain their mode, media and trips through restart and
 });
 test('a failed atomic journal write cannot partially add a return visit or clear its recovery draft',async()=>{
  const db=await dbOpen(),store=createDraftStore(db),r=createDraftRecovery({store,uuid:()=> 'draft-visit'});r.begin();await r.flush({editId:'home',visitId:'new',values:{title:'Our beach',category:'Nature',visited:'2026-10-15',rating:'0',address:'',notes:'Unsaved',phone:'',url:'',lat:'',lng:''},favorite:false,photos:[],coverIndex:0});
- const source=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),original=place(),ctx=vm.createContext({db,records:[original],journeys:[trip()],settings:{theme:'paper'},storageReady:true,withoutStarterSamples,validateJourneys,reconcileJourneys,clearDraftInTransaction,applyTheme(){},render(){},widgetSync:{refresh(){}}});vm.runInContext(source.slice(source.indexOf('function dbPut('),source.indexOf('const widgetPlugin=')),ctx);
+ const source=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),original=place(),ctx=vm.createContext({db,journalStorage:createJournalStorage(db),records:[original],journeys:[trip()],settings:{theme:'paper'},storageReady:true,withoutStarterSamples,validateJourneys,reconcileJourneys,clearDraftInTransaction,applyTheme(){},render(){},widgetSync:{refresh(){}}});vm.runInContext(source.slice(source.indexOf('function dbPut('),source.indexOf('const widgetPlugin=')),ctx);
  const actual=ctx.dbPut;ctx.dbPut=async()=>{throw Error('Disk full');};await assert.rejects(ctx.changeJournal(rows=>rows.map(v=>returns(v,{tripIds:['trip-a']})),undefined,{clearDraftId:'draft-visit'}),/Disk full/);assert.equal(ctx.records[0],original);assert.equal((await store.read()).visitId,'new');
  ctx.dbPut=actual;await ctx.changeJournal(rows=>rows.map(v=>returns(v,{tripIds:['trip-a']})),undefined,{clearDraftId:'draft-visit'});assert.equal(visitsOf(ctx.records[0]).length,2);assert.equal(await store.read(),null);db.close();
 });

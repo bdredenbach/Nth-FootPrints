@@ -1,0 +1,49 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {IDBFactory} from 'fake-indexeddb';
+import {openJournalDatabase,createJournalStorage} from '../dist/journal-storage.js';
+import {registerMedia,mediaInfo,dataBlob,crc32,knownMedia,visitMedia} from '../dist/media-store.js';
+import {validateRecord,parseBackup,makeBackup} from '../dist/model.js';
+import {preparePhotoExport} from '../dist/photo-export.js';
+import {prepareJournalArchive,inspectJournalArchive,restoreJournalArchive} from '../dist/journal-archive.js';
+import {createDraftStore,createDraftRecovery} from '../dist/drafts.js';
+const photo='data:image/jpeg;base64,AQID',audio='data:audio/webm;base64,BAUG';
+const record=()=>validateRecord({id:'place',title:'Our place 🌲',category:'Other',visited:'2026-10-17',rating:0,favorite:false,lat:0,lng:0,photos:[photo],coverIndex:0,audio,updatedAt:'2026-10-17T04:00:00Z'});
+const read=(db,key='state')=>new Promise(resolve=>{const r=db.transaction('journal').objectStore('journal').get(key);r.onsuccess=()=>resolve(r.result);});
+async function fixture(){const db=await openJournalDatabase(new IDBFactory());return {db,store:createJournalStorage(db)};}
+async function archive(records=[record()]){const stream=await prepareJournalArchive(records,{theme:'night'},[]),parts=[];for await(const p of stream.chunks())parts.push(p);const blob=new Blob(parts);assert.equal(blob.size,stream.size);return {stream,blob};}
+test('original media is content-addressed, deduplicated and trusted only after registration',async()=>{
+ assert.equal(crc32(new TextEncoder().encode('123456789')),0xcbf43926);const blob=dataBlob(photo),a=await registerMedia(blob),b=await registerMedia(blob);assert.equal(a,b);assert.equal(knownMedia(a,'image'),true);assert.equal(knownMedia('blob:unregistered','image'),false);assert.equal(mediaInfo(a).size,3);assert.deepEqual(new Uint8Array(await preparePhotoExport({...record(),photo:a}).blob.arrayBuffer()),new Uint8Array([1,2,3]));await assert.rejects(registerMedia(blob,{key:'nth-media:'+'0'.repeat(64)}),/checksum/);
+});
+test('legacy journals migrate atomically to binary originals and small metadata, retaining dates, GPS, return visits and bytes',async()=>{
+ const {db,store}=await fixture(),old={records:[record()],journeys:[],settings:{theme:'night'}};await new Promise(resolve=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put(old,'state');t.oncomplete=resolve;});const loaded=await store.read(),disk=await read(db);assert.equal(disk.storageVersion,2);assert.match(disk.records[0].photos[0],/^nth-media:/);assert.ok(!JSON.stringify(disk).includes('base64'));assert.equal(knownMedia(loaded.records[0].photo,'image'),false);const canonical=validateRecord(loaded.records[0]);assert.equal(knownMedia(canonical.photo,'image'),true);assert.deepEqual(new Uint8Array(await dataBlob(canonical.photo).arrayBuffer()),new Uint8Array([1,2,3]));assert.equal(canonical.lat,0);assert.equal(canonical.lng,0);assert.equal((await store.read()).records[0].photos[0],canonical.photo);db.close();
+});
+test('journal media and recovery draft cleanup commit together; failed transactions preserve previous journal',async()=>{
+ const {db,store}=await fixture();await store.write([record()],{theme:'paper'},null,[]);const before=await read(db);await assert.rejects(store.write([{...record(),photo:'invalid',photos:['invalid']}],{theme:'night'},null,[]));assert.deepEqual(await read(db),before);const draft=createDraftStore(db);await new Promise(resolve=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put({id:'draft'},'editor-draft');t.oncomplete=resolve;});await store.write([record()],{theme:'night'},'draft',[]);assert.equal(await draft.read(),null);db.close();
+});
+test('ZIP64 archive round trip preserves originals and labels, deduplicates attachments and restores only after verification',async()=>{
+ const first=record(),second={...record(),id:'other',title:'Another place',country:'Canada',region:'Ontario'},built=await archive([first,second]);assert.equal(built.stream.manifest.media.length,2);const preview=await inspectJournalArchive(built.blob);assert.equal(preview.records.length,2);const {db,store}=await fixture();await store.write([first],{theme:'paper'},null,[]);const staged=await restoreJournalArchive(preview,{stage:(b,k)=>store.stage(b,k)});assert.equal((await read(db)).records.length,1);await store.write(staged.records,staged.settings,null,staged.journeys);const restored=await store.read();assert.equal(restored.records.length,2);assert.equal(restored.records[1].country,'Canada');assert.equal(restored.records[1].region,'Ontario');assert.deepEqual(new Uint8Array(await dataBlob(restored.records[0].photos[0]).arrayBuffer()),new Uint8Array([1,2,3]));assert.equal(restored.records[0].photos[0],restored.records[1].photos[0]);db.close();
+});
+test('damaged/truncated archives and cancelled staging never publish partial journal data; orphan cleanup keeps live originals',async()=>{
+ const {blob}=await archive(),bytes=new Uint8Array(await blob.arrayBuffer());await assert.rejects(inspectJournalArchive(blob.slice(0,blob.size-10)));const preview=await inspectJournalArchive(blob),{db,store}=await fixture();await store.write([record()],{},null,[]);const before=await read(db),controller=new AbortController();await assert.rejects(restoreJournalArchive(preview,{signal:controller.signal,stage:async(b,k)=>{const v=await store.stage(b,k);controller.abort();return v;}}),/CANCELLED/);assert.deepEqual(await read(db),before);await store.releaseStage();assert.equal((await store.read()).records.length,1);
+ const mediaName=preview.manifest.media[0].path;bytes[preview.entries.get(mediaName).dataStart]^=1;const bad=await inspectJournalArchive(new Blob([bytes]));await assert.rejects(restoreJournalArchive(bad,{stage:(b,k)=>store.stage(b,k)}),/damaged|checksum/);assert.deepEqual(await read(db),before);db.close();
+});
+test('old JSON backups remain readable independently of runtime media URLs',()=>{const old=JSON.stringify(makeBackup([record()]));assert.equal(parseBackup(old).records[0].photo,photo);});
+test('metadata-only edits do not rewrite existing original media',async()=>{
+ const {db,store}=await fixture();await store.write([record()],{},null,[]);let mediaWrites=0;const transact=db.transaction.bind(db);db.transaction=(...args)=>{const tx=transact(...args),object=tx.objectStore.bind(tx);tx.objectStore=name=>{const s=object(name);if(name==='media'){const put=s.put.bind(s);s.put=(...values)=>{mediaWrites++;return put(...values);};}return s;};return tx;};await store.write([{...record(),notes:'Only the note changed'}],{},null,[]);assert.equal(mediaWrites,0);assert.equal((await read(db)).records[0].notes,'Only the note changed');db.close();
+});
+test('split compatibility volumes join in numeric order and reject missing, duplicate or mixed parts',async()=>{
+ const {saveArchiveParts,joinBackupParts}=await import('../dist/backup-parts.js'),stream=await prepareJournalArchive([record()],{},[]),files=[];let active;
+ const plugin={begin:async o=>{active={...o,pieces:[]};return {id:'part'};},append:async({data})=>active.pieces.push(Uint8Array.from(atob(data),c=>c.charCodeAt(0))),finish:async()=>{const f=new Blob(active.pieces);Object.defineProperty(f,'name',{value:active.name});files.push(f);return {name:active.name,bytes:f.size};},abort:async()=>{}};
+ await saveArchiveParts(stream,'journal-test',{plugin,partSize:300});assert.ok(files.length>1);const joined=joinBackupParts(files.slice().reverse());assert.equal(joined.size,stream.size);assert.equal((await inspectJournalArchive(joined)).records.length,1);assert.throws(()=>joinBackupParts(files.slice(1)),/Choose all/);assert.throws(()=>joinBackupParts([files[0],files[0]]),/Choose all/);assert.throws(()=>joinBackupParts([files[0],Object.assign(new Blob(),{name:'unrelated.nthbackup'})]),/only the parts/);
+});
+test('external legacy JSON cannot borrow runtime-only media URLs',async()=>{
+ const url=await registerMedia(dataBlob(photo));await assert.rejects(async()=>parseBackup(JSON.stringify({...makeBackup([record()]),records:[{...record(),photos:[url],photo:url}]})),/Legacy JSON/);
+});
+
+test('a failed binary migration leaves the complete old journal readable and retries safely',async()=>{
+ const {db,store}=await fixture(),legacy={records:[record()],settings:{theme:'night'},journeys:[]};await new Promise(resolve=>{const t=db.transaction('journal','readwrite');t.objectStore('journal').put(legacy,'state');t.oncomplete=resolve;});const native=db.transaction.bind(db);let fail=true;db.transaction=(names,mode,...rest)=>{const tx=native(names,mode,...rest);if(mode==='readwrite'&&fail){fail=false;queueMicrotask(()=>tx.abort());}return tx;};const usable=await store.read();assert.match(usable.storageWarning,/existing journal is intact/);assert.deepEqual(await read(db),legacy);assert.equal(usable.records[0].title,legacy.records[0].title);await store.read();assert.equal((await read(db)).storageVersion,2);db.close();
+});
+test('staged originals survive unrelated metadata saves, then interrupted-restore cleanup removes only unpublished media',async()=>{
+ const {db,store}=await fixture();await store.write([record()],{},null,[]);const unused=await registerMedia(new Blob([new Uint8Array([99,98,97])],{type:'image/png'})),key=mediaInfo(unused).key;await store.stage(dataBlob(unused),key);await store.write([{...record(),notes:'Changed while media is staged'}],{},null,[]);const keyExists=()=>new Promise(resolve=>{const q=db.transaction('media').objectStore('media').getKey(key);q.onsuccess=()=>resolve(q.result);});assert.equal(await keyExists(),key);await store.releaseStage();assert.equal(await keyExists(),undefined);assert.equal((await store.read()).records[0].notes,'Changed while media is staged');db.close();
+});

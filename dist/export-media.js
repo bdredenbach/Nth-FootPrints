@@ -1,3 +1,4 @@
+import {knownMedia} from './media-store.js';
 import {placeSourceCredit,isGeoapifySource} from './place-source.js';
 import {preparePhotoExport} from './photo-export.js';
 import {visitsOf,visitView} from './visits.js';
@@ -27,7 +28,7 @@ export function privacyLines(record,{location='none',includeDate=true}={}){
  if(location==='exact'){if(record.address)lines.push(record.address);else{const area=[record.region,record.country].filter(Boolean).join(', ');if(area)lines.push(area);}if(Number.isFinite(record.lat)&&Number.isFinite(record.lng))lines.push(`${record.lat.toFixed(6)}, ${record.lng.toFixed(6)}`);}return lines;
 }
 async function imageFor(src,signal){
- check(signal);if(!src)return null;if(!/^data:image\/(jpeg|png|webp|gif);base64,/i.test(src)&&!/^assets\/(coast|mountain|city|blank)\.svg$/.test(src))throw Error('This image cannot be exported.');
+ check(signal);if(!src)return null;if(!knownMedia(src,'image')&&!/^data:image\/(jpeg|png|webp|gif);base64,/i.test(src)&&!/^assets\/(coast|mountain|city|blank)\.svg$/.test(src))throw Error('This image cannot be exported.');
  const image=new Image();await new Promise((resolve,reject)=>{const abort=()=>{image.src='';reject(Error('CANCELLED'));};signal?.addEventListener('abort',abort,{once:true});image.onload=()=>{signal?.removeEventListener('abort',abort);resolve();};image.onerror=()=>{signal?.removeEventListener('abort',abort);reject(Error('A saved photo could not be opened. Choose another photo or repair the attachment.'));};image.src=src;});check(signal);return image;
 }
 const blobOf=(canvas,type,quality)=>new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('This image could not be exported.')),type,quality));

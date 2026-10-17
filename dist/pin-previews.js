@@ -1,6 +1,8 @@
+import {knownMedia} from './media-store.js';
 import {createPhotoPreview} from './photo-preview.js';
 export function pinPhoto(record){
  const photo=Array.isArray(record?.photos)?record.photos[record.coverIndex??0]:record?.photo;
+ if(knownMedia(photo,'image'))return photo;
  return typeof photo==='string'&&photo.length<=30*1024*1024&&/^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/i.test(photo)?photo:null;
 }
 export function createPinPreviews({thumbnail=(source,signal)=>createPhotoPreview(source,{width:96,height:96,signal}),onPreview=()=>{},limit=48}={}){

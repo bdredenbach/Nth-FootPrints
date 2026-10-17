@@ -1,3 +1,4 @@
+import {createJournalStorage} from '../dist/journal-storage.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,7 +11,7 @@ const asData=async blob=>`data:${blob.type};base64,${Buffer.from(await blob.arra
 const turn=()=>new Promise(r=>setImmediate(r));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 async function fixture(){
- const indexedDB=new IDBFactory();const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('nth-footprints',1);r.onupgradeneeded=()=>r.result.createObjectStore('journal');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+ const indexedDB=new IDBFactory();const db=await new Promise((resolve,reject)=>{const r=indexedDB.open('nth-footprints',1);r.onupgradeneeded=()=>{r.result.createObjectStore('journal');r.result.createObjectStore('media');};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
  const store=createDraftStore(db),states=[];let uuid=0;
  const controller=()=>createDraftRecovery({store,read:asData,uuid:()=>`id-${++uuid}`,delay:10000,onState:s=>states.push(s)});
  const keys=()=>new Promise(resolve=>{const r=db.transaction('journal').objectStore('journal').getAllKeys();r.onsuccess=()=>resolve(r.result);});
@@ -106,8 +107,8 @@ test('lifecycle wiring checkpoints before backgrounding and forwards native rest
 });
 test('actual journal writer uses the same transaction to remove its saved draft',async()=>{
  const f=await fixture(),r=f.controller();r.begin('draft-1');await r.flush(snapshot());
- const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),c=vm.createContext({journeys:[],db:f.db,clearDraftInTransaction});
- vm.runInContext(app.slice(app.indexOf('function dbPut('),app.indexOf('async function commit(')),c);await c.dbPut([{id:'kept'}],{theme:'paper'},'draft-1');assert.equal(await f.store.read(),null);assert.equal((await journalRead(f.db)).records[0].id,'kept');
+ const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8'),c=vm.createContext({journeys:[],db:f.db,journalStorage:createJournalStorage(f.db),clearDraftInTransaction});
+ vm.runInContext(app.slice(app.indexOf('function dbPut('),app.indexOf('async function commit(')),c);await c.dbPut([{id:'kept',title:'Kept',category:'Other',visited:'2026-10-17',rating:0,favorite:false,lat:null,lng:null,updatedAt:'2026-10-17T04:00:00Z'}],{theme:'paper'},'draft-1');assert.equal(await f.store.read(),null);assert.equal((await journalRead(f.db)).records[0].id,'kept');
 });
 
 test('an unreadable draft can be discarded without deleting the journal or a replacement valid draft',async()=>{

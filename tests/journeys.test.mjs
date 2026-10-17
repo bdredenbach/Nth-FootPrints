@@ -1,3 +1,4 @@
+import {createJournalStorage} from '../dist/journal-storage.js';
 import {createJourneysUI} from '../dist/journeys-ui.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,10 +63,10 @@ test('trip filtering composes with search, categories, favorites and map locatio
  const a=place(),b=place({id:'b',favorite:false,title:'Market',category:'Dining'}),c=place({id:'c',tripIds:[]});const members=journeyRecords([a,b,c],'trip-1');
  assert.deepEqual(filterRecords(members,{favorites:true}).map(r=>r.id),[a.id]);assert.deepEqual(filterRecords(members,{query:'market',category:'Dining'}).map(r=>r.id),[b.id]);assert.equal(filterRecords(members,{query:'market',category:'Nature'}).length,0);
 });
-async function journal(){const idb=new IDBFactory();return new Promise((resolve,reject)=>{const request=idb.open('journey-test',1);request.onupgradeneeded=()=>request.result.createObjectStore('journal');request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
+async function journal(){const idb=new IDBFactory();return new Promise((resolve,reject)=>{const request=idb.open('journey-test',1);request.onupgradeneeded=()=>{request.result.createObjectStore('journal');request.result.createObjectStore('media');};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});}
 const source=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 test('real journal transaction persists memberships, trip metadata and draft cleanup atomically',async()=>{
- const db=await journal(),c=vm.createContext({db,journeys:[],clearDraftInTransaction});vm.runInContext(source.slice(source.indexOf('function dbPut('),source.indexOf('async function commit(')),c);
+ const db=await journal(),c=vm.createContext({db,journalStorage:createJournalStorage(db),journeys:[],clearDraftInTransaction});vm.runInContext(source.slice(source.indexOf('function dbPut('),source.indexOf('async function commit(')),c);
  await c.dbPut([place()],{theme:'night'},'draft-id',[trip({coverId:'stop-1'})]);const state=await new Promise((resolve,reject)=>{const r=db.transaction('journal').objectStore('journal').get('state');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});assert.equal(state.records[0].tripIds[0],state.journeys[0].id);assert.equal(state.journeys[0].coverId,state.records[0].id);db.close();
 });
 test('failed trip persistence leaves both in-memory records and journeys intact; queued edits still run',async()=>{
