@@ -217,10 +217,20 @@ async function moveDeck(step,{drag=0}={}){
  if(focused)$('deck').querySelector('.deck-front')?.focus({preventScroll:true});
 }
 const navigation=createNavigation({history:window.history,location:window.location,events:window,
- apply:applyNavigation,canLeave:canLeaveNavigation,onError:toast,onSettled:()=>widgetLaunch.flush(),
+ apply:applyNavigation,canLeave:canLeaveNavigation,onError:toast,onSettled:()=>{if(navigation.route()?.dialogs.at(-1)?.id==='tutorial'&&!$('tutorial').open){navigation.back({force:true});return;}widgetLaunch.flush();tutorialUI.queue();},
  onRoot:()=>{if(device.native)window.NthNative?.App?.minimizeApp().catch(()=>toast('Could not return to the home screen.'));}
 });
-const tutorialUI=createTutorialUI({document,storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},requestLocation:()=>device.requestLocationPermission(),show,close,icon,onStatus:toast});
+const tutorialUI=createTutorialUI({document,storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},requestLocation:()=>device.requestLocationPermission(),show,close,icon,onStatus:toast,currentArea:currentTutorialArea,canShow:()=>storageReady&&!navigation.busy&&!navigation.applying&&!transferRunning&&!exportSaving&&!editorSaving&&!cameraPending&&!locationPending&&!micPending&&pendingMedia===0&&offlineMaps.phase==='idle'});
+function currentTutorialArea(){
+ const id=navigation.route()?.dialogs.at(-1)?.id;
+ if(id==='tutorial')return null;
+ if(id==='editor')return !$('photo-geotag').hidden?'photo':'editor';
+ if(id==='journal-tools'){const tab=document.querySelector('[data-tool-tab][aria-selected="true"]')?.dataset.toolTab;return {memories:'memories',timeline:'timeline',explore:'exploration',nearby:'nearby'}[tab];}
+ if(id==='journeys'){if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
+ if(id==='batch-import'){if($('batch-import').classList.contains('batch-transfer-active'))return null;return !$('batch-review').hidden?'import-review':'import';}
+ if(id==='memory-export'&&$('export-controls').inert)return null;
+ return id?({'details':'visits','pin-picker':'picker','backup':'backup','settings':'preferences','offline-maps':'offline','memory-export':'export','place-preview':'preview','photo-lightbox':'lightbox'}[id]??null):({journal:'journal',favorites:'journal',map:'map',places:'places'}[view]);
+}
 function editorSnapshot(){return {fields:JSON.stringify([...new FormData($('place-form')).entries()]),favorite:$('favorite').checked,photo:draftPhoto,photos:draftPhotos.slice(),cover:draftCover,audio:draftAudio,art:draftArt};}
 function editorDirty(){
  if(!$('editor').open||!draftBaseline)return false;
@@ -253,7 +263,7 @@ function applyView(next){
 }
 function setView(next){return navigation.view(next);}
 function syncMapVisibility(){const clear=!mapsPaused&&!document.hidden&&!document.querySelector('dialog[open]');atlas?.setVisible(view==='map'&&clear);placesUI.syncVisibility(clear,mapsPaused);detailMap?.setVisible(!mapsPaused&&!document.hidden&&$('details').open&&![...document.querySelectorAll('dialog[open]')].some(d=>d.id!=='details'));}
-function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});syncMapVisibility();}
+function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});syncMapVisibility();if(id!=='tutorial')tutorialUI.queue();}
 function cleanupDialog(id){
  if(id==='tutorial')tutorialUI.reset();
  if(id==='photo-lightbox')photoLightbox.reset();
@@ -304,7 +314,7 @@ async function applyNavigation(route,previous){
   else if(item.id==='journal-tools'){if(!$('journal-tools').open)openJournalTools();}
   else if(item.id==='batch-import'){if(!$('batch-import').open)openBatchImport();}
   else if(item.id==='memory-export'){if(!$('memory-export').open)openMemoryExport();}
-  else if(item.id==='tutorial'){if(!$('tutorial').open)tutorialUI.start({replay:true});}
+  else if(item.id==='tutorial'){/* Dismissed tip history entries are skipped after navigation settles. */}
   else if(item.id==='journeys'){if(!$('journeys').open)openJourneys();}
   else if(item.id==='offline-maps'){if(!$('offline-maps').open)openOfflineMaps();}
   else if(!$(item.id).open)show(item.id);
@@ -492,6 +502,7 @@ function renderReleases(){
 }
 function asDataURL(file){return registerMedia(file);}
 function offerPhotoMetadata(metadata){
+ window.setTimeout(()=>tutorialUI.queue(),0);
  pendingPhotoMetadata=metadata;const box=$('photo-geotag');box.hidden=false;
  if(metadata.location){const {lat,lng}=metadata.location;
   box.innerHTML=`<span class="eyebrow">A LOCATION IN YOUR PHOTO</span><h3>Bring this place into your footprint.</h3><p>${lat.toFixed(6)}°, ${lng.toFixed(6)}°</p><p class="field-help">Apply these coordinates to the editor, then save the footprint to keep them.</p>${metadata.takenOn?`<label class="checkbox"><input type="checkbox" id="use-photo-date">Also use photo date: ${esc(date(metadata.takenOn))}</label>`:''}<div class="geotag-actions"><button type="button" class="primary" id="apply-photo-geotag">Use photo location</button><a class="text-button" href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}" target="_blank" rel="noopener noreferrer">Preview on map ${icon('external')}</a><button type="button" class="text-button" id="dismiss-photo-geotag">Dismiss</button></div>`;
@@ -820,7 +831,7 @@ function wire(){
  if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
  icons();renderReleases();$('enlarge-draft').onclick=openEnlargedPhoto;$('place-search-form').onsubmit=searchPlaces;$('place-query').oninput=()=>placeSearch.cancel();$('place-search-cancel').onclick=()=>placeSearch.cancel();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  window.addEventListener('pagehide',()=>{mapsPaused=true;syncMapVisibility();});window.addEventListener('pageshow',()=>{mapsPaused=false;syncMapVisibility();});
- tutorialUI.wire();$('settings-tutorial').onclick=()=>tutorialUI.start({replay:true});$('settings-location').onclick=()=>tutorialUI.start({replay:true,chapter:'location'});
+ tutorialUI.wire();
  placesUI.wire();$('tools-favorites').onclick=()=>void browseFavorites();toolsUI.wire();batchUI.wire();exportsUI.wire();$('tools-open').onclick=()=>openJournalTools();$('settings-tools').onclick=()=>openJournalTools();$('memory-banner-open').onclick=()=>openJournalTools('memories');$('nearby-memory-open').onclick=()=>{if(nearbyMatch)openDetail(nearbyMatch.recordId,nearbyMatch.visitId);};$('nearby-memory-dismiss').onclick=()=>{nearbyMatch=null;renderNearbyBanner();};
  $('tag-filter').onchange=e=>{tagFilter=e.target.value;deckIndex=0;render();};$('clear-exploration').onclick=()=>{explorationCountry='';explorationRegion='';render();};
  document.addEventListener('visibilitychange',()=>{syncMapVisibility();if(document.hidden)void nearbyMemories.pause();else if(storageReady){void nearbyMemories.resume();renderToolFilters();}});if(device.native)void window.NthNative?.App?.addListener('resume',()=>{mapsPaused=false;syncMapVisibility();if(storageReady){void nearbyMemories.resume();renderToolFilters();}}).catch(()=>{});
@@ -839,8 +850,8 @@ function wire(){
 
 }
 // Retired preferences are already ignored in memory; optional cleanup can wait for the next save if storage is full.
-async function init(){const initial=location.hash.slice(1);if(['journal','map','places','favorites'].includes(initial))view=initial;navigation.start(view);wire();tutorialUI.start();
+async function init(){const initial=location.hash.slice(1);if(['journal','map','places','favorites'].includes(initial))view=initial;navigation.start(view);wire();
  try{db=await dbOpen();const state=await dbGet();if(state){if(state.storageWarning)toast(state.storageWarning);const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);journeys=validateJourneys(state.journeys??[]);const linked=reconcileJourneys(records,journeys);records=linked.records;journeys=linked.journeys;if(records.length!==loaded.length)await dbPut(records,settings);else if(Object.hasOwn(state.settings??{},'collections'))await dbPut(records,settings).catch(()=>{});}else{records=seeds;await dbPut(records,settings);}storageReady=true;await journalStorage.collect().catch(()=>{});}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
- applyTheme();render();if(view==='places')placesUI.setActive(true);if(storageReady){await initialiseDraftRecovery();if(!document.hidden)void nearbyMemories.resume();}void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ applyTheme();render();tutorialUI.start();if(view==='places')placesUI.setActive(true);if(storageReady){await initialiseDraftRecovery();if(!document.hidden)void nearbyMemories.resume();}void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 init();

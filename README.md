@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.8.4**.
+A personal travel journal by Nth Experience. Prototype **0.8.5**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -12,7 +12,7 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 
 ## Included
 
-- A 13-chapter, first-launch FootPrints field guide, with chapter selection, saved progress, Preferences replay and location setup afterward.
+- Contextual first-visit tutorial cards that highlight the actual controls in each area, remember dismissed tips and support reset/disable from Preferences.
 
 - Places: borderless area search with contextual suggestions, selected-category/radius discovery, a center marker, Explore around here and source-aware trip visit drafts.
 - Borderless controls and italic feature hints, with visible selected, disabled and focus states.
@@ -357,12 +357,14 @@ Each original is copied into binary media storage before the next photo is proce
 
 Validation: 362 automated checks, including a real 96 MiB batch through binary storage, scoped cleanup, cancellation and injected write failure. Browser checks cover a 96 MiB import/save, duplicate-only import, cancellation, storage failure and the transfer layout at 320/360/412/684/1280 px. These are desktop Chromium checks; device-specific capacity and Android performance still need physical-phone testing.
 
-## FootPrints field guide and startup location (0.8.4)
+## Contextual first-visit tutorial (0.8.5)
 
-A themed field guide opens immediately on first launch after this update, for new and existing installations that have not completed it. Thirteen chapters explain the real controls: journal browsing/filtering; new footprints and media; original photo dates/GPS; batch grouping, progress and atomic save; return visits and galleries; pins, directions and offline maps; Places discovery centers, category/radius and sorting; journeys and PDF books; journal tools; streamed backups; appearance/widgets; and location setup. Warm paper/Evening ink use existing theme tokens, borderless controls and italic feature hints. Chapters have exact navigation paths, local examples and Back/Next plus a chapter menu.
+The chapter-style introduction has been replaced with small coaching cards that appear when a user first reaches each area. The actual control is highlighted; each card explains that control while the current screen remains visible. Back/Next stays within that area’s short set of tips. Got it, Dismiss these tips and Android Back remember only that area. Returning to a dismissed area leaves it clear, including after app restart. There is no chapter selector or up-front full-app tour.
 
-Unfinished guides resume their last chapter. Skip goes to the location chapter; Continue without location completes setup. Finish & allow location opens the native permission request if needed. An existing precise/approximate grant is reused; denial and disabled system services offer retry/manual setup/continue choices. A successful grant finishes the guide. Android requests permission without obtaining or storing a startup position; the browser fallback may obtain one fix to trigger its own permission prompt, but does not apply it to journal data. Nearby memories remains a separate opt-in. Replays and Location access are available in Preferences, with correct Android Back and history-forward behavior. Device-local progress/completion is outside journal backups, so a new device gets its own introduction. No app-wide location tracking or background permission was added.
+Separate introductions cover the journal, map, Places, footprint editor, detected photo GPS, details/visits, location picker, photo import, imported-visit review, journey list/detail, each Journal tools tab, offline maps, backups, exports, discovered-place preview, photo viewer and Preferences. New review/metadata/journey sections trigger when they become visible, including after asynchronous work. Transfer and permission work suppress unrelated tips. Coach placement follows the real target and respects viewport size, theme and safe-area insets.
 
-Photo GPS remains independent of current device permission: Android requests photo-location metadata access from the existing original-photo chooser. Batch import proposes supported embedded GPS/dates; the single-photo editor offers Use photo location for explicit application. Missing GPS, provider-redacted copies and separate gallery estimates still require an original with embedded GPS or a manually chosen location.
+After the first main-screen introduction is dismissed, a location explanation offers Allow location or Continue without location. Android requests permission without obtaining or storing a startup position; existing precise/approximate access is reused. Permission denial and disabled services retain retry/continue choices. Photo-location metadata remains separate, and original-photo GPS is never replaced by current device coordinates. Nearby memories remains its own opt-in.
 
-Validation: 373 automated checks; browser layout checks cover all 13 chapters at 320/360/412/684/1280 px in both themes, including a 320 × 568 screen. First-launch order, no early prompt, denial, disabled services, approximate access, replay, startup completion, native Back and history-forward replay pass with a mocked native boundary. The existing 96 MiB import/save/cancel/quota/retry browser regression also passes. Actual Android permission dialogs, provider behavior and device rendering still need phone testing.
+Preferences offers Show tips when I visit a new area, Reset tutorial tips and explicit Location access. First-visit state is device-local and outside journal backups. The old chapter-guide completion flag does not suppress the new contextual introductions. Blocked local storage still remembers dismissals for the running session.
+
+Validation: 376 automated checks pass. Browser flows cover first/repeat visits, per-area persistence, disable/reset, native Back/history forward, permission choices, photo GPS, individual tool tabs, import review, photo viewer, offline maps, backup and asynchronous journey creation. Coaching cards fit 320/360/412/684/1280 px in both themes, including a 320 × 568 screen and simulated Android safe-area insets. Android permission/provider behavior still needs physical-phone testing.
