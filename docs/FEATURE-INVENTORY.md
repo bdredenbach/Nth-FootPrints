@@ -213,7 +213,7 @@ Trip dates/photos and note searches include only matching member visits when a t
 | Nearby memories | Opt-in visible-app watch, 250/500/1,000 m, no trail/background alerts, 24-hour local cooldown, stop/pause/resume handling |
 | Portability/recovery | Backup v5 accepts v1–v4; labels/preferences retained; recovery metadata v4 accepts v1–v3 |
 
-Import limits: 60 files, 80 MB raw batch, 20 MB each, 30 photos per visit. Book limits: 100 visits, 300 pages, 80 MB; text is rasterized and font coverage follows the device. Cards indicate shortened text. PDF save uses the existing Android bounded-chunk document picker with the correct MIME type. Nearby consent/cooldowns, recovery drafts and offline maps stay outside journal backups. Labels are entered by the user, not inferred from boundaries. Original-photo metadata is not copied into cards/PDF images; titles/stories/photo pixels can still reveal locations.
+Import limits: 60 files, 20 MB each, 30 photos per visit; no separate aggregate byte cap as of 0.8.3. Device storage/quota applies. Book limits: 100 visits, 300 pages, 80 MB; text is rasterized and font coverage follows the device. Cards indicate shortened text. PDF save uses the existing Android bounded-chunk document picker with the correct MIME type. Nearby consent/cooldowns, recovery drafts and offline maps stay outside journal backups. Labels are entered by the user, not inferred from boundaries. Original-photo metadata is not copied into cards/PDF images; titles/stories/photo pixels can still reveal locations.
 
 272 automated checks pass. Combined phone/desktop browser tests cover all eight features, failed batch-write rollback/retry, read cancellation, label draft recovery, legacy/fresh backup restore, deletion protection and nearby lifecycle. Exported GPS is independently decoded; PDF pages are rendered and checked through the full long story. Physical Android checks remain.
 
@@ -342,3 +342,7 @@ Primary references: https://github.com/komoot/photon/blob/master/docs/api-v1.md 
 ## Compact map header (0.8.2)
 
 The atlas header contains only the two existing map actions in one 44 px button row. Pin counts and the downloaded-maps checkbox move together into the footer above the map status/guidance. Footer items wrap on narrow screens and longer count labels; the checkbox retains a 44 px touch row. Existing IDs, counts, toggle behavior and retry handling remain. Ready-map explanatory guidance uses italic styling; loading/errors remain standard.
+
+## Photo import progress (0.8.3)
+
+Backup-style transfer panel for photo preparation and final save, with photo/byte progress, filename, cancellation and review handoff. The previous 80 MB aggregate limit is removed; 60 files × 20 MiB remain, subject to device storage/quota. Independent media staging scopes keep memory tied to one original at a time and preserve concurrent review/restore media. Cancelling or discarding removes unused staging; failed final saves retain the review and prior journal. Content-key duplicate checks survive refreshed Blob URLs. 362 automated checks and a real 96 MiB browser import/save pass, with cancellation, storage failure and 320–1280 px layout checks. Physical-phone capacity remains device-specific.

@@ -55,3 +55,30 @@ test('selected file originals and restored slices are detached before storage; r
   const {db,store}=await fixture();await store.write([{...record(),photos:[url],audio:null}],{},null,[]);const key=mediaInfo(url).key;await fsp.writeFile(file,bytes);const external=await fs.openAsBlob(file,{type:'image/jpeg'});await new Promise(resolve=>{const t=db.transaction('media','readwrite');t.objectStore('media').put({blob:new Blob([new Uint8Array(5)],{type:'image/jpeg'}),crc:0},key);t.oncomplete=resolve;});await store.stage(external,key);const disk=await new Promise(resolve=>{const q=db.transaction('media').objectStore('media').get(key);q.onsuccess=()=>resolve(q.result);});assert.deepEqual(Buffer.from(await disk.blob.arrayBuffer()),bytes);await fsp.unlink(file);const loaded=await store.read(),archive=await prepareJournalArchive(loaded.records,{},[]);let count=0;for await(const b of archive.chunks())count+=b.length;assert.equal(count,archive.size);assert.deepEqual(Buffer.from(await dataBlob(loaded.records[0].photos[0]).arrayBuffer()),bytes);db.close();
  }finally{await fsp.rm(dir,{recursive:true,force:true});}
 });
+
+test('photo staging scopes protect independent reviews and restore staging; discard only removes unused originals',async()=>{
+ const {db,store}=await fixture();await store.write([record()],{},null,[]);
+ const a=store.createMediaStage(),b=store.createMediaStage(),blob=new Blob(['shared review original'],{type:'image/png'}),url=await a.read(blob),key=mediaInfo(url).key;
+ await b.read(blob);await store.stage(dataBlob(record().photo),mediaInfo(await registerMedia(dataBlob(record().photo))).key);await store.releaseStage();await a.release();await store.collect();
+ const keys=()=>new Promise(resolve=>{const q=db.transaction('media').objectStore('media').getAllKeys();q.onsuccess=()=>resolve(q.result);});
+ assert.ok((await keys()).includes(key));assert.ok(mediaInfo(url));await b.release();assert.ok(!(await keys()).includes(key));assert.equal(mediaInfo(url),null);assert.equal((await store.read()).records[0].title,record().title);await b.release();db.close();
+});
+
+test('batches over 80 MiB stage originals sequentially, publish small metadata atomically and retain original bytes',async()=>{
+ const {preparePhotoBatch,applyPhotoBatch}=await import('../dist/batch-import.js'),{readFileSync}=await import('node:fs');
+ const {db,store}=await fixture();await store.write([record()],{},null,[]);const before=await read(db),scope=store.createMediaStage(),jpeg=readFileSync(new URL('fixtures/photo-gps.jpg',import.meta.url)),files=Array.from({length:6},(_,i)=>new File([jpeg,new Uint8Array(16*1024*1024-jpeg.length-1),Uint8Array.of(i)],`large-${i}.jpg`,{type:'image/jpeg'})),progress=[];
+ const batch=await preparePhotoBatch(files,{records:(await store.read()).records,read:f=>scope.read(f),today:()=> '2026-10-17',grouping:'together',onProgress:(done,total,info)=>progress.push({done,total,...info})});
+ assert.deepEqual(await read(db),before);assert.equal(batch.sources.length,6);assert.equal(progress.at(-1).bytes,96*1024*1024);assert.equal(progress.at(-1).bytes,progress.at(-1).totalBytes);assert.equal(progress.at(-1).done,6);
+ const repeated=store.createMediaStage(),duplicates=await preparePhotoBatch([files[0],files[0]],{read:f=>repeated.read(f),today:()=> '2026-10-17'});assert.equal(duplicates.duplicates,1);await repeated.release();assert.ok(mediaInfo(batch.sources[0].photo));
+ await store.write(applyPhotoBatch((await store.read()).records,batch.groups,{uuid:()=> 'large-place'}).records,{},null,[]);await scope.release();const disk=await read(db);assert.ok(JSON.stringify(disk).length<10000);const saved=(await store.read()).records.find(r=>r.id==='large-place');assert.equal(saved.photos.length,6);
+ for(let i=0;i<6;i++){const original=dataBlob(saved.photos[i]);assert.equal(original.size,files[i].size);assert.deepEqual(new Uint8Array(await original.slice(-1).arrayBuffer()),Uint8Array.of(i));assert.deepEqual(new Uint8Array(await original.slice(0,jpeg.length).arrayBuffer()),new Uint8Array(jpeg));}
+ const cancel=store.createMediaStage(),controller=new AbortController(),snapshot=await read(db);await assert.rejects(preparePhotoBatch([new File(['cancel-only'],'cancel.png',{type:'image/png'})],{read:async f=>{const src=await cancel.read(f);controller.abort();return src;},today:()=> '2026-10-17',signal:controller.signal}),/CANCELLED/);await cancel.release();assert.deepEqual(await read(db),snapshot);db.close();
+});
+
+test('failed photo staging preserves the saved journal and releases partial review data',async()=>{
+ const {db,store}=await fixture();await store.write([record()],{},null,[]);const before=await read(db),scope=store.createMediaStage();await scope.read(new Blob(['temporary'],{type:'image/png'}));const original=db.transaction.bind(db);let fail=true;db.transaction=(names,mode,...rest)=>{const tx=original(names,mode,...rest);if(mode==='readwrite'&&fail){fail=false;queueMicrotask(()=>tx.abort());}return tx;};await assert.rejects(scope.read(new Blob(['quota failure'],{type:'image/png'})));await scope.release();assert.deepEqual(await read(db),before);const keys=await new Promise(resolve=>{const q=db.transaction('media').objectStore('media').getAllKeys();q.onsuccess=()=>resolve(q.result);});assert.equal(keys.length,2);db.close();
+});
+
+test('discarding an import does not revoke an identical original already held by an unsaved editor',async()=>{
+ const {db,store}=await fixture();await store.write([record()],{},null,[]);const blob=new Blob(['an unsaved editor attachment'],{type:'image/png'}),editorURL=await registerMedia(blob),scope=store.createMediaStage();await scope.read(blob);await scope.release();assert.ok(knownMedia(editorURL,'image'));assert.equal(await dataBlob(editorURL).text(),await blob.text());db.close();
+});

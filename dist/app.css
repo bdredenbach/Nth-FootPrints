@@ -161,3 +161,5 @@ button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,su
 @media(max-width:520px){.places-area-tools{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.places-area-tools>label[for="places-radius"]{grid-column:1/-1;justify-self:end;margin:0}.places-area-tools #places-locate,.places-area-tools #places-refresh{font-size:12px}}
 
 .places-query-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.places-query-meta .places-sort-label{margin:8px 0}.places-query-meta #places-query-hint{margin:8px 0}
+
+.batch-transfer-active #batch-pick,.batch-transfer-active #batch-storage,.batch-transfer-active #batch-status,.batch-transfer-active #batch-summary,.batch-transfer-active #batch-review{display:none}.batch-transfer-active .transfer-panel{margin-top:0}

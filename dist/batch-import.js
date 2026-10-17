@@ -1,9 +1,10 @@
+import {mediaInfo} from './media-store.js';
 import {readPhotoMetadata} from './geotags.js';
 import {validateRecord,MAX_PHOTOS} from './model.js';
 import {visitsOf,writeVisit} from './visits.js';
 import {normalizeTags} from './journal-tools.js';
 import {proximityKm} from './nearby-memories.js';
-export const MAX_BATCH_FILES=60,MAX_BATCH_BYTES=80*1024*1024;
+export const MAX_BATCH_FILES=60;
 const samePoint=(a,b)=>a.lat.toFixed(5)===b.lat.toFixed(5)&&a.lng.toFixed(5)===b.lng.toFixed(5);
 export const batchCoordinates=point=>Number.isFinite(point?.lat)&&Number.isFinite(point?.lng)?`${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}`:'No photo GPS';
 const cancelled=signal=>{if(signal?.aborted)throw Error('CANCELLED');};
@@ -20,13 +21,23 @@ export function proposePhotoGroups(sources,{grouping='place',today}={}){
  return groups;
 }
 export async function preparePhotoBatch(files,{records=[],read,today,signal,grouping='place',onProgress=()=>{}}={}){
- if(!files.length||files.length>MAX_BATCH_FILES)throw Error(`Choose 1–${MAX_BATCH_FILES} photos.`);if(files.reduce((n,f)=>n+f.size,0)>MAX_BATCH_BYTES)throw Error('Choose at most 80 MB of photos in one batch.');
- const seen=new Set();for(const r of records)for(const v of visitsOf(r))for(const src of v.photos??(v.photo?[v.photo]:[]))seen.add(src);
+ if(!files.length||files.length>MAX_BATCH_FILES)throw Error(`Choose 1–${MAX_BATCH_FILES} photos.`);
+ // Validate the whole selection before staging any originals. Aggregate size follows device capacity.
+ for(const file of files)if(!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)||file.size>20*1024*1024)throw Error(`“${file.name}”: use JPG, PNG, WebP or GIF up to 20 MB each.`);
+ const totalBytes=files.reduce((n,f)=>n+f.size,0);let doneBytes=0;
+ const progress=(done,file)=>onProgress(done,files.length,{bytes:doneBytes,totalBytes,file:file.name});
+ const seen=new Set();for(const r of records)for(const v of visitsOf(r))for(const src of v.photos??(v.photo?[v.photo]:[]))seen.add(mediaInfo(src)?.key??src);
  const sources=[];let duplicates=0;
- for(let i=0;i<files.length;i++){cancelled(signal);const file=files[i];if(!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)||file.size>20*1024*1024)throw Error(`“${file.name}”: use JPG, PNG, WebP or GIF up to 20 MB each.`);
-  onProgress(i,files.length);const bytes=new Uint8Array(await file.arrayBuffer());cancelled(signal);const meta=readPhotoMetadata(bytes),src=await read(file);cancelled(signal);if(seen.has(src)){duplicates++;onProgress(i+1,files.length);continue;}seen.add(src);
-  sources.push({photo:src,name:file.name,takenOn:meta.takenOn,location:meta.location?{...meta.location}:null});onProgress(i+1,files.length);
+ for(let i=0;i<files.length;i++){
+  cancelled(signal);const file=files[i];progress(i,file);
+  // Keep metadata buffers local to one photo, then stage its original before the next file.
+  const meta=await (async()=>readPhotoMetadata(new Uint8Array(await file.arrayBuffer())))();cancelled(signal);
+  const src=await read(file);cancelled(signal);doneBytes+=file.size;
+  if(seen.has(mediaInfo(src)?.key??src)){duplicates++;progress(i+1,file);continue;}seen.add(mediaInfo(src)?.key??src);
+  sources.push({photo:src,name:file.name,takenOn:meta.takenOn,location:meta.location?{...meta.location}:null});progress(i+1,file);
+  await new Promise(resolve=>setTimeout(resolve,0));
  }
+ cancelled(signal);
  return {groups:proposePhotoGroups(sources,{grouping,today}),duplicates,sources};
 }
 // This is an explicit review action. Automatic grouping never assigns missing GPS.

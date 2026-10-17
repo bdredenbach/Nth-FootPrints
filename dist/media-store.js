@@ -35,3 +35,6 @@ export async function externalize(records){
  return {records:visitMedia(records,p=>map.get(p)),entries};
 }
 export function forgetMedia(keep=new Set()){for(const row of byKey.values())if(!keep.has(row.key)&&!keep.has(row.url)){for(const url of row.aliases){URL.revokeObjectURL(url);byURL.delete(url);}byKey.delete(row.key);}}
+
+// Release only this operation's unused previews; other unsaved editors stay registered.
+export function forgetMediaKeys(keys){for(const key of keys){const row=byKey.get(key);if(!row)continue;for(const url of row.aliases){URL.revokeObjectURL(url);byURL.delete(url);}byKey.delete(key);}}
