@@ -43,6 +43,7 @@ export async function saveBackupFile(blob,name,{native=false,plugin,picker,downl
   let cleanup;
   try{if(session)await plugin.abort({id:session.id});if(writer)await writer.abort();}catch(e){cleanup=e;}
   if(cleanup)throw Error('The file was not completed. An incomplete file may remain in the chosen folder; delete it before retrying.');
+  if(signal?.aborted)throw Object.assign(Error('Export cancelled.'),{name:'AbortError'});
   throw error;
  }
 }

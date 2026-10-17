@@ -91,3 +91,8 @@ test('Export Photo opens an image save operation directly and keeps backup forma
  state.records[0].photo='data:image/jpeg;base64,/9j/2Q==';await state.exportPhoto('place');
  assert.equal(nodes['backup-heading'].textContent,'Export photo.');assert.match(saved.name,/\.jpg$/);assert.equal(saved.blob.type,'image/jpeg');assert.equal(saved.options.extension,'.jpg');assert.equal(saved.options.mimeType,'image/jpeg');assert.match(nodes['backup-status'].textContent,/Your photo is ready/);assert.equal(nodes['transfer-progress'].value,100);
 });
+
+test('cancelling a streamed native write reports cancellation even when Android rejects the interrupted write',async()=>{
+ const controller=new AbortController();let rejectWrite,entered;const started=new Promise(resolve=>entered=resolve),f=document({append:()=>{entered();return new Promise((_,reject)=>rejectWrite=reject);}}),stream={size:3,async *chunks(){yield new Uint8Array([1,2,3]);}};
+ const pending=saveBackupFile(stream,'stream.nthbackup',{native:true,plugin:f.plugin,signal:controller.signal});await started;controller.abort();rejectWrite(Error('Native write interrupted'));await assert.rejects(pending,error=>transferCancelled(error));assert.equal(f.calls.includes('finish'),false);assert.ok(f.calls.includes('abort'));
+});
