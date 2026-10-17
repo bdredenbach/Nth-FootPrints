@@ -130,3 +130,21 @@ body{padding-left:var(--app-safe-left);padding-right:var(--app-safe-right)}
 @media(max-width:380px){.enlarged-controls{gap:6px 10px}.enlarged-paging,.enlarged-zoom-tools{gap:3px}.enlarged-controls #photo-fit{padding:8px}.enlarged-controls span{min-width:34px}}
 
 .enlarged-controls #enlarged-count,.enlarged-controls #enlarged-zoom{display:inline-block;font:12px/1.5 system-ui,sans-serif;letter-spacing:0;font-variant-numeric:tabular-nums}
+
+/* Borderless controls retain their fills, selected states and focus outlines. */
+button,select,summary,.primary,.secondary,.leaflet-bar,.leaflet-bar a,.visit-map-open span,.discovery-face{border:0!important}
+.places-types button.active{box-shadow:none;background:var(--green);color:#fff8e9}
+.sidebar nav button.active{box-shadow:none;background:#ffffff18}
+button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+/* Feature explanations are italic; status messages, errors and stories use their normal style. */
+.field-help:not([role="status"]):not([aria-live]),.feature-hint,.intro-copy,.backup-footnote,.backup-card p,.deck-controls>span,#photo-placeholder>span,#enlarged-help,#empty-copy{font-style:italic}
+.places-area-search{margin:0 0 24px}.places-query-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.places-query-controls>.search{flex:1 1 190px;min-width:0;min-height:46px;padding:8px 12px;background:var(--surface);border-radius:5px}.places-query-controls input{border:0;box-shadow:none;font-size:16px}.places-query-controls .primary{min-height:46px}
+#places-query-hint{margin:8px 0 7px}#places-query-help{margin:0 0 8px}#places-query-status{margin:8px 0}.places-area-search .place-results{max-height:310px}.place-results button:hover,.discovery-place:hover,.saved-search:hover{background:color-mix(in srgb,var(--surface),var(--brass) 12%)}
+.places-heading .field-help{overflow-wrap:anywhere}.places-center-key{margin:10px 0 0}.discovery-center-key{color:var(--brass);font-style:normal;font-size:20px;vertical-align:middle;margin-right:5px}
+.discovery-center{display:grid;place-items:center;background:#fff8e9;color:#91672e;border:2px solid #91672e;border-radius:50%;box-shadow:0 1px 6px #0005;font:28px/1 Georgia,serif;pointer-events:none}.discovery-center span{display:block;line-height:22px;transform:translateY(-1px)}
+.discovery-trip{margin-top:22px;padding-top:18px}.discovery-trip>.field{margin-bottom:12px}.discovery-trip>.field select{width:100%;min-width:0}.discovery-trip>.field label{display:block}.discovery-trip>.field select{margin-top:8px}.discovery-trip>.field-help{margin-top:12px}
+@media(max-width:680px){.places-area-search{margin-bottom:20px}.places-query-controls{gap:8px}.places-query-controls>.search{flex-basis:165px}.places-query-controls .primary{padding:11px 13px}}
+
+.gallery-thumbs button[aria-pressed="true"]{background:var(--brass)}
+
+#batch-grouping-help{font-style:italic}

@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.7.1**.
+A personal travel journal by Nth Experience. Prototype **0.8.0**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -12,6 +12,8 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 
 ## Included
 
+- Places: borderless area search with contextual suggestions, selected-category/radius discovery, a center marker, Explore around here and source-aware trip visit drafts.
+- Borderless controls and italic feature hints, with visible selected, disabled and focus states.
 - Three tabs: Photo journal, Map & directions, and Places. Favorites remain available in Journal tools.
 - Trips & journeys with covers, automatic dates, chronological stops, searchable membership selection, and journal/map filtering.
 - Create, edit and delete footprints with an original photo, visit date, category, rating, notes, website and phone number.
@@ -339,7 +341,7 @@ Responsive browser checks at 360/393/1280 px cover migration, original photo vie
 
 **Existing installed test APKs:** their signing certificates differ, so a new binary cannot simply update the old app in place. Do not uninstall its only journal copy. A compatibility rescue writes numbered parts through the old handler, and the new reader accepts them together. See [phone-only rescue steps](docs/PHONE-RESCUE.md). It requires a user-authorized local debugging connection; no journal data is uploaded. Private signing-key continuity remains a separate testing/release task.
 
-## 0.7.1 — independent imports and place descriptions
+## 0.8.0 — independent imports and place descriptions
 
 A selected photo or archive slice is copied into an app-owned Blob before storage. This prevents a later original-file change or expired document permission from breaking photo reads and backups. Each attachment remains bounded to 20 MiB; whole journals are still streamed. Restoring the same complete backup overwrites its verified media keys, repairing 0.7.0 file-linked originals without duplicating footprints. Existing inaccessible copies require that restore; an update cannot recover bytes whose document access was already lost. Keep the manual backup until the corrected journal exports successfully.
 

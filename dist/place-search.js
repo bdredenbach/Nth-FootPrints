@@ -34,7 +34,8 @@ async function readResults(response){
  }else{text=await response.text();if(new TextEncoder().encode(text).length>MAX_RESPONSE)throw Error('Search returned too much data. Try a more specific address.');}
  try{return placeResults(JSON.parse(text));}catch(error){if(error instanceof SyntaxError)throw Error('Search returned unreadable results. Try again later.');throw error;}
 }
-export function createPlaceSearch({fetcher=globalThis.fetch,network=globalThis.navigator,now=Date.now,timeoutMs=12000,minInterval=1500,onState=()=>{}}={}){
+export function createPlaceSearch({fetcher=globalThis.fetch,network=globalThis.navigator,now=Date.now,timeoutMs=12000,minInterval=1500,onState=()=>{},messages={}}={}){
+ const chooseMessage=messages.choose??'Choose a result to preview it on the map.',offlineMessage=messages.offline??'Offline. Choose a spot manually or enter coordinates in the editor.';
  let token=0,active=null,busy=false,results=[],status='',nextAllowed=0;const cache=new Map();
  function emit(){onState({busy,results:copy(results),status});}
  function cancel(){token++;active?.abort();active=null;busy=false;results=[];status='';emit();}
@@ -42,9 +43,9 @@ export function createPlaceSearch({fetcher=globalThis.fetch,network=globalThis.n
   async search(raw){
    cancel();const request=token,query=clean(raw,1000);
    if(query.length<3||query.length>200){status='Enter 3–200 characters, including a town or city.';emit();return;}
-   if(network?.onLine===false){status='Offline. Choose a spot manually or enter coordinates in the editor.';emit();return;}
+   if(network?.onLine===false){status=offlineMessage;emit();return;}
    const key=query.toLocaleLowerCase(),saved=cache.get(key);
-   if(saved&&saved.until>now()){results=copy(saved.results);status=results.length?'Choose a result to preview it on the map.':'No places found. Try adding the town, city or street.';emit();return;}
+   if(saved&&saved.until>now()){results=copy(saved.results);status=results.length?chooseMessage:'No places found. Try adding the town, city or street.';emit();return;}
    if(now()<nextAllowed){status=`Please wait ${Math.max(1,Math.ceil((nextAllowed-now())/1000))} seconds before searching again.`;emit();return;}
    nextAllowed=now()+minInterval;busy=true;status='Searching for places…';emit();
    const controller=new AbortController();active=controller;let timedOut=false,timer,aborted;
@@ -65,7 +66,7 @@ export function createPlaceSearch({fetcher=globalThis.fetch,network=globalThis.n
     };
     const found=await Promise.race([perform(),interrupted]);if(request!==token)return;
     results=found;cache.delete(key);cache.set(key,{results:copy(found),until:now()+5*60*1000});while(cache.size>10)cache.delete(cache.keys().next().value);
-    status=results.length?'Choose a result to preview it on the map.':'No places found. Try adding the town, city or street.';
+    status=results.length?chooseMessage:'No places found. Try adding the town, city or street.';
    }catch(error){if(request!==token)return;results=[];status=timedOut?'Search timed out. Try again or choose a spot manually.':error.name==='AbortError'?'Search cancelled.':error instanceof TypeError?'Could not connect to place search. Check your connection or choose a spot manually.':error.message;}
    finally{clearTimeout(timer);controller.signal.removeEventListener('abort',aborted);if(request===token){active=null;busy=false;emit();}}
   }
