@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.8.6**.
+A personal travel journal by Nth Experience. Prototype **0.9.0**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -17,7 +17,8 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 - Places: borderless area search with contextual suggestions, selected-category/radius discovery, a center marker, Explore around here and source-aware trip visit drafts.
 - Borderless controls and italic feature hints, with visible selected, disabled and focus states.
 - Three tabs: Photo journal, Map & directions, and Places. Favorites remain available in Journal tools.
-- Trips & journeys with covers, automatic dates, chronological stops, searchable membership selection, and journal/map filtering.
+- Trips & journeys with Exploration, 64 Milestones, Journeys and a movable trophy Badge case; covers, dates, stops and membership filtering remain available.
+- Journal care finds unfinished visits for review and editing.
 - Create, edit and delete footprints with an original photo, visit date, category, rating, notes, website and phone number.
 - Keep return visits to one place, each with its own date, story, rating, photos, voice note, coordinates and trips.
 - Record or attach a voice note.
@@ -29,6 +30,19 @@ Browse your memories in a vertically swipeable photo stack. Tap a photo to open 
 - Portable app-specific `.nthbackup` export/restore for places, media and preferences. No KMZ.
 - Original illustrated starter memories that clear automatically when you save a personal footprint; edited examples are kept.
 - Backup & Restore and Preferences above search, with two appearance themes.
+
+
+## Exploration, milestones and the trophy case — 0.9.0
+
+Trips & journeys contains **Exploration**, **Milestones**, **Journeys** and **Badges**. Exploration has a three-column summary: Places visited, States visited, Countries visited, Places revisited, Visits remembered, Photos, Days remembered, Stories kept and Journeys. Places are distinct saved footprints; revisited places have at least two active visits. States includes provinces and reviewed regions, grouped with their country. Country/region totals use saved labels, not live location or inferred travel. Journey progress requires an active journey with a saved visit.
+
+**64 milestones in ten collections** cover distinct places (8), regions (6), countries (6), photos (8), visits with stories (6), revisited places (6), distinct remembered days (6), nonempty journeys (6), total visits (7) and visits with voice notes (5). Progress is recomputed from active saved entries; deleted visits and journeys do not contribute, and removing entries can relock a badge. Demo memories are excluded. There are no streaks or location monitoring for achievements.
+
+The badge case uses eight original transparent 512px WebP trophies, a responsive wood cabinet with three shelves per case, and up to 24 shelves for the full collection. Arrange case enables pointer/touch dragging and arrow-key movement. Width, height, position, shelf contact, shelf selection and facing controls adapt Reader’s decoration model; dimensions are constrained to fit a shelf. Choose smoked walnut, golden oak or forest lacquer and adjust cabinet lighting. Put away and redisplay earned badges; locked badges show progress. Save case persists validated numeric placement/preferences with the journal; unsaved changes are guarded and failed saves remain retryable. Journal backups include the layout. Restoring appearance/preferences controls whether incoming case settings replace the current case; old backups do not erase an existing case.
+
+Journal tools has **On this day**, **Timeline**, **Journal care** and **Nearby memories**. Journal care finds exact active visits without stories, photos, coordinates, addresses, country/region labels or journey membership and opens the chosen visit for editing. It never fills or modifies entries automatically.
+
+Shelf behavior was adapted from [Nth Reader](https://github.com/bdredenbach/Nth-Reader/tree/937acb3aa4b50f6ada1fef69981a55b2a5d23979), particularly `js/shelf.js` (`decorEl`, pointer drag) and `js/customize.js` (`itemControlsEl`, `sliderRow`). FootPrints retains its own storage, navigation and theme. See [badge artwork and generation prompts](docs/BADGE-ART.md).
 
 ## Run locally
 
@@ -202,7 +216,7 @@ Brad requested the remaining eight ideas in one release. Open **Journal tools** 
 
 - **Memories:** earlier-year visits on this month/day, with an optional home card. No scheduled system notifications.
 - **Timeline:** a month calendar or chronological visit list, with date/query/trip filters. Repeated visits stay separate.
-- **Exploration:** places, visits, photos, days, years and milestones. Country/region totals use the reviewed labels in a place's editor; tap a label to filter saved pins. Coordinates can suggest empty labels online; manual entries are preserved.
+- **Exploration (Trips & journeys):** places visited, states, countries, revisits, photos, days and years. Milestones and Badges have their own pills. Country/region totals use the reviewed labels in a place's editor; tap a label to filter saved pins. Coordinates can suggest empty labels online; manual entries are preserved.
 - **Nearby:** explicitly enable 250/500/1,000 m reminders for earlier visits. Permission is requested on enable. Checks stop when the app is hidden/paused and resume without prompting. There are no background alerts or recorded location trails. Per-place reminders have a 24-hour cooldown; consent and cooldowns stay on this device and never enter backups.
 
 **Import photos** reads supported embedded date/GPS locally, skips exact original duplicates, and proposes groups only when embedded dates match and GPS points are within 100 m of the first photo (nearby) or match to five decimal places (same location). In automatic modes missing metadata stays separate and is shown for review. Choose “All selected photos in one footprint” to explicitly combine up to 30 unique photos with one shared name/date/location/story, even without GPS or with different dates; the first detected date/GPS are proposed for review and location is optional. This mode always creates one new footprint and hides per-group destinations. Individual-photo mode is also available. Changing grouping rebuilds selected photos locally without reading or selecting them again; edited review fields require confirmation before being reset. Review each date, per-photo GPS and new-place/return-visit target before one atomic save. Optional “Use the same location” assigns chosen reviewed coordinates to checked visits (including missing-GPS photos), grouping by reviewed date; dates stay separate, galleries split at 30, conflicting destinations/labels are rejected, and Undo restores the prior review. Stories and tags are combined; group titles follow the reference visit for its date or the first selected visit on other dates. Original media is unchanged; no current GPS is assigned to old photos. Limits: 60 files, 20 MB each, 30 photos per visit; no separate aggregate byte cap. Originals stage sequentially into the media database before one atomic final save. Total capacity depends on device free space and the WebView/browser storage quota. Reading can be cancelled; failed saves preserve the review and existing journal.
@@ -369,7 +383,7 @@ Preferences offers Show tips when I visit a new area, Reset tutorial tips and ex
 
 Validation: 376 automated checks pass. Browser flows cover first/repeat visits, per-area persistence, disable/reset, native Back/history forward, permission choices, photo GPS, individual tool tabs, import review, photo viewer, offline maps, backup and asynchronous journey creation. Coaching cards fit 320/360/412/684/1280 px in both themes, including a 320 × 568 screen and simulated Android safe-area insets. Android permission/provider behavior still needs physical-phone testing.
 
-## Address and story from a chosen spot (0.8.6)
+## Address and story from a chosen spot (0.9.0)
 
 Find or choose a location → Use this spot now fills a blank Address or area from a manually selected/adjusted map pin, including when no search result is selected. Selected search results can also fill a blank name/address immediately. A matched mapped place description can fill The story when available. The picker’s checked text option covers name, address and story and is available for both search selections and manual pins. Unchecking it keeps text fields untouched. Country/state labeling retains its existing separate lookup.
 

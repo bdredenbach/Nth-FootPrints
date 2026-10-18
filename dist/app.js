@@ -19,6 +19,7 @@ import {createNearbyMemories} from './nearby-memories.js';
 import {INITIAL_VISIT,visitsOf,visitById,visitView,placeView,latestVisited,journeyIdsOf,writeVisit,changeVisit,removeVisit} from './visits.js';
 import {APP,VERSION,CATEGORIES,MAX_BACKUP,MAX_PHOTOS,backupRecord,validateRecord,validateSettings,parseBackup,mergeRecords,filterRecords,SAMPLE_TIMESTAMP,isSampleRecord as isDemo,withoutStarterSamples} from './model.js';
 import {activeJourneys,journeyRecords,validateJourneys,reconcileJourneys,mergeJourneys} from './journeys.js';
+import {createTravelUI} from './travel-ui.js';
 import {createJourneysUI} from './journeys-ui.js';
 import {bindVerticalDeck,wrappedIndex,dragTransform} from './deck.js';
 import {readPhotoMetadata} from './geotags.js';
@@ -101,21 +102,22 @@ function openPreferences(widgetId=null){show('settings');if(widgetPlugin)void wi
 const journeyUI=createJourneysUI({document,getState:()=>({records,journeys}),write:({records:transform=current=>current,journeys:trips=current=>current})=>changeJournal(transform,undefined,{journeys:trips}),onOpen:openDetail,onBrowse:id=>browseJourney(id,'journal'),onMap:id=>browseJourney(id,'map'),onStatus:toast,onBook:id=>openMemoryExport({kind:'trip',tripId:id}),confirm:message=>confirm(message),date,art});
 const placesUI=createPlacesUI({document,details:placeDetails,L:window.L,offlineMaps,getRecords:()=>records,getJourneys:()=>journeys,locate:options=>device.currentPosition(options),icon,onPreview:()=>show('place-preview'),onExplore:async()=>{close('place-preview');await navigation.idle();},onSave:(prefill,id)=>openEditor(id??null,null,id?'new':null,prefill),onSaved:async id=>{close('place-preview');await navigation.idle();await openDetail(id);},onStatus:toast});
 async function browseFavorites(){close('journal-tools');await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}query='';journeyFilter='';tagFilter='';explorationCountry='';explorationRegion='';category='All places';$('search').value='';await setView('favorites');render();}
-function openJourneys(){journeyUI.open();show('journeys');}
-async function browseJourney(id,next){close('journeys',{force:true});await navigation.idle();journeyFilter=id;query='';category='All places';$('search').value='';deckIndex=0;await setView(next);render();}
+function openJourneys(){travelUI.open();show('journeys');}
+async function browseJourney(id,next){if(!travelUI.canClose({journeyChecked:true}))return;close('journeys',{force:true});await navigation.idle();journeyFilter=id;query='';category='All places';$('search').value='';deckIndex=0;await setView(next);render();}
 function renderJourneyFilter(){if(journeyFilter&&!journeys.some(j=>j.id===journeyFilter&&!j.deleted))journeyFilter='';$('journey-filter').innerHTML='<option value="">All footprints</option>'+activeJourneys(journeys).map(j=>`<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('');$('journey-filter').value=journeyFilter;}
 function selectedDraftTrips(){return [...$('place-trips').querySelectorAll('input:checked')].map(input=>input.value);}
 function renderEditorTrips(ids=[]){const chosen=new Set(ids),trips=activeJourneys(journeys);$('place-trips').innerHTML=trips.map(j=>`<label class="checkbox"><input type="checkbox" name="tripIds" value="${esc(j.id)}" ${chosen.has(j.id)?'checked':''}>${esc(j.title)}</label>`).join('')||'<p class="field-help">Create a trip with Trips & journeys, then add footprints here or from the trip.</p>';}
 let toolsUI;
 const nearbyMemories=createNearbyMemories({watch:(...args)=>device.watchPositions(...args),getRecords:()=>records.filter(r=>!isDemo(r)),today,storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},onMatch:match=>{nearbyMatch={recordId:match.record.id,visitId:match.visit.id,metres:match.metres};renderNearbyBanner();},onState:state=>toolsUI?.renderNearby(state)});
 const toolsState=()=>({records:records.filter(r=>!isDemo(r)),journeys,settings});
-toolsUI=createJournalToolsUI({document,getState:toolsState,write:changeJournal,onOpen:openDetail,onMap:showExploration,onImport:openBatchImport,onBook:()=>openMemoryExport({kind:'trip',tripId:journeyFilter}),nearby:nearbyMemories,today,date,art,onStatus:toast});
+const travelUI=createTravelUI({document,getState:toolsState,journeyUI,writeSettings:preferences=>changeJournal(current=>current,preferences),onMap:showExploration,onStatus:toast,confirm:message=>confirm(message)});
+toolsUI=createJournalToolsUI({document,getState:toolsState,write:changeJournal,onOpen:openDetail,onMap:showExploration,onCareEdit:(id,visitId)=>openEditor(id,null,visitId),onImport:openBatchImport,onBook:()=>openMemoryExport({kind:'trip',tripId:journeyFilter}),nearby:nearbyMemories,today,date,art,onStatus:toast});
 const batchUI=createBatchImportUI({document,getState:()=>({records,journeys}),write:changeJournal,read:asDataURL,createStage:()=>journalStorage.createMediaStage(),today,lookupRegion:(point,options)=>regionLookup.lookup(point,options),onStatus:toast,confirm:message=>confirm(message),onSaved:async result=>{close('batch-import',{force:true});await navigation.idle();toast(`Imported ${result.added} new places and ${result.returns} return visits.`);}});
 const exportsUI=createExportsUI({document,getState:()=>({records,journeys}),device,plugin:window.NthNative?.BackupFiles,picker:window.showSaveFilePicker?.bind(window),download,onStatus:toast});
 function openJournalTools(tab='memories'){toolsUI.open(tab);show('journal-tools');}
 function openBatchImport(){batchUI.open();show('batch-import');}
 function openMemoryExport(target=exportTarget??{kind:'trip',tripId:journeyFilter}){exportTarget=target;exportsUI.open(target);show('memory-export');}
-async function showExploration({country='',region=''}={}){if(!toolsUI.canClose())return;close('journal-tools',{force:true});await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}journeyFilter='';tagFilter='';explorationCountry=country;explorationRegion=region;query='';category='All places';$('search').value='';await setView('map');render();}
+async function showExploration({country='',region=''}={}){if(!toolsUI.canClose()||$('journeys').open&&!travelUI.canClose())return;close('journal-tools',{force:true});if($('journeys').open)close('journeys',{force:true});await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}journeyFilter='';tagFilter='';explorationCountry=country;explorationRegion=region;query='';category='All places';$('search').value='';await setView('map');render();}
 function renderToolFilters(){
  const tagNames=new Map();for(const tag of records.flatMap(r=>r.tags??[]))if(!tagNames.has(tag.toLocaleLowerCase()))tagNames.set(tag.toLocaleLowerCase(),tag);const tags=[...tagNames.values()].sort((a,b)=>a.localeCompare(b));if(tagFilter)tagFilter=tagNames.get(tagFilter.toLocaleLowerCase())??'';
  $('tag-filter').innerHTML='<option value="">All tags</option>'+tags.map(t=>`<option value="${esc(t)}">${esc(t)}</option>`).join('');$('tag-filter').value=tagFilter;
@@ -152,7 +154,7 @@ function updateRearCards(step=1){const items=filtered();document.querySelectorAl
 function previewDeck(dy){if(deckBusy)return;const front=$('deck').querySelector('.deck-front');if(!front)return;const direction=dy<0?1:-1;if($('deck').dataset.direction!==String(direction)){updateRearCards(direction);$('deck').dataset.direction=String(direction);}front.style.transform=dragTransform(dy);$('deck').classList.add('dragging');}
 function resetDeck(){const front=$('deck').querySelector('.deck-front');$('deck').classList.remove('dragging');if(front&&!deckBusy)front.style.transform='';}
 function render(){
- renderJourneyFilter();journeyUI.refresh();renderToolFilters();renderNearbyBanner();
+ renderJourneyFilter();journeyUI.refresh();travelUI.refresh();renderToolFilters();renderNearbyBanner();
  cancelDeckMotion();
  $('fav-count').textContent=records.filter(r=>r.favorite).length;
  document.querySelectorAll('[data-view]').forEach(e=>{e.classList.toggle('active',e.dataset.view===view);e.setAttribute('aria-current',e.dataset.view===view?'page':'false');});
@@ -230,8 +232,8 @@ function currentTutorialArea(){
  const id=navigation.route()?.dialogs.at(-1)?.id;
  if(id==='tutorial')return null;
  if(id==='editor')return !$('photo-geotag').hidden?'photo':'editor';
- if(id==='journal-tools'){const tab=document.querySelector('[data-tool-tab][aria-selected="true"]')?.dataset.toolTab;return {memories:'memories',timeline:'timeline',explore:'exploration',nearby:'nearby'}[tab];}
- if(id==='journeys'){if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
+ if(id==='journal-tools'){const tab=document.querySelector('[data-tool-tab][aria-selected="true"]')?.dataset.toolTab;return {memories:'memories',timeline:'timeline',care:'care',nearby:'nearby'}[tab];}
+ if(id==='journeys'){if(travelUI.tab!=='journeys')return {explore:'exploration',milestones:'milestones',badges:'badges'}[travelUI.tab];if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
  if(id==='batch-import'){if($('batch-import').classList.contains('batch-transfer-active'))return null;return !$('batch-review').hidden?'import-review':'import';}
  if(id==='memory-export'&&$('export-controls').inert)return null;
  return id?({'details':'visits','pin-picker':'picker','backup':'backup','settings':'preferences','offline-maps':'offline','memory-export':'export','place-preview':'preview','photo-lightbox':'lightbox'}[id]??null):({journal:'journal',favorites:'journal',map:'map',places:'places'}[view]);
@@ -246,7 +248,7 @@ function canLeaveNavigation(previous,next){
  if(previous.dialogs.some(item=>item.id==='tutorial')&&!next.dialogs.some(item=>item.id==='tutorial')&&!tutorialUI.canClose())return false;
  const removed=previous.dialogs.filter(item=>!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId&&target.visitId===item.visitId));
  for(const [id,ui]of [['journal-tools',toolsUI],['batch-import',batchUI],['memory-export',exportsUI]])if(removed.some(item=>item.id===id)&&!ui.canClose())return false;
- if(removed.some(item=>item.id==='journeys')&&!journeyUI.canClose())return false;
+ if(removed.some(item=>item.id==='journeys')&&!travelUI.canClose())return false;
  if(removed.some(item=>item.id==='editor')){
   if(editorSaving){toast('Saving your footprint. Please wait.');return false;}
   if(editorDirty()&&!confirm('Discard your unsaved footprint changes?'))return false;
@@ -273,7 +275,7 @@ function cleanupDialog(id){
  if(id==='tutorial')tutorialUI.reset();
  if(id==='photo-lightbox')photoLightbox.reset();
  if(id==='place-preview')placesUI.closePreview();if(id==='journal-tools')toolsUI.reset();if(id==='batch-import')batchUI.reset();if(id==='memory-export')exportsUI.reset();
- if(id==='journeys')journeyUI.reset();
+ if(id==='journeys')travelUI.reset();
  if(id==='pin-picker')closePicker();
  if(id==='editor'){
   spotAutofill.reset();finishEditorDraft();
@@ -645,7 +647,7 @@ async function inspectBackup(file){
    checkToken(token);parsed=parseBackup(raw);
   }
   await tick();checkToken(token);const m=mergeRecords(records,parsed.records);pendingRestore=parsed;
- $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> with changes · <b>${m.kept}</b> already up to date</p><p>${parsed.records.reduce((count,r)=>count+visitsOf(r).length,0)} visits · ${activeJourneys(parsed.journeys).length} trips included.</p><p>Your existing places stay. Visits merge separately, keeping newer edits and recorded visit removals.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance and memory-card preferences</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
+ $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> with changes · <b>${m.kept}</b> already up to date</p><p>${parsed.records.reduce((count,r)=>count+visitsOf(r).length,0)} visits · ${activeJourneys(parsed.journeys).length} trips included.</p><p>Your existing places stay. Visits merge separately, keeping newer edits and recorded visit removals.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance, memory-card preferences and trophy case</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
   $('restore-preview').hidden=false;finishTransfer(token,'Backup index checked. Attachments will be verified during restore. Nothing has changed yet.');
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
  finally{if(activeReader===reader)activeReader=null;$('backup-file').value='';}
@@ -830,7 +832,7 @@ function wire(){
   dialog.addEventListener('cancel',event=>{event.preventDefault();close(dialog.id);});
   dialog.addEventListener('close',()=>{if(!closingDialogs.delete(dialog.id)&&!dialog.open)cleanupDialog(dialog.id);syncMapVisibility();if(!navigation.busy)widgetLaunch.flush();});
  });
- window.addEventListener('beforeunload',event=>{if(toolsUI.hasPending()||batchUI.hasPending()||exportsUI.hasPending()||editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning||offlineMaps.phase!=='idle'){event.preventDefault();event.returnValue='';}});
+ window.addEventListener('beforeunload',event=>{if(travelUI.hasPending()||toolsUI.hasPending()||batchUI.hasPending()||exportsUI.hasPending()||editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning||offlineMaps.phase!=='idle'){event.preventDefault();event.returnValue='';}});
  if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
  icons();renderReleases();$('enlarge-draft').onclick=openEnlargedPhoto;$('place-search-form').onsubmit=searchPlaces;$('place-query').oninput=()=>placeSearch.cancel();$('place-search-cancel').onclick=()=>placeSearch.cancel();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  window.addEventListener('pagehide',()=>{mapsPaused=true;syncMapVisibility();});window.addEventListener('pageshow',()=>{mapsPaused=false;syncMapVisibility();});
@@ -838,7 +840,7 @@ function wire(){
  placesUI.wire();$('tools-favorites').onclick=()=>void browseFavorites();toolsUI.wire();batchUI.wire();exportsUI.wire();$('tools-open').onclick=()=>openJournalTools();$('settings-tools').onclick=()=>openJournalTools();$('memory-banner-open').onclick=()=>openJournalTools('memories');$('nearby-memory-open').onclick=()=>{if(nearbyMatch)openDetail(nearbyMatch.recordId,nearbyMatch.visitId);};$('nearby-memory-dismiss').onclick=()=>{nearbyMatch=null;renderNearbyBanner();};
  $('tag-filter').onchange=e=>{tagFilter=e.target.value;deckIndex=0;render();};$('clear-exploration').onclick=()=>{explorationCountry='';explorationRegion='';render();};
  document.addEventListener('visibilitychange',()=>{syncMapVisibility();if(document.hidden)void nearbyMemories.pause();else if(storageReady){void nearbyMemories.resume();renderToolFilters();}});if(device.native)void window.NthNative?.App?.addListener('resume',()=>{mapsPaused=false;syncMapVisibility();if(storageReady){void nearbyMemories.resume();renderToolFilters();}}).catch(()=>{});
- journeyUI.wire();$('journeys-open').onclick=openJourneys;$('journey-filter').onchange=e=>{journeyFilter=e.target.value;deckIndex=0;render();};
+ journeyUI.wire();travelUI.wire();$('journeys-open').onclick=openJourneys;$('journey-filter').onchange=e=>{journeyFilter=e.target.value;deckIndex=0;render();};
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('country').onchange=()=>{regionLabelVersion++;editorAutoLabels=null;$('region').value='';syncRegionFields($('country'),$('region'),$('region-choice'));$('region-status').textContent='';scheduleDraft();};$('region-choice').onchange=()=>{regionLabelVersion++;editorAutoLabels=null;$('region-status').textContent='Labels selected manually.';chooseRegion($('country'),$('region'),$('region-choice'));scheduleDraft();};$('region').addEventListener('input',()=>{regionLabelVersion++;editorAutoLabels=null;$('region-status').textContent='Labels entered manually.';});$('lookup-region').onclick=()=>{if(!draftPosition()){$('region-status').textContent='Choose photo GPS, a map location or coordinates first.';return;}void fillEditorRegion();};

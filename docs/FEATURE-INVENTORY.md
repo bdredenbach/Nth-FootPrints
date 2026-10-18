@@ -366,3 +366,7 @@ Use this spot now reverse-resolves a blank address for a manual map pin, while a
 Authored text and edits during lookup stay intact; only untouched automatic text follows a later location choice. Generation/session/coordinate/save guards prevent late replies from touching another draft or saved data. Failure leaves coordinates usable; response size, timeout, request spacing, cache and daily safety bounds apply. Description requests share the existing client with Places and prefer exact place/OSM identity. Contextual picker help and Geoapify/OSM credits are updated.
 
 388 automated checks and full browser flows pass for manual/selected locations, persisted fills, missing/wrong descriptions, manual edits, late responses, failure and opt-out. Live coverage and Android interaction still need phone testing.
+
+## Shipped in 0.9.0 — exploration and badges
+
+Four Trips & journeys pills replace Exploration in Journal tools. The three-column Exploration summary separates distinct places, regions, countries, revisits and visit/media totals. Sixty-four current-journal milestone rules unlock eight families of original WebP trophy artwork. The case supports multiple pages, shelf drag and keyboard movement, Reader-style dimension/position/contact/facing sliders, finishes, lighting, hide/show and durable saved layouts included in backups. Journal care fills the fourth Journal tools pill and opens exact visits for missing-detail review. New contextual tips cover the new areas. Counts exclude removed visits, empty/deleted journeys and starter demos.

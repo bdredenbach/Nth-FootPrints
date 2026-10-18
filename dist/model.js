@@ -1,3 +1,4 @@
+import {validateBadgeCase} from './badge-case.js';
 import {knownMedia,visitMedia} from './media-store.js';
 import {CATEGORIES,RECORD_CATEGORIES} from './categories.js';
 import {validatePlaceSource} from './place-source.js';
@@ -58,7 +59,7 @@ export function backupRecord(record){const r=validateRecord(record);if(r.photos)
 export function validateSettings(s={}) {
  if(!s || typeof s!=='object' || (s.theme && !['paper','night'].includes(s.theme))) throw Error('Invalid settings.');
  if(s.memories!==undefined&&typeof s.memories!=='boolean')throw Error('Invalid memory preference.');
- return {theme:s.theme??'paper',...(s.memories!==undefined?{memories:s.memories}:{})};
+ return {theme:s.theme??'paper',...(s.memories!==undefined?{memories:s.memories}:{}),...(s.badgeCase!==undefined?{badgeCase:validateBadgeCase(s.badgeCase)}:{})};
 }
 export function makeBackup(records, settings={theme:'paper'},journeys=[]) {
  const rows=records.map(backupRecord),trips=validateJourneys(journeys);checkJourneyLinks(rows,trips);
