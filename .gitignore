@@ -9,7 +9,7 @@ node_modules/
 Thumbs.db
 
 # Generated Android project and bundled APK web assets
-android/
+/android/
 native-web/
 capacitor.config.json
 Nth-FootPrints-debug.apk

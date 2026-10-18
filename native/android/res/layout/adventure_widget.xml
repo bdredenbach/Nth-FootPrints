@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/adventure_root" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="6dp" android:background="@drawable/widget_background" android:clipToOutline="true">
+<ImageView android:id="@+id/adventure_art" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:scaleType="fitCenter" android:src="@drawable/widget_trophy_preview" android:contentDescription="@string/widget_case_description"/>
+<LinearLayout android:id="@+id/adventure_controls" android:layout_width="match_parent" android:layout_height="36dp" android:orientation="horizontal" android:gravity="center">
+<TextView android:id="@+id/adventure_prev" android:layout_width="48dp" android:layout_height="match_parent" android:gravity="center" android:text="←" android:textColor="#E2C48F" android:contentDescription="Previous trophy case"/>
+<TextView android:id="@+id/adventure_page" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:text="Open FootPrints" android:textSize="11sp" android:textColor="#F4EBD5"/>
+<TextView android:id="@+id/adventure_next" android:layout_width="48dp" android:layout_height="match_parent" android:gravity="center" android:text="→" android:textColor="#E2C48F" android:contentDescription="Next trophy case"/>
+</LinearLayout></LinearLayout>

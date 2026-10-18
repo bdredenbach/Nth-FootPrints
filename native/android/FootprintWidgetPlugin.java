@@ -34,7 +34,7 @@ public class FootprintWidgetPlugin extends Plugin {
         intent.removeExtra(FootprintWidgetProvider.EXTRA_ACTION);
         intent.removeExtra(FootprintWidgetProvider.EXTRA_ID);
         intent.removeExtra(FootprintWidgetProvider.EXTRA_WIDGET);
-        if (!(("configure".equals(action) && widgetId > 0) || "new".equals(action) || "journal".equals(action) ||
+        if (!(("configure".equals(action) && widgetId > 0) || "new".equals(action) || "steps".equals(action) || "badges".equals(action) || "journal".equals(action) ||
             ("open".equals(action) && id != null && id.matches("[a-zA-Z0-9_-]{1,100}")))) return;
         pendingLaunch = new JSObject();
         pendingLaunch.put("action", action);

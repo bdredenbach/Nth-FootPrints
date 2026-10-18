@@ -2,7 +2,7 @@ const TAG='nth-footprints-navigation';
 const views=new Set(['journal','map','places','favorites']);
 export function navigationRoute(route){
  const view=views.has(route?.view)?route.view:'journal',dialogs=[];
- const allowed=new Set(['details','photo-lightbox','place-preview','editor','pin-picker','backup','settings','roadmap','offline-maps','journeys','journal-tools','batch-import','memory-export','tutorial']);
+ const allowed=new Set(['reorder','details','photo-lightbox','place-preview','editor','pin-picker','backup','settings','roadmap','offline-maps','journeys','journal-tools','batch-import','memory-export','tutorial']);
  for(const item of Array.isArray(route?.dialogs)?route.dialogs:[]){
   if(!allowed.has(item?.id)||dialogs.some(d=>d.id===item.id))break;
   if(item.id==='details'&&!/^[a-z0-9_-]{1,100}$/i.test(item.recordId??''))break;

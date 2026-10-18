@@ -1,3 +1,4 @@
+import {validateJournalOrder} from './journal-order.js';
 import {validateBadgeCase} from './badge-case.js';
 import {visitsOf,visitView,placeView} from './visits.js';
 export const MAX_TAGS=30;
@@ -11,7 +12,7 @@ export const parseTags=value=>normalizeTags(String(value??'').split(',').map(s=>
 export function validateLabels(r){return {...(r.tags!==undefined?{tags:normalizeTags(r.tags)}:{}),...(r.country!==undefined?{country:txt(r.country,80,'country')}:{}),...(r.region!==undefined?{region:txt(r.region,100,'state or province')}:{} )};}
 // Only current preferences survive loading/restoring older journal settings.
 export function mergeJournalPreferences(current,incoming,appearance=false){
- return {theme:appearance?(incoming.theme??'paper'):(current.theme??'paper'),...(current.memories!==undefined?{memories:current.memories}:{}),...(appearance&&incoming.memories!==undefined?{memories:incoming.memories}:{}),...((appearance?incoming.badgeCase??current.badgeCase:current.badgeCase)?{badgeCase:validateBadgeCase(appearance?incoming.badgeCase??current.badgeCase:current.badgeCase)}:{})};
+ return {theme:appearance?(incoming.theme??'paper'):(current.theme??'paper'),...((appearance?incoming.journalOrder??current.journalOrder:current.journalOrder)?{journalOrder:validateJournalOrder(appearance?incoming.journalOrder??current.journalOrder:current.journalOrder)}:{}),...(current.memories!==undefined?{memories:current.memories}:{}),...(appearance&&incoming.memories!==undefined?{memories:incoming.memories}:{}),...((appearance?incoming.badgeCase??current.badgeCase:current.badgeCase)?{badgeCase:validateBadgeCase(appearance?incoming.badgeCase??current.badgeCase:current.badgeCase)}:{})};
 }
 const same=(a,b)=>String(a??'').trim().toLocaleLowerCase()===String(b??'').trim().toLocaleLowerCase();
 function matchesVisit(record,visit,{tripId='',from='',to='',query='',tag=''}={}){

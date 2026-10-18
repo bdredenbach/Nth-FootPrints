@@ -1,3 +1,6 @@
+import {createReorderUI} from './journal-order.js';
+import {createPedometerUI} from './pedometer.js';
+import {createAdventureWidgetSync} from './adventure-widgets.js';
 import {createChosenSpotClient,createSpotAddressLookup,createSpotAutofill} from './spot-autofill.js';
 import {createPlaceDetailsClient} from './place-details.js';
 import {createTutorialUI} from './tutorial.js';
@@ -82,14 +85,18 @@ function toast(message){$('toast').textContent=message;$('toast').hidden=false;c
 function dbOpen(){return openJournalDatabase();}
 function dbGet(){journalStorage=createJournalStorage(db);return journalStorage.read();}
 function dbPut(nextRecords,nextSettings,clearDraftId=null,nextJourneys=journeys){return journalStorage.write(nextRecords,nextSettings,clearDraftId,nextJourneys);}
-async function commit(nextRecords,nextSettings=settings,clearDraftId=null,nextJourneys=journeys){const linked=reconcileJourneys(withoutStarterSamples(nextRecords),validateJourneys(nextJourneys));nextRecords=linked.records;nextJourneys=linked.journeys;if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{const persisted=await dbPut(nextRecords,nextSettings,clearDraftId,nextJourneys);if(persisted)nextRecords=persisted;}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;journeys=nextJourneys;applyTheme();render();void widgetSync.refresh(records);}
+async function commit(nextRecords,nextSettings=settings,clearDraftId=null,nextJourneys=journeys){const linked=reconcileJourneys(withoutStarterSamples(nextRecords),validateJourneys(nextJourneys));nextRecords=linked.records;nextJourneys=linked.journeys;if(!storageReady)throw Error('Local storage is unavailable. Reload after allowing storage to save changes.');try{const persisted=await dbPut(nextRecords,nextSettings,clearDraftId,nextJourneys);if(persisted)nextRecords=persisted;}catch(e){throw Error(e.name==='QuotaExceededError'?'This device is out of storage. Your previous journal is intact. Create a backup and free some space.':e.message);}records=nextRecords;settings=nextSettings;journeys=nextJourneys;applyTheme();render();void widgetSync.refresh(records);void adventureSync.refresh(records.filter(r=>!isDemo(r)),journeys,settings);}
 let journalWrites=Promise.resolve();
 function changeJournal(transform,preferences=current=>current,{clearDraftId=null,journeys:tripTransform=current=>current}={}){const write=journalWrites.then(()=>commit(transform(records),preferences(settings),clearDraftId,tripTransform(journeys)));journalWrites=write.catch(()=>{});return write;}
 const widgetPlugin=device.native?window.NthNative?.FootprintWidget:null;
 const widgetSync=createWidgetSync({plugin:widgetPlugin,onStatus:message=>{$('widget-status').textContent=message;}});
+const adventureSync=createAdventureWidgetSync({plugin:window.NthNative?.AdventureWidgets,onStatus:message=>{$('widget-status').textContent=message;}});
+const stepUI=createPedometerUI({document,plugin:window.NthNative?.Pedometer,onStatus:toast});
+const reorderUI=createReorderUI({document,getRecords:()=>filterRecords(records.filter(r=>!isDemo(r)),{sort:sort==='manual'?'newest':sort}).map(placeView),getOrder:()=>settings.journalOrder??[],save:async ids=>{await changeJournal(current=>current,current=>({...current,journalOrder:ids}));sort='manual';$('sort').value=sort;deckIndex=0;render();},onStatus:toast,confirm:message=>confirm(message),art});
+function openReorder(){reorderUI.open();show('reorder');}
 const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
  canOpen:action=>storageReady&&draftsReady&&!(recoveryFound&&action?.action==='new')&&!navigation.busy&&!navigation.applying&&(!document.querySelector('dialog[open]')||(action?.action==='configure'&&document.querySelector('dialog[open]').id==='settings')),
- openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),configureWidget:id=>openPreferences(id),
+ openSteps:()=>{openJourneys('explore');void stepUI.refresh();$('step-counter').scrollIntoView({block:'center'});},openBadges:()=>openJourneys('badges'),openJournal:()=>setView('journal'),newFootprint:()=>openEditor(),configureWidget:id=>openPreferences(id),
  openFootprint:async id=>{
   const record=records.find(r=>r.id===id);
   if(!record){toast('That footprint is no longer in your journal.');return;}
@@ -102,7 +109,7 @@ function openPreferences(widgetId=null){show('settings');if(widgetPlugin)void wi
 const journeyUI=createJourneysUI({document,getState:()=>({records,journeys}),write:({records:transform=current=>current,journeys:trips=current=>current})=>changeJournal(transform,undefined,{journeys:trips}),onOpen:openDetail,onBrowse:id=>browseJourney(id,'journal'),onMap:id=>browseJourney(id,'map'),onStatus:toast,onBook:id=>openMemoryExport({kind:'trip',tripId:id}),confirm:message=>confirm(message),date,art});
 const placesUI=createPlacesUI({document,details:placeDetails,L:window.L,offlineMaps,getRecords:()=>records,getJourneys:()=>journeys,locate:options=>device.currentPosition(options),icon,onPreview:()=>show('place-preview'),onExplore:async()=>{close('place-preview');await navigation.idle();},onSave:(prefill,id)=>openEditor(id??null,null,id?'new':null,prefill),onSaved:async id=>{close('place-preview');await navigation.idle();await openDetail(id);},onStatus:toast});
 async function browseFavorites(){close('journal-tools');await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}query='';journeyFilter='';tagFilter='';explorationCountry='';explorationRegion='';category='All places';$('search').value='';await setView('favorites');render();}
-function openJourneys(){travelUI.open();show('journeys');}
+function openJourneys(tab='explore'){travelUI.open(typeof tab==='string'?tab:'explore');show('journeys');if(travelUI.tab==='explore')void stepUI.refresh();}
 async function browseJourney(id,next){if(!travelUI.canClose({journeyChecked:true}))return;close('journeys',{force:true});await navigation.idle();journeyFilter=id;query='';category='All places';$('search').value='';deckIndex=0;await setView(next);render();}
 function renderJourneyFilter(){if(journeyFilter&&!journeys.some(j=>j.id===journeyFilter&&!j.deleted))journeyFilter='';$('journey-filter').innerHTML='<option value="">All footprints</option>'+activeJourneys(journeys).map(j=>`<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('');$('journey-filter').value=journeyFilter;}
 function selectedDraftTrips(){return [...$('place-trips').querySelectorAll('input:checked')].map(input=>input.value);}
@@ -140,13 +147,14 @@ async function pinWidget(){
  $('pin-widget').disabled=true;
  try{
   await widgetSync.refresh(records);
-  const result=await widgetPlugin.requestPin();
+  await adventureSync.refresh(records.filter(r=>!isDemo(r)),journeys,settings);
+  const kind=$('widget-kind').value;const result=kind==='footprint'?await widgetPlugin.requestPin():await window.NthNative.AdventureWidgets.requestPin({kind});
   $('widget-status').textContent=result.requested?'Finish adding the widget in Android’s home-screen prompt.':'Long-press your Android home screen, choose Widgets, then Nth FootPrints.';
  }catch{$('widget-status').textContent='Long-press your Android home screen, choose Widgets, then Nth FootPrints.';}
  finally{$('pin-widget').disabled=false;}
 }
 function applyTheme(){document.documentElement.classList.toggle('night',settings.theme==='night');$('theme').value=settings.theme;}
-function filtered(){return filterRecords(scopeRecords(records,{tripId:journeyFilter,tag:tagFilter,country:explorationCountry,region:explorationRegion}),{query,category,sort,favorites:view==='favorites'}).map(placeView);}
+function filtered(){return filterRecords(scopeRecords(records,{tripId:journeyFilter,tag:tagFilter,country:explorationCountry,region:explorationRegion}),{query,category,sort,order:settings.journalOrder??[],favorites:view==='favorites'}).map(placeView);}
 let deckMotion=0,deckBusy=false,deckAnimations=[];
 function cancelDeckMotion(){deckMotion++;deckBusy=false;deckAnimations.forEach(a=>a.cancel());deckAnimations=[];}
 function photoCard(r,index,total,layer=0){return `<button class="photo-card ${layer?'deck-rear deck-layer-'+layer:'deck-front'}" ${layer?'tabindex="-1" aria-hidden="true"':`data-detail="${esc(r.id)}" aria-label="Open ${esc(r.title)}. ${total-index} of ${total} places. Swipe up or down to browse."`}><img class="card-image" src="${art(r)}" alt="${layer?'':esc(photoAlt(r))}" draggable="false"><strong>${esc(r.title)}</strong><span class="card-caption"><span>${esc(date(latestVisited(r)))}</span><span>${String(total-index).padStart(2,'0')} / ${String(total).padStart(2,'0')} places</span></span></button>`;}
@@ -227,13 +235,14 @@ const navigation=createNavigation({history:window.history,location:window.locati
  apply:applyNavigation,canLeave:canLeaveNavigation,onError:toast,onSettled:()=>{if(navigation.route()?.dialogs.at(-1)?.id==='tutorial'&&!$('tutorial').open){navigation.back({force:true});return;}widgetLaunch.flush();tutorialUI.queue();},
  onRoot:()=>{if(device.native)window.NthNative?.App?.minimizeApp().catch(()=>toast('Could not return to the home screen.'));}
 });
-const tutorialUI=createTutorialUI({document,storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},requestLocation:()=>device.requestLocationPermission(),show,close,icon,onStatus:toast,currentArea:currentTutorialArea,canShow:()=>storageReady&&!navigation.busy&&!navigation.applying&&!transferRunning&&!exportSaving&&!editorSaving&&!cameraPending&&!locationPending&&!micPending&&pendingMedia===0&&offlineMaps.phase==='idle'});
+const tutorialUI=createTutorialUI({document,storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},requestLocation:()=>device.requestLocationPermission(),show,close,icon,onStatus:toast,currentArea:currentTutorialArea,canShow:()=>storageReady&&!stepUI.hasPending()&&!navigation.busy&&!navigation.applying&&!transferRunning&&!exportSaving&&!editorSaving&&!cameraPending&&!locationPending&&!micPending&&pendingMedia===0&&offlineMaps.phase==='idle'});
 function currentTutorialArea(){
  const id=navigation.route()?.dialogs.at(-1)?.id;
  if(id==='tutorial')return null;
+ if(id==='reorder')return 'reorder';
  if(id==='editor')return !$('photo-geotag').hidden?'photo':'editor';
  if(id==='journal-tools'){const tab=document.querySelector('[data-tool-tab][aria-selected="true"]')?.dataset.toolTab;return {memories:'memories',timeline:'timeline',care:'care',nearby:'nearby'}[tab];}
- if(id==='journeys'){if(travelUI.tab!=='journeys')return {explore:'exploration',milestones:'milestones',badges:'badges'}[travelUI.tab];if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
+ if(id==='journeys'){if(travelUI.tab==='explore'){const focus=document.activeElement;if(focus?.closest?.('#step-counter'))return 'steps';}if(travelUI.tab!=='journeys')return {explore:'exploration',milestones:'milestones',badges:'badges'}[travelUI.tab];if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
  if(id==='batch-import'){if($('batch-import').classList.contains('batch-transfer-active'))return null;return !$('batch-review').hidden?'import-review':'import';}
  if(id==='memory-export'&&$('export-controls').inert)return null;
  return id?({'details':'visits','pin-picker':'picker','backup':'backup','settings':'preferences','offline-maps':'offline','memory-export':'export','place-preview':'preview','photo-lightbox':'lightbox'}[id]??null):({journal:'journal',favorites:'journal',map:'map',places:'places'}[view]);
@@ -247,7 +256,7 @@ function editorDirty(){
 function canLeaveNavigation(previous,next){
  if(previous.dialogs.some(item=>item.id==='tutorial')&&!next.dialogs.some(item=>item.id==='tutorial')&&!tutorialUI.canClose())return false;
  const removed=previous.dialogs.filter(item=>!next.dialogs.some(target=>target.id===item.id&&target.recordId===item.recordId&&target.visitId===item.visitId));
- for(const [id,ui]of [['journal-tools',toolsUI],['batch-import',batchUI],['memory-export',exportsUI]])if(removed.some(item=>item.id===id)&&!ui.canClose())return false;
+ for(const [id,ui]of [['reorder',reorderUI],['journal-tools',toolsUI],['batch-import',batchUI],['memory-export',exportsUI]])if(removed.some(item=>item.id===id)&&!ui.canClose())return false;
  if(removed.some(item=>item.id==='journeys')&&!travelUI.canClose())return false;
  if(removed.some(item=>item.id==='editor')){
   if(editorSaving){toast('Saving your footprint. Please wait.');return false;}
@@ -272,6 +281,7 @@ function setView(next){return navigation.view(next);}
 function syncMapVisibility(){const clear=!mapsPaused&&!document.hidden&&!document.querySelector('dialog[open]');atlas?.setVisible(view==='map'&&clear);placesUI.syncVisibility(clear,mapsPaused);detailMap?.setVisible(!mapsPaused&&!document.hidden&&$('details').open&&![...document.querySelectorAll('dialog[open]')].some(d=>d.id!=='details'));}
 function show(id){if(navigation.busy&&!navigation.applying)return;if(!$(id).open)$(id).showModal();navigation.opened({id,...(id==='details'?{recordId:detailId}:id==='editor'?{recordId:editId,...(editVisitId?{visitId:editVisitId}:{})}:{} )});syncMapVisibility();if(id!=='tutorial')tutorialUI.queue();}
 function cleanupDialog(id){
+ if(id==='reorder')reorderUI.reset();
  if(id==='tutorial')tutorialUI.reset();
  if(id==='photo-lightbox')photoLightbox.reset();
  if(id==='place-preview')placesUI.closePreview();if(id==='journal-tools')toolsUI.reset();if(id==='batch-import')batchUI.reset();if(id==='memory-export')exportsUI.reset();
@@ -318,6 +328,7 @@ async function applyNavigation(route,previous){
   else if(item.id==='backup'){if(!$('backup').open)openBackup();}
   else if(item.id==='settings'){if(!$('settings').open)openPreferences();}
   else if(item.id==='place-preview'){if(!$('place-preview').open){show('place-preview');placesUI.resumePreview();}}
+  else if(item.id==='reorder'){if(!$('reorder').open)openReorder();}
   else if(item.id==='journal-tools'){if(!$('journal-tools').open)openJournalTools();}
   else if(item.id==='batch-import'){if(!$('batch-import').open)openBatchImport();}
   else if(item.id==='memory-export'){if(!$('memory-export').open)openMemoryExport();}
@@ -557,7 +568,7 @@ async function toggleRecording(){
  }catch(e){recordStream?.getTracks().forEach(t=>t.stop());recordStream=null;$('record-status').textContent='Microphone access was unavailable. You can attach an audio file instead.';}finally{$('record').disabled=false;micPending=false;syncSave();}
 }
 async function savePlace(e){e.preventDefault();if(editorSaving||micPending||pendingMedia>0||locationPending||cameraPending||recording?.state==='recording')return;$('editor-error').textContent='';const save=$('save-place');save.disabled=true;
- try{const form=new FormData($('place-form'));const r=validateRecord({id:editId??crypto.randomUUID(),title:form.get('title'),category:form.get('category'),visited:form.get('visited'),rating:Number(form.get('rating')),favorite:$('favorite').checked,address:form.get('address'),notes:form.get('notes'),phone:form.get('phone'),url:form.get('url'),lat:form.get('lat')===''?null:Number(form.get('lat')),lng:form.get('lng')===''?null:Number(form.get('lng')),photo:draftPhoto,photos:draftPhotos,coverIndex:draftCover,tripIds:selectedDraftTrips(),tags:parseTags(form.get('tags')),country:form.get('country')??'',region:form.get('region')??'',audio:draftAudio,...(draftSource?{placeSource:draftSource}:{}),sampleArt:draftArt,updatedAt:new Date().toISOString()});
+ try{const form=new FormData($('place-form'));const r=validateRecord({id:editId??crypto.randomUUID(),title:form.get('title'),category:form.get('category'),categoryReviewed:true,visited:form.get('visited'),rating:Number(form.get('rating')),favorite:$('favorite').checked,address:form.get('address'),notes:form.get('notes'),phone:form.get('phone'),url:form.get('url'),lat:form.get('lat')===''?null:Number(form.get('lat')),lng:form.get('lng')===''?null:Number(form.get('lng')),photo:draftPhoto,photos:draftPhotos,coverIndex:draftCover,tripIds:selectedDraftTrips(),tags:parseTags(form.get('tags')),country:form.get('country')??'',region:form.get('region')??'',audio:draftAudio,...(draftSource?{placeSource:draftSource}:{}),sampleArt:draftArt,updatedAt:new Date().toISOString()});
  editorSaving=true;$('place-form').inert=true;let savedVisit=editVisitId??INITIAL_VISIT;await saveEditorRecord(current=>{if(!editId)return current.concat(r);const old=current.find(x=>x.id===editId);if(!old)throw Error('This place was removed. Reopen recovery to save the draft as a new footprint.');const next=writeVisit(old,r,editVisitId??INITIAL_VISIT);if(editVisitId==='new')savedVisit=next.mainVisitId;return current.map(x=>x.id===next.id?next:x);});if(detailId===editId)detailVisitId=savedVisit;editorSaving=false;draftBaseline=editorSnapshot();close('editor',{force:true});deckIndex=Math.max(0,filtered().findIndex(x=>x.id===r.id));render();toast(editVisitId==='new'?'Return visit saved.':editId?'Place & visit updated.':'A new memory, kept.');
  }catch(e){$('editor-error').textContent=e.message;}finally{editorSaving=false;$('place-form').inert=false;save.disabled=false;scheduleDraft();}
 }
@@ -647,7 +658,7 @@ async function inspectBackup(file){
    checkToken(token);parsed=parseBackup(raw);
   }
   await tick();checkToken(token);const m=mergeRecords(records,parsed.records);pendingRestore=parsed;
- $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> with changes · <b>${m.kept}</b> already up to date</p><p>${parsed.records.reduce((count,r)=>count+visitsOf(r).length,0)} visits · ${activeJourneys(parsed.journeys).length} trips included.</p><p>Your existing places stay. Visits merge separately, keeping newer edits and recorded visit removals.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance, memory-card preferences and trophy case</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
+ $('restore-preview').innerHTML=`<span class="eyebrow">READY TO RESTORE</span><h3>${parsed.records.length} ${parsed.records.length===1?'footprint':'footprints'} in this backup</h3><p><b>${m.added}</b> new · <b>${m.updated}</b> with changes · <b>${m.kept}</b> already up to date</p><p>${parsed.records.reduce((count,r)=>count+visitsOf(r).length,0)} visits · ${activeJourneys(parsed.journeys).length} trips included.</p><p>Your existing places stay. Visits merge separately, keeping newer edits and recorded visit removals.</p><label class="checkbox"><input type="checkbox" id="restore-settings">Also restore appearance, memory-card preferences, trophy case and journal order</label><button class="primary" id="confirm-restore">Restore footprints</button>`;
   $('restore-preview').hidden=false;finishTransfer(token,'Backup index checked. Attachments will be verified during restore. Nothing has changed yet.');
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
  finally{if(activeReader===reader)activeReader=null;$('backup-file').value='';}
@@ -658,7 +669,7 @@ async function restoreBackup(){
   if(incoming.archive)incoming=await restoreJournalArchive(incoming,{stage:(blob,key)=>journalStorage.stage(blob,key),signal:transferAbort.signal,onProgress:(done,total)=>transferProgress(total?Math.round(done/total*85):85,'Verifying and staging original media…',`${done} of ${total} unique attachments`)});
   for(let i=0;i<incoming.records.length;i++){await tick();checkToken(token);transferProgress(Math.round((i+1)/incoming.records.length*90),`Preparing footprint ${i+1} of ${incoming.records.length}…`);}
   checkToken(token);const merged=mergeRecords(records,incoming.records);restoreCommit=true;$('cancel-transfer').disabled=true;transferProgress(95,'Saving your restored journal…');
-  await changeJournal(current=>mergeRecords(current,incoming.records).records,current=>mergeJournalPreferences(current,incoming.settings,withSettings),{journeys:current=>mergeJourneys(current,incoming.journeys)});pendingRestore=null;$('restore-preview').hidden=true;finishTransfer(token,`Restored: ${merged.added} added, ${merged.updated} updated. Your journal is ready.`);toast('Your memories are here.');
+  await changeJournal(current=>mergeRecords(current,incoming.records).records,current=>mergeJournalPreferences(current,incoming.settings,withSettings),{journeys:current=>mergeJourneys(current,incoming.journeys)});if(withSettings&&incoming.settings.journalOrder){sort='manual';$('sort').value=sort;deckIndex=0;render();}pendingRestore=null;$('restore-preview').hidden=true;finishTransfer(token,`Restored: ${merged.added} added, ${merged.updated} updated. Your journal is ready.`);toast('Your memories are here.');
  }catch(error){finishTransfer(token,error.message==='CANCELLED'?'Cancelled. Your journal has not changed.':error.message,false,error.message==='CANCELLED');}
  finally{await journalStorage.releaseStage().catch(()=>{});restoreCommit=false;$('cancel-transfer').disabled=false;if($('confirm-restore'))$('confirm-restore').disabled=false;}
 }
@@ -827,12 +838,12 @@ function wire(){
  $('downloaded-map').onchange=e=>offlineMaps.setPreferred(e.target.checked);
  offlineMaps.subscribe(state=>{if(state.done!==undefined)offlineProgress=state;renderOfflineMaps();});
 
- $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=async()=>{await widgetSync.refresh(records);await widgetPreferences.load();};
+ $('widget-preferences').hidden=!widgetSync.available;$('pin-widget').onclick=pinWidget;$('refresh-widget').onclick=async()=>{await widgetSync.refresh(records);await adventureSync.refresh(records.filter(r=>!isDemo(r)),journeys,settings);await stepUI.refresh();await widgetPreferences.load();};
  document.querySelectorAll('dialog').forEach(dialog=>{
   dialog.addEventListener('cancel',event=>{event.preventDefault();close(dialog.id);});
   dialog.addEventListener('close',()=>{if(!closingDialogs.delete(dialog.id)&&!dialog.open)cleanupDialog(dialog.id);syncMapVisibility();if(!navigation.busy)widgetLaunch.flush();});
  });
- window.addEventListener('beforeunload',event=>{if(travelUI.hasPending()||toolsUI.hasPending()||batchUI.hasPending()||exportsUI.hasPending()||editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning||offlineMaps.phase!=='idle'){event.preventDefault();event.returnValue='';}});
+ window.addEventListener('beforeunload',event=>{if(reorderUI.hasPending()||travelUI.hasPending()||toolsUI.hasPending()||batchUI.hasPending()||exportsUI.hasPending()||editorDirty()||editorSaving||restoreCommit||exportCommit||transferRunning||offlineMaps.phase!=='idle'){event.preventDefault();event.returnValue='';}});
  if(device.native)void bindNativeBack({plugin:window.NthNative?.App,navigation,onError:toast});
  icons();renderReleases();$('enlarge-draft').onclick=openEnlargedPhoto;$('place-search-form').onsubmit=searchPlaces;$('place-query').oninput=()=>placeSearch.cancel();$('place-search-cancel').onclick=()=>placeSearch.cancel();$('nearest-places').onclick=()=>nearby.refresh();$('clear-nearby').onclick=()=>nearby.clear();$('choose-position').onclick=openPicker;$('picker-locate').onclick=locatePicker;$('apply-position').onclick=applyPicker;$('picker-retry').onclick=()=>picker?.retry();$('pin-picker').addEventListener('close',()=>{if(!$('pin-picker').open)closePicker();});$('fit-places').onclick=()=>atlas?.fitAll();$('retry-map').onclick=()=>atlas?.retry();$('category').innerHTML=CATEGORIES.map(c=>`<option>${c}</option>`).join('');
  window.addEventListener('pagehide',()=>{mapsPaused=true;syncMapVisibility();});window.addEventListener('pageshow',()=>{mapsPaused=false;syncMapVisibility();});
@@ -840,7 +851,7 @@ function wire(){
  placesUI.wire();$('tools-favorites').onclick=()=>void browseFavorites();toolsUI.wire();batchUI.wire();exportsUI.wire();$('tools-open').onclick=()=>openJournalTools();$('settings-tools').onclick=()=>openJournalTools();$('memory-banner-open').onclick=()=>openJournalTools('memories');$('nearby-memory-open').onclick=()=>{if(nearbyMatch)openDetail(nearbyMatch.recordId,nearbyMatch.visitId);};$('nearby-memory-dismiss').onclick=()=>{nearbyMatch=null;renderNearbyBanner();};
  $('tag-filter').onchange=e=>{tagFilter=e.target.value;deckIndex=0;render();};$('clear-exploration').onclick=()=>{explorationCountry='';explorationRegion='';render();};
  document.addEventListener('visibilitychange',()=>{syncMapVisibility();if(document.hidden)void nearbyMemories.pause();else if(storageReady){void nearbyMemories.resume();renderToolFilters();}});if(device.native)void window.NthNative?.App?.addListener('resume',()=>{mapsPaused=false;syncMapVisibility();if(storageReady){void nearbyMemories.resume();renderToolFilters();}}).catch(()=>{});
- journeyUI.wire();travelUI.wire();$('journeys-open').onclick=openJourneys;$('journey-filter').onchange=e=>{journeyFilter=e.target.value;deckIndex=0;render();};
+ reorderUI.wire();$('reorder-open').onclick=openReorder;stepUI.wire();journeyUI.wire();travelUI.wire();$('journeys-open').onclick=openJourneys;$('journey-filter').onchange=e=>{journeyFilter=e.target.value;deckIndex=0;render();};
  document.addEventListener('click',routeClick);$('add').onclick=()=>openEditor();$('empty-add').onclick=()=>openEditor();$('previous').onclick=()=>moveDeck(-1);$('next').onclick=()=>moveDeck(1);
  $('search').oninput=e=>{query=e.target.value;deckIndex=0;render();};$('sort').onchange=e=>{sort=e.target.value;deckIndex=0;render();};
  $('country').onchange=()=>{regionLabelVersion++;editorAutoLabels=null;$('region').value='';syncRegionFields($('country'),$('region'),$('region-choice'));$('region-status').textContent='';scheduleDraft();};$('region-choice').onchange=()=>{regionLabelVersion++;editorAutoLabels=null;$('region-status').textContent='Labels selected manually.';chooseRegion($('country'),$('region'),$('region-choice'));scheduleDraft();};$('region').addEventListener('input',()=>{regionLabelVersion++;editorAutoLabels=null;$('region-status').textContent='Labels entered manually.';});$('lookup-region').onclick=()=>{if(!draftPosition()){$('region-status').textContent='Choose photo GPS, a map location or coordinates first.';return;}void fillEditorRegion();};
@@ -857,6 +868,6 @@ function wire(){
 // Retired preferences are already ignored in memory; optional cleanup can wait for the next save if storage is full.
 async function init(){const initial=location.hash.slice(1);if(['journal','map','places','favorites'].includes(initial))view=initial;navigation.start(view);wire();
  try{db=await dbOpen();const state=await dbGet();if(state){if(state.storageWarning)toast(state.storageWarning);const loaded=state.records.map(validateRecord);records=withoutStarterSamples(loaded);settings=validateSettings(state.settings);journeys=validateJourneys(state.journeys??[]);const linked=reconcileJourneys(records,journeys);records=linked.records;journeys=linked.journeys;if(records.length!==loaded.length)await dbPut(records,settings);else if(Object.hasOwn(state.settings??{},'collections'))await dbPut(records,settings).catch(()=>{});}else{records=seeds;await dbPut(records,settings);}storageReady=true;await journalStorage.collect().catch(()=>{});}catch(e){records=[];$('add').disabled=true;document.querySelector('.local-status').textContent='Local storage unavailable';toast('Unable to open local storage. Check browser permissions and reload. '+e.message);}
- applyTheme();render();tutorialUI.start();if(view==='places')placesUI.setActive(true);if(storageReady){await initialiseDraftRecovery();if(!document.hidden)void nearbyMemories.resume();}void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+ if(settings.journalOrder){sort='manual';$('sort').value=sort;}applyTheme();render();stepUI.start();tutorialUI.start();if(view==='places')placesUI.setActive(true);if(storageReady){await initialiseDraftRecovery();if(!document.hidden)void nearbyMemories.resume();}void offlineMaps.ready().then(()=>{offlineReady=true;renderOfflineMaps();}).catch(()=>{$('offline-status').textContent='Offline map storage could not open. Your journal is unchanged.';});if(storageReady){void widgetSync.refresh(records);void adventureSync.refresh(records.filter(r=>!isDemo(r)),journeys,settings);void widgetLaunch.start();}if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 }
 init();

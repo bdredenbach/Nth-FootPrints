@@ -370,3 +370,7 @@ Authored text and edits during lookup stay intact; only untouched automatic text
 ## Shipped in 0.9.0 — exploration and badges
 
 Four Trips & journeys pills replace Exploration in Journal tools. The three-column Exploration summary separates distinct places, regions, countries, revisits and visit/media totals. Sixty-four current-journal milestone rules unlock eight families of original WebP trophy artwork. The case supports multiple pages, shelf drag and keyboard movement, Reader-style dimension/position/contact/facing sliders, finishes, lighting, hide/show and durable saved layouts included in backups. Journal care fills the fourth Journal tools pill and opens exact visits for missing-detail review. New contextual tips cover the new areas. Counts exclude removed visits, empty/deleted journeys and starter demos.
+
+## Shipped in 0.10.0 — steps, widgets, ordering and care
+
+Opt-in Android sensor counting uses a health foreground service, visible pause notification, persistent device ledger, goal and seven-day view. Four new resizable step/case widget variants supplement the photo widget, with saved case mirroring and independent page state. Reorder footprints supports long-press dragging and movement buttons; My order persists in backups. Journal care has 13 checks and explicit category review. Transparent artwork margins align trophy bases with the premium cabinet shelves. Hardware/background and launcher checks remain user device validation.

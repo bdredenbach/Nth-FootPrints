@@ -21,7 +21,7 @@ export function createJournalToolsUI({document,getState,write,onOpen,onMap,onImp
   }
   if(tab==='care'){
    const rows=journalCare(records,careFilter);$('care-count').textContent=`${rows.length} ${rows.length===1?'visit':'visits'} to review`;
-   $('care-list').innerHTML=rows.slice(0,limit).map(({record,visit})=>`<button type="button" class="tool-memory" data-care-place="${esc(record.id)}" data-care-visit="${esc(visit.id)}"><img src="${esc(art(visitView(record,visit.id)))}" alt="" loading="lazy"><span><strong>${esc(record.title)}</strong><small>${esc(date(visit.visited))} · Review & edit</small></span></button>`).join('')+(rows.length>limit?'<button type="button" class="secondary" data-tool-more="true">Show more visits</button>':'')||'<p class="field-help">Every saved visit has this detail. Your journal is looking well cared for.</p>';
+   $('care-list').innerHTML=rows.slice(0,limit).map(({record,visit})=>`<button type="button" class="tool-memory" data-care-place="${esc(record.id)}" data-care-visit="${esc(visit.id)}"><img src="${esc(art(visitView(record,visit.id)))}" alt="" loading="lazy"><span><strong>${esc(record.title)}</strong><small>${esc(date(visit.visited))} · Review & edit</small></span></button>`).join('')+(rows.length>limit?'<button type="button" class="secondary" data-tool-more="true">Show more visits</button>':'')||'<p class="field-help">Nothing needs review for this check. Choose another detail to look for.</p>';
   }
   if(tab==='nearby')renderNearby(nearby.state);
 

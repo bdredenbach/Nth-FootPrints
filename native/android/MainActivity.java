@@ -9,6 +9,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(BackupFilesPlugin.class);
         registerPlugin(FootprintWidgetPlugin.class);
+        registerPlugin(PedometerPlugin.class);
+        registerPlugin(AdventureWidgetsPlugin.class);
         super.onCreate(savedInstanceState);
         if (bridge != null) { photoChooser=new PhotoWebChromeClient(bridge); bridge.getWebView().setWebChromeClient(photoChooser); }
     }

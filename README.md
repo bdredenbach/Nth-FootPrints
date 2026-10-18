@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.9.0**.
+A personal travel journal by Nth Experience. Prototype **0.10.0**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -43,6 +43,17 @@ The badge case uses eight original transparent 512px WebP trophies, a responsive
 Journal tools has **On this day**, **Timeline**, **Journal care** and **Nearby memories**. Journal care finds exact active visits without stories, photos, coordinates, addresses, country/region labels or journey membership and opens the chosen visit for editing. It never fills or modifies entries automatically.
 
 Shelf behavior was adapted from [Nth Reader](https://github.com/bdredenbach/Nth-Reader/tree/937acb3aa4b50f6ada1fef69981a55b2a5d23979), particularly `js/shelf.js` (`decorEl`, pointer drag) and `js/customize.js` (`itemControlsEl`, `sliderRow`). FootPrints retains its own storage, navigation and theme. See [badge artwork and generation prompts](docs/BADGE-ART.md).
+
+
+## Steps, widgets and journal care — 0.10.0
+
+- **Android step counter:** Exploration → Today’s footsteps → Start counting steps. Physical activity and notification permission are requested at this action, never at startup. The native step-counter sensor feeds a health foreground service with an ongoing notification and Pause tracking. No GPS trail, accelerometer guessing or imported historical steps. Daily counts, recorded lifetime total, goal and seven-day view are local to the device, outside journal backups. A new session rebases before counting, preventing paused or pre-activation steps from being added. Reboots/counter resets rebase safely; out-of-order sensor events are ignored. Resume in the app after system interruptions. Updates can lag while the hardware/system batches events.
+- **Home-screen widgets:** Preferences has five styles: resizable photo, compact steps (2×2), wide steps (4×1), wide trophy case (4×2) and gallery case (4×4). Actual cells depend on the launcher; all resize. Multiple instances can coexist. Trophy widgets mirror the current earned/displayed case, geometry, facing, finish and lighting, with per-instance page state. They render from a small validated native snapshot and bundled WebPs, so they work without a running WebView or network. Step widgets read the native ledger, update while tracking and support platform refresh while paused. Widget taps open the correct counter, case or footprint. Widgets never enable tracking.
+- **Manual journal order:** Journal tools → Reorder footprints. Hold a grip for 350 ms, drag and release; movement buttons support keyboard/accessibility use. Save order selects My order. It composes with filters and persists in journal preferences/backups without changing visit dates, stories, originals or update times. New entries appear after ranked ones. Restore appearance/preferences controls whether incoming order replaces the current order.
+- **13 Journal care checks:** category review, story, photo, map pin, address, country, state/province, journey, tags, rating, voice note, website and phone. Missing optional details are prompts for review, not errors. Since categories cannot be empty, Other is offered for review until an editor save confirms or changes it. The optional shared categoryReviewed flag survives backups and return-visit edits.
+- **Cabinet refinement:** visible artwork bases meet the contact plane using measured transparent margins. Saved contact/size/placement values remain intact. Cabinet bevels, subdued grain, illumination and brass plaques replace the previous floating presentation.
+
+Native implementation follows [Android motion-sensor guidance](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion), [health foreground-service requirements](https://developer.android.com/develop/background-work/services/fgs/service-types#health), [notification permissions](https://developer.android.com/develop/ui/views/notifications/notification-permission) and [widget sizing](https://developer.android.com/develop/ui/views/appwidgets/layouts). Reader’s native bookshelf widget was inspected for its resize-aware Canvas/snapshot approach; FootPrints uses its own case renderer and permission-gated counter. Hardware/background counting and launcher appearance require a physical Android check.
 
 ## Run locally
 

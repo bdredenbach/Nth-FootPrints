@@ -69,14 +69,14 @@ export function createWidgetPreferences({plugin,refresh=async()=>{},onState=()=>
   finally{busy=false;await load(focusId);}
  }};
 }
-export function createWidgetLaunch({plugin,canOpen=()=>true,openFootprint,newFootprint,openJournal=()=>{},configureWidget=()=>{},onError=()=>{}}={}){
+export function createWidgetLaunch({plugin,canOpen=()=>true,openFootprint,newFootprint,openJournal=()=>{},configureWidget=()=>{},openSteps=()=>{},openBadges=()=>{},onError=()=>{}}={}){
  let pending=null,reading=false,again=false,started=false,listener;
- function flush(){if(!pending||!canOpen(pending))return;const action=pending;pending=null;try{const result=action.action==='new'?newFootprint():action.action==='journal'?openJournal():action.action==='configure'?configureWidget(action.widgetId):openFootprint(action.id);Promise.resolve(result).catch(()=>onError('Could not open the widget shortcut. Open your footprint from the journal.'));}catch{onError('Could not open the widget shortcut. Open your footprint from the journal.');}}
+ function flush(){if(!pending||!canOpen(pending))return;const action=pending;pending=null;try{const result=action.action==='steps'?openSteps():action.action==='badges'?openBadges():action.action==='new'?newFootprint():action.action==='journal'?openJournal():action.action==='configure'?configureWidget(action.widgetId):openFootprint(action.id);Promise.resolve(result).catch(()=>onError('Could not open the widget shortcut. Open your footprint from the journal.'));}catch{onError('Could not open the widget shortcut. Open your footprint from the journal.');}}
  async function read(){
   if(reading){again=true;return;}reading=true;
   try{do{
    again=false;const action=await plugin.takeLaunchAction();
-   if((action?.action==='configure'&&Number.isSafeInteger(action.widgetId)&&action.widgetId>0)||['new','journal'].includes(action?.action)||(action?.action==='open'&&typeof action.id==='string'&&/^[a-z0-9_-]{1,100}$/i.test(action.id)))pending=action;
+   if((action?.action==='configure'&&Number.isSafeInteger(action.widgetId)&&action.widgetId>0)||['new','journal','steps','badges'].includes(action?.action)||(action?.action==='open'&&typeof action.id==='string'&&/^[a-z0-9_-]{1,100}$/i.test(action.id)))pending=action;
    flush();
   }while(again);}catch{onError('Could not open the widget shortcut. Open your footprint from the journal.');}
   finally{reading=false;}

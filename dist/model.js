@@ -1,3 +1,4 @@
+import {validateJournalOrder,orderPlaces} from './journal-order.js';
 import {validateBadgeCase} from './badge-case.js';
 import {knownMedia,visitMedia} from './media-store.js';
 import {CATEGORIES,RECORD_CATEGORIES} from './categories.js';
@@ -34,6 +35,7 @@ export function validateRecord(r) {
   if(!/^[a-z0-9_-]+$/i.test(id)) throw Error('Invalid place ID.');
   const title=text(r.title,160,'title').trim(); if(!title) throw Error('A place needs a title.');
   if(!RECORD_CATEGORIES.includes(r.category)) throw Error('Unknown place category.');
+  if(r.categoryReviewed!==undefined&&typeof r.categoryReviewed!=='boolean')throw Error('Invalid category review state.');
   if(typeof r.favorite!=='boolean' || !Number.isInteger(r.rating) || r.rating<0 || r.rating>5) throw Error('Invalid rating or favorite.');
   const visited=text(r.visited,10,'visit date');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(visited) || Number.isNaN(Date.parse(visited)) || new Date(visited).toISOString().slice(0,10)!==visited) throw Error('Invalid visit date.');
@@ -51,7 +53,7 @@ export function validateRecord(r) {
     if(!Number.isInteger(coverIndex)||coverIndex<0||coverIndex>=Math.max(1,photos.length))throw Error('Invalid main photo selection.');
     photo=photos[coverIndex]??null;gallery.photos=photos;gallery.coverIndex=coverIndex;
   }
-  return {id,title,category:r.category,favorite:r.favorite,rating:r.rating,visited,lat,lng,updatedAt,
+  return {id,title,category:r.category,...(r.categoryReviewed!==undefined?{categoryReviewed:r.categoryReviewed}:{}),favorite:r.favorite,rating:r.rating,visited,lat,lng,updatedAt,
     address:text(r.address??'',500,'address'),notes:text(r.notes??'',20000,'notes'),phone:text(r.phone??'',80,'phone'),url,
     photo,...gallery,...validateLabels(r),...(r.placeSource!==undefined?{placeSource:validatePlaceSource(r.placeSource)}:{}),...validateVisitState({...r,photo,...gallery}),...(r.tripIds!==undefined?{tripIds:recordJourneyIds(r.tripIds)}:{}),audio:media(r.audio,'audio'),sampleArt: ['coast','mountain','city'].includes(r.sampleArt)?r.sampleArt:null};
 }
@@ -59,7 +61,7 @@ export function backupRecord(record){const r=validateRecord(record);if(r.photos)
 export function validateSettings(s={}) {
  if(!s || typeof s!=='object' || (s.theme && !['paper','night'].includes(s.theme))) throw Error('Invalid settings.');
  if(s.memories!==undefined&&typeof s.memories!=='boolean')throw Error('Invalid memory preference.');
- return {theme:s.theme??'paper',...(s.memories!==undefined?{memories:s.memories}:{}),...(s.badgeCase!==undefined?{badgeCase:validateBadgeCase(s.badgeCase)}:{})};
+ return {theme:s.theme??'paper',...(s.memories!==undefined?{memories:s.memories}:{}),...(s.badgeCase!==undefined?{badgeCase:validateBadgeCase(s.badgeCase)}:{}),...(s.journalOrder!==undefined?{journalOrder:validateJournalOrder(s.journalOrder)}:{})};
 }
 export function makeBackup(records, settings={theme:'paper'},journeys=[]) {
  const rows=records.map(backupRecord),trips=validateJourneys(journeys);checkJourneyLinks(rows,trips);
@@ -88,8 +90,9 @@ export function mergeRecords(existing,incoming) {
  for(const r of incoming) { const old=map.get(r.id);if(!old){map.set(r.id,r);added++;}else{const merged=mergeVisitRecords(old,r);if(merged!==old){map.set(r.id,merged);updated++;}else kept++;} }
  return {records:[...map.values()],added,updated,kept};
 }
-export function filterRecords(records,{query='',category='All places',sort='newest',favorites=false}={}) {
+export function filterRecords(records,{query='',category='All places',sort='newest',favorites=false,order=[]}={}) {
  const q=query.toLocaleLowerCase().trim();
- return records.filter(r=>(!favorites||r.favorite)&&(category==='All places'||r.category===category)&&(!q||[r.title,r.address,r.category,...(r.tags??[]),r.country??'',r.region??'',...(Array.isArray(r.searchNotes)?r.searchNotes:[]),...visitsOf(r).map(v=>v.notes??'')].some(x=>x.toLocaleLowerCase().includes(q))))
- .sort((a,b)=>sort==='name'?a.title.localeCompare(b.title):sort==='rating'?b.rating-a.rating||latestVisited(b).localeCompare(latestVisited(a)):latestVisited(b).localeCompare(latestVisited(a))||b.updatedAt.localeCompare(a.updatedAt));
+ const ranked=sort==='manual'?orderPlaces(records,order):records;
+ return ranked.filter(r=>(!favorites||r.favorite)&&(category==='All places'||r.category===category)&&(!q||[r.title,r.address,r.category,...(r.tags??[]),r.country??'',r.region??'',...(Array.isArray(r.searchNotes)?r.searchNotes:[]),...visitsOf(r).map(v=>v.notes??'')].some(x=>x.toLocaleLowerCase().includes(q))))
+ .sort((a,b)=>sort==='manual'?0:sort==='name'?a.title.localeCompare(b.title):sort==='rating'?b.rating-a.rating||latestVisited(b).localeCompare(latestVisited(a)):latestVisited(b).localeCompare(latestVisited(a))||b.updatedAt.localeCompare(a.updatedAt));
 }

@@ -21,9 +21,9 @@ export function achievementProgress(records,journeys=[]){
  return {stats,metrics,badges:BADGES.map(b=>({...b,value:metrics[b.family],reached:metrics[b.family]>=b.target,progress:Math.min(1,metrics[b.family]/b.target)}))};
 }
 
-export const CARE_FILTERS=[['story','Missing a story'],['photo','Missing a photo'],['pin','Missing a map pin'],['address','Missing an address'],['country','Missing a country'],['region','Missing a state / province'],['journey','Not in a journey']];
+export const CARE_FILTERS=[['category','Category to review (Other)'],['story','Missing a story'],['photo','Missing a photo'],['pin','Missing a map pin'],['address','Missing an address'],['country','Missing a country'],['region','Missing a state / province'],['journey','Not in a journey'],['tags','Missing tags'],['rating','Not rated'],['voice','Missing a voice note'],['website','Missing a website'],['phone','Missing a phone number']];
 export function journalCare(records,filter='story'){
  if(!CARE_FILTERS.some(([id])=>id===filter))return [];
- const missing=(record,visit)=>({story:!visit.notes?.trim(),photo:!(visit.photos?.length||visit.photo),pin:!Number.isFinite(visit.lat)||!Number.isFinite(visit.lng),address:!record.address?.trim(),country:!record.country?.trim(),region:!record.region?.trim(),journey:!visit.tripIds?.length})[filter];
+ const missing=(record,visit)=>({category:!record.category||record.category==='Other'&&record.categoryReviewed!==true,tags:!record.tags?.length,rating:!visit.rating,voice:!visit.audio,website:!record.url?.trim(),phone:!record.phone?.trim(),story:!visit.notes?.trim(),photo:!(visit.photos?.length||visit.photo),pin:!Number.isFinite(visit.lat)||!Number.isFinite(visit.lng),address:!record.address?.trim(),country:!record.country?.trim(),region:!record.region?.trim(),journey:!visit.tripIds?.length})[filter];
  return records.flatMap(record=>visitsOf(record).filter(v=>missing(record,v)).map(visit=>({record,visit}))).sort((a,b)=>b.visit.visited.localeCompare(a.visit.visited)||a.record.title.localeCompare(b.record.title));
 }
