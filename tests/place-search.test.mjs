@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {createPlaceSearch,placeResults,samePlacePoint,SEARCH_ENDPOINT} from '../dist/place-search.js';
+import {createSpotAutofill} from '../dist/spot-autofill.js';
 import {hasLocation} from '../dist/atlas.js';
 const feature=(name='Cafe',coordinates=[-74,43],properties={})=>({type:'Feature',geometry:{type:'Point',coordinates},properties:{name,street:'Main Street',housenumber:'10',city:'Little Falls',state:'New York',country:'United States',...properties}});
 const payload=(...features)=>({type:'FeatureCollection',features});
@@ -63,9 +64,10 @@ test('unavailable, malformed and oversized responses produce a retryable message
 });
 const app=fs.readFileSync(new URL('../dist/app.js',import.meta.url),'utf8');
 function editorFixture(){
- const ids=['lat','lng','title','address','use-location','location-status','editor','pin-picker','picker-locate','picker-error','apply-position','position-coordinates','position-map','picker-status','picker-retry','place-query','picker-fill-details','picker-place','picker-details-option','place-search-button','place-search-cancel','place-search-status','place-results'];
+ const ids=['lat','lng','title','address','notes','use-location','location-status','editor','pin-picker','picker-locate','picker-error','apply-position','position-coordinates','position-map','picker-status','picker-retry','place-query','picker-fill-details','picker-place','picker-details-option','place-search-button','place-search-cancel','place-search-status','place-results'];
  const nodes=Object.fromEntries(ids.map(id=>[id,{value:'',checked:true,open:['editor','pin-picker'].includes(id),innerHTML:'',textContent:'',disabled:false,querySelectorAll:()=>[],scrollIntoView(){},focus(){},blur(){}}]));let change,point=null,cancelled=0;const found={name:'A cafe',address:'10 Main Street',position:{lat:43,lng:-74}};
  const c=vm.createContext({$:id=>nodes[id],close:id=>{nodes[id].open=false;},picker:null,pickerPlace:null,pickerRequest:0,gpsRequestVersion:0,locationPending:false,syncSave(){},hasLocation,samePlacePoint,window:{L:{}},show(){},device:{},placeSearch:{cancel(){cancelled++;},result:()=>structuredClone(found)},esc:s=>String(s).replaceAll('<','&lt;'),scheduleDraft(){},offlineMaps:undefined,createPositionPicker:options=>{change=options.onChange;change(point);return {getPosition:()=>point,setPosition(p){point={...p};change(point);return true;},destroy(){}};}});
+ c.spotAutofill=createSpotAutofill({getState:()=>({session:1,open:nodes.editor.open,saving:false,point:{lat:Number(nodes.lat.value),lng:Number(nodes.lng.value)},values:{title:nodes.title.value,address:nodes.address.value,notes:nodes.notes.value}}),write:(field,value)=>nodes[field].value=value,lookup:async()=>({})});
  vm.runInContext(app.slice(app.indexOf('function draftPosition()'),app.indexOf('function renderReleases()')),c);c.fillEditorRegion=async()=>{};
  return {c,nodes,found,move:p=>{point=p;change(p);},get cancelled(){return cancelled;}};
 }
@@ -77,7 +79,7 @@ test('search selection never overwrites existing text, and optional detail filli
  const g=editorFixture();g.c.openPicker();g.c.previewPlace(0);g.nodes['picker-fill-details'].checked=false;g.c.applyPicker();assert.equal(g.nodes.title.value,'');assert.equal(g.nodes.address.value,'');assert.equal(g.nodes.lat.value,'43.000000');
 });
 test('moving away from a result clears its name/address association before applying a manual spot',()=>{
- const f=editorFixture();f.c.openPicker();f.c.previewPlace(0);f.move({lat:44,lng:-75});assert.equal(f.c.pickerPlace,null);assert.equal(f.nodes['picker-details-option'].hidden,true);f.c.applyPicker();assert.equal(f.nodes.lat.value,'44.000000');assert.equal(f.nodes.title.value,'');assert.equal(f.nodes.address.value,'');
+ const f=editorFixture();f.c.openPicker();f.c.previewPlace(0);f.move({lat:44,lng:-75});assert.equal(f.c.pickerPlace,null);assert.equal(f.nodes['picker-details-option'].hidden,false);f.c.applyPicker();assert.equal(f.nodes.lat.value,'44.000000');assert.equal(f.nodes.title.value,'');assert.equal(f.nodes.address.value,'');
 });
 test('closing the picker cancels search and discards its result without altering the editor',()=>{
  const f=editorFixture();f.c.openPicker();f.c.previewPlace(0);const count=f.cancelled;f.nodes['pin-picker'].open=false;f.c.closePicker();assert.equal(f.cancelled,count+1);assert.equal(f.c.pickerPlace,null);assert.equal(f.nodes.lat.value,'');assert.equal(f.nodes.title.value,'');

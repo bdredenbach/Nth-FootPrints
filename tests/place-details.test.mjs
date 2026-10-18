@@ -26,7 +26,7 @@ test('missing descriptions are retained, failures do not block saving and immedi
  let calls=0;const client=createPlaceDetailsClient({apiKey:'test',cacheStore:store(),storage:memory(),fetch:async()=>{calls++;return response(body(feature({description:undefined})));}});assert.equal(await client.description(place),'');assert.equal(await client.description(place),'');assert.equal(calls,1);
  const failed=createPlaceDetailsClient({apiKey:'test',cacheStore:store(),storage:memory(),fetch:async()=>{calls++;return response({},429);}});await assert.rejects(failed.description(place));await assert.rejects(failed.description(place));assert.equal(calls,2);assert.equal(placePrefill(place).notes,'');
 });
-test('coordinate fallback rejects a neighbouring place and oversized results are bounded',async()=>{
- const old={...place,detailsId:''};const client=createPlaceDetailsClient({apiKey:'test',cacheStore:store(),storage:memory(),fetch:async url=>{assert.equal(new URL(url).searchParams.get('lat'),'42');return response(body(feature({place_id:'other',datasource:{raw:{osm_type:'n',osm_id:999}}})));}});assert.equal(await client.description(old),'');
+test('OSM identity lookup rejects a neighbouring place and oversized results are bounded',async()=>{
+ const old={...place,detailsId:''};const client=createPlaceDetailsClient({apiKey:'test',cacheStore:store(),storage:memory(),fetch:async url=>{assert.equal(new URL(url).searchParams.get('osm_id'),'123');assert.equal(new URL(url).searchParams.get('osm_type'),'n');assert.equal(new URL(url).searchParams.get('lat'),null);return response(body(feature({place_id:'other',datasource:{raw:{osm_type:'n',osm_id:999}}})));}});assert.equal(await client.description(old),'');
  const big=createPlaceDetailsClient({apiKey:'test',cacheStore:store(),storage:memory(),fetch:async()=>response({description:'x'.repeat(2*1024*1024)})});await assert.rejects(big.description(place),/too large/);
 });

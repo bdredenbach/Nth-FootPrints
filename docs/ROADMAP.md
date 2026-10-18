@@ -241,3 +241,11 @@ Thirteen themed chapters explain FootPrints controls and workflows with paths, c
 Replaces the 0.8.4 chapter tour with per-area coaching on real, highlighted controls. Areas have independent seen flags, with separate introductions for asynchronous photo metadata/import review/journey detail and each Journal tools tab. First-visit help is dismissible with remembered state, supports Android Back/history replay, respects theme/viewport/safe areas, and can be disabled/reset in Preferences. Location setup follows the first main-screen tips and remains explicitly available from Preferences. Native permission requests obtain no startup GPS fix; photo GPS and Nearby memories retain their separate behavior. Tip state stays outside backups.
 
 376 automated tests and contextual browser flows pass across five widths and both themes. Permission denial/services off/approximate access, first/repeat visits, disable/reset, restart, Android Back/history forward, original photo GPS, import review, viewer, offline maps, backup and asynchronous journey creation are covered. Physical-phone behavior still needs checking.
+
+## Chosen-spot address and story (0.8.6)
+
+Use this spot now reverse-resolves a blank address for a manual map pin, while a selected search result retains its mapped identity for available description filling in The story. Manual pins can use descriptions only from a named mapped amenity within 10 m or a named building at zero reverse-lookup distance. Other streets/areas/neighbours do not lend descriptions. The checked picker option covers empty name/address/story and can be disabled.
+
+Authored text and edits during lookup stay intact; only untouched automatic text follows a later location choice. Generation/session/coordinate/save guards prevent late replies from touching another draft or saved data. Failure leaves coordinates usable; response size, timeout, request spacing, cache and daily safety bounds apply. Description requests share the existing client with Places and prefer exact place/OSM identity. Contextual picker help and Geoapify/OSM credits are updated.
+
+388 automated checks and full browser flows pass for manual/selected locations, persisted fills, missing/wrong descriptions, manual edits, late responses, failure and opt-out. Live coverage and Android interaction still need phone testing.

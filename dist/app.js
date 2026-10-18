@@ -1,3 +1,5 @@
+import {createChosenSpotClient,createSpotAddressLookup,createSpotAutofill} from './spot-autofill.js';
+import {createPlaceDetailsClient} from './place-details.js';
 import {createTutorialUI} from './tutorial.js';
 import {joinBackupParts} from './backup-parts.js';
 import {prepareJournalArchive,inspectJournalArchive,restoreJournalArchive} from './journal-archive.js';
@@ -41,6 +43,9 @@ const offlineMaps=createOfflineMaps();
 const photoLightbox=createPhotoLightbox({document,window});
 let offlineReady=false,offlineProgress=null;
 const regionLookup=createRegionLookup({storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)}});
+const placeDetails=createPlaceDetailsClient({storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)}});
+const chosenSpotClient=createChosenSpotClient({details:placeDetails,address:createSpotAddressLookup({storage:{getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)}})});
+const spotAutofill=createSpotAutofill({getState:()=>({session:editorSession,positionVersion:gpsRequestVersion,open:$('editor').open,saving:editorSaving,point:draftPosition(),values:{title:$('title').value,address:$('address').value,notes:$('notes').value}}),write:(field,value)=>{$(field).value=value;scheduleDraft();},lookup:(point,options)=>chosenSpotClient.lookup(point,options),onStatus:message=>{$('location-status').textContent=message;}});
 let regionRequest=0,regionLabelVersion=0,editorAutoLabels=null;
 const placeSearch=createPlaceSearch({onState:renderPlaceSearch});
 const paths={expand:'M4 4h5 M4 4v5 M4 4l6 6 M20 20h-5 M20 20v-5 M20 20l-6-6 M20 4h-5 M20 4v5 M20 4l-6 6 M4 20h5 M4 20v-5 M4 20l6-6',minus:'M5 12h14',footprint:'M15 21c-2 0-3-2-3-5 0-2 1-5 3-5s4 3 4 5c0 3-2 5-4 5Z M15 7c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M9 10c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z M7 14c-1 0-2-1-2-2s1-2 2-2 2 1 2 2-1 2-2 2Z',stack:'M4 7 12 3l8 4-8 4-8-4Z M4 12l8 4 8-4 M4 17l8 4 8-4',list:'M9 6h12 M9 12h12 M9 18h12 M3 6h1 M3 12h1 M3 18h1',map:'m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z M9 3v16 M15 5v16',heart:'M20 5c-2-2-5-2-8 1-3-3-6-3-8-1-3 3-1 6 1 8l7 7 7-7c2-2 4-5 1-8Z',archive:'M4 9h16v12H4V9Z M3 3h18v6H3V3Z M9 13h6',settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z M10 3h4l1 3 3 1 3 2v4l-3 1-1 3-2 4h-4l-1-3-3-1-4-2v-4l3-1 1-3 3-4Z',plus:'M12 5v14 M5 12h14',search:'M16 10a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M15 15l6 6',compass:'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z m-6-3-2 4-4 2 2-4 4-2Z',arrowUp:'M12 19V5 M6 11l6-6 6 6',arrowDown:'M12 5v14 M6 13l6 6 6-6',arrowLeft:'M19 12H5 M11 6l-6 6 6 6',arrowRight:'M5 12h14 M13 6l6 6-6 6',location:'M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 0 1 14 0Z M15 10a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',close:'m6 6 12 12 M18 6 6 18',camera:'M3 7h4l2-3h6l2 3h4v14H3V7Z M16 13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0V5Z M5 10v2a7 7 0 0 0 14 0v-2 M12 19v3 M8 22h8',download:'M12 3v12 M7 10l5 5 5-5 M4 17v4h16v-4',edit:'m15 4 5 5-12 12H3v-5L15 4Z M12 7l5 5',external:'M14 3h7v7 M21 3 10 14 M10 3H3v18h18v-7',navigation:'m21 3-6 18-4-8-8-4L21 3Z',trash:'M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7'};
@@ -94,7 +99,7 @@ const widgetLaunch=createWidgetLaunch({plugin:widgetPlugin,
 const widgetPreferences=createWidgetPreferences({plugin:widgetPlugin,refresh:()=>widgetSync.refresh(records),onState:renderWidgetPreferences,onStatus:message=>{$('widget-status').textContent=message;}});
 function openPreferences(widgetId=null){show('settings');if(widgetPlugin)void widgetPreferences.load(widgetId);}
 const journeyUI=createJourneysUI({document,getState:()=>({records,journeys}),write:({records:transform=current=>current,journeys:trips=current=>current})=>changeJournal(transform,undefined,{journeys:trips}),onOpen:openDetail,onBrowse:id=>browseJourney(id,'journal'),onMap:id=>browseJourney(id,'map'),onStatus:toast,onBook:id=>openMemoryExport({kind:'trip',tripId:id}),confirm:message=>confirm(message),date,art});
-const placesUI=createPlacesUI({document,L:window.L,offlineMaps,getRecords:()=>records,getJourneys:()=>journeys,locate:options=>device.currentPosition(options),icon,onPreview:()=>show('place-preview'),onExplore:async()=>{close('place-preview');await navigation.idle();},onSave:(prefill,id)=>openEditor(id??null,null,id?'new':null,prefill),onSaved:async id=>{close('place-preview');await navigation.idle();await openDetail(id);},onStatus:toast});
+const placesUI=createPlacesUI({document,details:placeDetails,L:window.L,offlineMaps,getRecords:()=>records,getJourneys:()=>journeys,locate:options=>device.currentPosition(options),icon,onPreview:()=>show('place-preview'),onExplore:async()=>{close('place-preview');await navigation.idle();},onSave:(prefill,id)=>openEditor(id??null,null,id?'new':null,prefill),onSaved:async id=>{close('place-preview');await navigation.idle();await openDetail(id);},onStatus:toast});
 async function browseFavorites(){close('journal-tools');await navigation.idle();if($('settings').open){close('settings');await navigation.idle();}query='';journeyFilter='';tagFilter='';explorationCountry='';explorationRegion='';category='All places';$('search').value='';await setView('favorites');render();}
 function openJourneys(){journeyUI.open();show('journeys');}
 async function browseJourney(id,next){close('journeys',{force:true});await navigation.idle();journeyFilter=id;query='';category='All places';$('search').value='';deckIndex=0;await setView(next);render();}
@@ -271,7 +276,7 @@ function cleanupDialog(id){
  if(id==='journeys')journeyUI.reset();
  if(id==='pin-picker')closePicker();
  if(id==='editor'){
-  finishEditorDraft();
+  spotAutofill.reset();finishEditorDraft();
   if($('pin-picker').open)closeRaw('pin-picker');
   editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;draftBaseline=null;
   syncSave();$('audio-preview').pause();stopRecording(true);
@@ -415,7 +420,7 @@ async function openEditor(id=null,recovered=null,visitId=null,prefill=null){
  if(fromDetails&&(!$('details').open||request!==detailRevision))return;
  if(!storageReady){toast('Local saving is unavailable. Check browser storage permissions and reload.');return;}
  if($('details').open)$('details').querySelectorAll('audio').forEach(audio=>audio.pause());
- editorSession++;photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
+ editorSession++;spotAutofill.reset();photoReadVersion++;gpsRequestVersion++;locationPending=false;$('use-location').disabled=false;syncSave();pendingPhotoMetadata=null;$('photo-geotag').hidden=true;
  const place=id?records.find(x=>x.id===id):null;editVisitId=place?(recovered?.visitId??visitId):null;const existing=place&&editVisitId!=='new'?visitById(place,editVisitId??INITIAL_VISIT):null;if(place&&editVisitId!=='new'&&!existing){toast('This visit is no longer available.');return;}const r=place?(editVisitId==='new'?{...place,visited:today(),notes:'',rating:0,photo:null,photos:[],coverIndex:0,audio:null,sampleArt:null,tripIds:journeyFilter?[journeyFilter]:[]}:visitView(place,existing.id)):(prefill??null);draftSource=recovered?.placeSource??r?.placeSource??null;baseDraftUpdatedAt=place?.updatedAt??null;draftRecovered=!!recovered||!!prefill;draftSaved=false;cameraIntent=recovered?.camera??null;editId=r?.id??null;draftPhoto=r?.photo??null;draftAudio=r?.audio??null;draftArt=r?.sampleArt??null;draftPhotos=photosOf(r);draftCover=coverOf(r);
  $('country').innerHTML=countryOptions(recovered?.values.country??r?.country??'');regionRequest++;regionLabelVersion++;editorAutoLabels=null;$('region-status').textContent='';
  $('category').innerHTML=categoryChoices(recovered?.values.category??r?.category).map(c=>`<option>${esc(c)}</option>`).join('');$('place-form').reset();$('editor-title').textContent=editVisitId==='new'?'Another visit, another story.':place?'Edit this place & visit.':'A new footprint.';$('editor-visit-help').hidden=!place;$('editor-visit-help').textContent=place?'Date, rating, location, story, media and trips belong to this visit. Name, category, favorite, address, tags, country, region and contact details apply to the place.':' ';$('save-place').textContent=place?'Save visit':'Save footprint';
@@ -477,7 +482,7 @@ function renderPlaceSearch({busy,results,status}){
 }
 function renderPickerPlace(){
  $('picker-place').textContent=pickerPlace?`Previewing ${pickerPlace.name}. Check the pin, then choose Use this spot.`:'';
- $('picker-details-option').hidden=!pickerPlace;
+ $('picker-details-option').hidden=false;
 }
 function previewPlace(index){
  if(!$('pin-picker').open||!$('editor').open||!picker)return;
@@ -490,11 +495,9 @@ function searchPlaces(event){event?.preventDefault();if(!$('pin-picker').open)re
 function applyPicker(){
  const point=picker?.getPosition();if(!point||!$('editor').open)return;
  setDraftPosition(point,'Location chosen on the map. Save the footprint to keep it.');
- if(pickerPlace&&samePlacePoint(point,pickerPlace.position)&&$('picker-fill-details').checked){
-  if(!$('title').value.trim())$('title').value=pickerPlace.name;
-  if(!$('address').value.trim())$('address').value=pickerPlace.address;
- }
+ const selected=pickerPlace&&samePlacePoint(point,pickerPlace.position)?pickerPlace:null,includeDetails=$('picker-fill-details').checked;
  scheduleDraft();close('pin-picker',{force:true});
+ void spotAutofill.choose(point,selected,{includeDetails});
 }
 function renderReleases(){
  $('release-version').textContent=`NTH FOOTPRINTS · ${APP_VERSION}`;
@@ -813,7 +816,7 @@ async function downloadOfflineArea(){
 }
 function wire(){
  nativeDraftReady=bindDraftLifecycle({plugin:device.native?window.NthNative?.App:null,onPause:()=>{mapsPaused=true;syncMapVisibility();void checkpointDraft().catch(()=>{});void nearbyMemories.pause();},onRestored:queueRestoredCamera,onError:toast});
- $('place-form').addEventListener('input',scheduleDraft);$('place-form').addEventListener('change',scheduleDraft);
+ $('place-form').addEventListener('input',event=>{spotAutofill.edit(event.target.id);scheduleDraft();});$('place-form').addEventListener('change',scheduleDraft);
  $('resume-draft').onclick=resumeDraft;$('discard-draft').onclick=discardRecoveryDraft;$('recover-camera-photo').onclick=applyReturnedCamera;
 
  $('offline-open').onclick=openOfflineMaps;$('settings-offline').onclick=openOfflineMaps;

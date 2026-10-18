@@ -1,6 +1,6 @@
 # Nth FootPrints
 
-A personal travel journal by Nth Experience. Prototype **0.8.5**.
+A personal travel journal by Nth Experience. Prototype **0.8.6**.
 
 **Existing installed test APK:** keep it installed until its journal is secured. If the old 150 MB exporter fails, use the [phone-only rescue guide](docs/PHONE-RESCUE.md) before replacing differently signed builds.
 
@@ -368,3 +368,13 @@ After the first main-screen introduction is dismissed, a location explanation of
 Preferences offers Show tips when I visit a new area, Reset tutorial tips and explicit Location access. First-visit state is device-local and outside journal backups. The old chapter-guide completion flag does not suppress the new contextual introductions. Blocked local storage still remembers dismissals for the running session.
 
 Validation: 376 automated checks pass. Browser flows cover first/repeat visits, per-area persistence, disable/reset, native Back/history forward, permission choices, photo GPS, individual tool tabs, import review, photo viewer, offline maps, backup and asynchronous journey creation. Coaching cards fit 320/360/412/684/1280 px in both themes, including a 320 × 568 screen and simulated Android safe-area insets. Android permission/provider behavior still needs physical-phone testing.
+
+## Address and story from a chosen spot (0.8.6)
+
+Find or choose a location → Use this spot now fills a blank Address or area from a manually selected/adjusted map pin, including when no search result is selected. Selected search results can also fill a blank name/address immediately. A matched mapped place description can fill The story when available. The picker’s checked text option covers name, address and story and is available for both search selections and manual pins. Unchecking it keeps text fields untouched. Country/state labeling retains its existing separate lookup.
+
+Reverse address lookup uses Geoapify, with bounded responses, timeout, a short request queue, per-session caching and a daily request safety budget. Photon results retain validated OpenStreetMap identities and mapped descriptions. Description lookup uses a Geoapify place ID or exact OSM ID, and validates returned identity before copying text. A manual pin may supply a story only when reverse lookup identifies a named mapped amenity within 10 m, or a named containing building with zero reported distance. Streets, distant neighbours and unidentified points do not lend their stories. There is no invented biography or generic web-page scraping.
+
+Lookups run in the background; status identifies pending or unavailable details. Review the address and story before saving. Existing authored text remains intact. Each field has edit/version protection, including explicit clearing and programmatic changes. A newer chosen location can replace or clear only earlier untouched automatic text. Coordinates, editor session, save state and request generation guard late replies, so closing, changing or saving a draft cannot update another footprint. Automatic values use the normal draft/save path.
+
+Validation: 388 automated checks pass. Full browser editor flows verify manual-pin and selected-place filling, saved values, exact-identity requests, rejection of a neighbour’s description, typing during lookup, cancellation/new-draft protection, lookup failure retaining coordinates and opting out. API responses are mocked for deterministic browser checks; live address/description coverage varies by place and connection.

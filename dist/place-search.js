@@ -1,10 +1,11 @@
+import {placeDescription} from './place-details.js';
 import {proximityKm} from './nearby-memories.js';
 import {hasLocation} from './atlas.js';
 // Prototype provider. Replace this one endpoint with a dedicated Photon service before wider distribution.
 export const SEARCH_ENDPOINT='https://photon.komoot.io/api/';
 const MAX_RESPONSE=256*1024;
 const clean=(value,max=160)=>typeof value==='string'?value.replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim().slice(0,max):'';
-const copy=value=>value.map(r=>({...r,position:{...r.position}}));
+const copy=value=>value.map(r=>({...r,position:{...r.position},...(r.placeSource?{placeSource:{...r.placeSource}}:{})}));
 export function samePlacePoint(a,b){return !!a&&!!b&&Math.abs(a.lat-b.lat)<.000001&&Math.abs(((a.lng-b.lng+540)%360)-180)<.000001;}
 export function placeResults(payload,{limit=5}={}){
  limit=Math.min(20,Math.max(1,Number.isInteger(limit)?limit:5));
@@ -21,7 +22,8 @@ export function placeResults(payload,{limit=5}={}){
   if(!name&&!address)continue;
   const key=typeof p.osm_type==='string'&&/^[NWR]$/.test(p.osm_type)&&/^[0-9]+$/.test(String(p.osm_id))?p.osm_type+p.osm_id:`${name.toLowerCase()}|${lat.toFixed(6)}|${lng.toFixed(6)}`;
   if(seen.has(key))continue;seen.add(key);
-  results.push({name:name||address.slice(0,160),address,position:{lat,lng:lng===180?-180:lng}});
+  const osmType={N:'node',W:'way',R:'relation'}[p.osm_type],osmId=String(p.osm_id??''),source=osmType&&/^[1-9][0-9]{0,19}$/.test(osmId)&&(typeof p.osm_id!=='number'||Number.isSafeInteger(p.osm_id))?{provider:'openstreetmap',type:osmType,id:osmId}:null,description=placeDescription(p);
+  results.push({name:name||address.slice(0,160),address,position:{lat,lng:lng===180?-180:lng},...(source?{placeSource:source}:{}),...(description?{description}:{})});
   if(results.length===limit)break;
  }
  return results;
