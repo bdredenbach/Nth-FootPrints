@@ -5,8 +5,8 @@
     <string name="widget_description">A chosen footprint or your latest visit, with shortcuts to choose and add memories</string>
     <string name="widget_open">Open Nth FootPrints</string>
     <string name="widget_empty">Your next story starts here.</string>
-    <string name="widget_add">+ New footprint</string>
+    <string name="widget_add">+ New\nfootprint</string>
     <string name="widget_count_initial">Your journal</string>
-    <string name="widget_choose">Choose</string>
+    <string name="widget_choose">Choose\nfootprint</string>
     <string name="widget_choose_description">Choose the footprint for this widget</string>
-<string name="widget_steps_label">Steps · compact</string><string name="widget_steps_wide_label">Steps · wide</string><string name="widget_case_label">Trophy case · wide</string><string name="widget_case_large_label">Trophy case · gallery</string><string name="widget_steps_description">Today’s steps and your goal, counted while tracking is enabled</string><string name="widget_case_description">Your earned trophy case, with saved arrangement, finish, lighting and case arrows</string></resources>
+<string name="widget_steps_label">Steps · compact</string><string name="widget_steps_wide_label">Steps · wide</string><string name="widget_case_label">Trophy case · wide</string><string name="widget_case_large_label">Trophy case · gallery</string><string name="widget_steps_description">Today’s steps and your goal, from your phone counter or the latest Health Connect refresh</string><string name="widget_case_description">Your earned trophy case, with saved arrangement, finish, lighting and case arrows</string></resources>

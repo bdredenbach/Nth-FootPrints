@@ -5,5 +5,6 @@ const App=registerPlugin('App');
 const BackupFiles=registerPlugin('BackupFiles');
 const FootprintWidget=registerPlugin('FootprintWidget');
 const Pedometer=registerPlugin('Pedometer');
+const HealthConnect=registerPlugin('HealthConnect');
 const AdventureWidgets=registerPlugin('AdventureWidgets');
-window.NthNative={Camera,Geolocation,App,BackupFiles,FootprintWidget,Pedometer,AdventureWidgets};
+window.NthNative={Camera,Geolocation,App,BackupFiles,FootprintWidget,Pedometer,AdventureWidgets,HealthConnect};

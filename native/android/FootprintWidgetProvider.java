@@ -81,13 +81,14 @@ public class FootprintWidgetProvider extends AppWidgetProvider {
         String subtitle = !hasRecord ? (pinned ? "Selected footprint unavailable · tap Choose" : state.has("count") ? "Save your first footprint" : "Open FootPrints to load your journal") :
             (record.optBoolean("sample") ? "Illustrated sample · " : pinned ? "Pinned footprint · " : "Latest visit · ") + record.optString("visited");
         views.setTextViewText(R.id.widget_subtitle, subtitle);
-        views.setTextViewText(R.id.widget_count, count + (count == 1 ? " footprint" : " footprints"));
+        views.setTextViewText(R.id.widget_count, count + (count == 1 ? "\nfootprint" : "\nfootprints"));
         Bitmap image = hasRecord ? thumbnail(record.optString("thumbnail", "")) : null;
         if (image != null) views.setImageViewBitmap(R.id.widget_photo, image);
         else views.setImageViewResource(R.id.widget_photo, R.drawable.widget_placeholder);
         views.setContentDescription(R.id.widget_photo, hasRecord ? "Open " + record.optString("title") : pinned ? "Choose another footprint for this widget" : "Open Nth FootPrints");
         PendingIntent open = launch(context, widgetId, hasRecord ? "open" : pinned ? "configure" : "journal", id);
         views.setOnClickPendingIntent(R.id.widget_root, open); views.setOnClickPendingIntent(R.id.widget_photo, open); views.setOnClickPendingIntent(R.id.widget_title, open);
+        views.setOnClickPendingIntent(R.id.widget_count, launch(context, widgetId, "journal", ""));
         views.setOnClickPendingIntent(R.id.widget_add, launch(context, widgetId, "new", ""));
         views.setOnClickPendingIntent(R.id.widget_choose, launch(context, widgetId, "configure", ""));
         return views;

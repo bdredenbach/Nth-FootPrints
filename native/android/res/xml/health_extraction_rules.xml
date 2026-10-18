@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+<cloud-backup>
+<exclude domain="sharedpref" path="nth-steps-v1.xml"/><exclude domain="sharedpref" path="nth-health-v1.xml"/><exclude domain="sharedpref" path="nth-adventure-widgets.xml"/>
+<exclude domain="database" path="nth-health-steps.db"/><exclude domain="database" path="nth-health-steps.db-wal"/><exclude domain="database" path="nth-health-steps.db-shm"/><exclude domain="database" path="nth-health-steps.db-journal"/>
+</cloud-backup>
+<device-transfer>
+<exclude domain="sharedpref" path="nth-steps-v1.xml"/><exclude domain="sharedpref" path="nth-health-v1.xml"/><exclude domain="sharedpref" path="nth-adventure-widgets.xml"/>
+<exclude domain="database" path="nth-health-steps.db"/><exclude domain="database" path="nth-health-steps.db-wal"/><exclude domain="database" path="nth-health-steps.db-shm"/><exclude domain="database" path="nth-health-steps.db-journal"/>
+</device-transfer>
+</data-extraction-rules>

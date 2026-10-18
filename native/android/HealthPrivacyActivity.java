@@ -1,0 +1,11 @@
+package com.nthexperience.footprints;
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.graphics.Color;
+import android.widget.*;
+
+/** Available directly from Android's Health Connect permission screen, including offline. */
+public class HealthPrivacyActivity extends Activity {
+    public void onCreate(Bundle state){super.onCreate(state);LinearLayout layout=new LinearLayout(this);layout.setOrientation(LinearLayout.VERTICAL);int p=(int)(24*getResources().getDisplayMetrics().density);layout.setPadding(p,p*2,p,p);layout.setBackgroundColor(Color.rgb(29,48,39));TextView title=new TextView(this);title.setText("Your steps, your choice.");title.setTextColor(0xFFF4EBD5);title.setTextSize(26);title.setTypeface(android.graphics.Typeface.SERIF);layout.addView(title);TextView body=new TextView(this);body.setTextColor(0xFFE2E6DB);body.setTextSize(16);body.setPadding(0,p,0,p);body.setText("Nth FootPrints uses Health Connect only when you connect it.\n\nRead steps: shows your combined daily steps, recent history, goals, milestones and trophies.\n\nWrite steps: shares only steps measured by the FootPrints phone pedometer after you enable sharing. Other permitted apps, such as Lose It!, can then read them. Imported steps are never written back.\n\nHealth access does not include your journal, photos, GPS, weight, nutrition or calories. Step history and progress stay in this app’s private storage, outside journal backups. No health data is sent to Nth servers or used for advertising.\n\nConnected totals refresh while the app is open. Widgets show the last refreshed total. You can turn sharing off in FootPrints or revoke access in Health Connect at any time. Disconnecting clears the connected-step cache and pending exports; it leaves previously shared records in Health Connect, where you can delete them. Already earned step progress stays on this device until app data is cleared.");layout.addView(body);Button close=new Button(this);close.setText("Done");close.setTextColor(0xFFE2C48F);close.setBackgroundColor(Color.TRANSPARENT);close.setOnClickListener(v->finish());layout.addView(close);ScrollView scroll=new ScrollView(this);scroll.addView(layout);setContentView(scroll);}
+}

@@ -74,7 +74,7 @@ jobs:
             appId: "com.nthexperience.footprints",
             appName: "Nth FootPrints",
             webDir: "native-web",
-            appendUserAgent: " NthFootPrints/0.10.0 (+https://github.com/bdredenbach/Nth-FootPrints)",
+            appendUserAgent: " NthFootPrints/0.11.0 (+https://github.com/bdredenbach/Nth-FootPrints)",
             plugins: {
               SystemBars: {
                 insetsHandling: "css",
@@ -95,8 +95,9 @@ jobs:
 
       - name: Add Android file, widget and icon resources
         run: |
-          cp native/android/*.java android/app/src/main/java/com/nthexperience/footprints/
+          cp native/android/*.java native/android/*.kt android/app/src/main/java/com/nthexperience/footprints/
           node native/prepare-widget.mjs
+          node native/prepare-health.mjs
 
       - name: Set Android version
         run: |

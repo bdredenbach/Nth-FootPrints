@@ -3,7 +3,7 @@ import {createBadgeCaseUI} from './badge-case-ui.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function createTravelUI({document,getState,journeyUI,writeSettings,onMap,onStatus,confirm}){
  const $=id=>document.getElementById(id);let tab='explore',milestoneFilter='all',milestoneFamily='';
- const getProgress=()=>achievementProgress(getState().records,getState().journeys);
+ const getProgress=()=>achievementProgress(getState().records,getState().journeys,getState().stepProgress);
  const badgeCase=createBadgeCaseUI({document,getState,getProgress,write:config=>writeSettings(current=>({...current,badgeCase:config})),onStatus,confirm});
  function render(){
   for(const b of document.querySelectorAll('[data-travel-tab]')){const active=b.dataset.travelTab===tab;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;}
