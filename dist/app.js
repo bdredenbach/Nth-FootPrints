@@ -243,7 +243,7 @@ function currentTutorialArea(){
  if(id==='reorder')return 'reorder';
  if(id==='editor')return !$('photo-geotag').hidden?'photo':'editor';
  if(id==='journal-tools'){const tab=document.querySelector('[data-tool-tab][aria-selected="true"]')?.dataset.toolTab;return {memories:'memories',timeline:'timeline',care:'care',nearby:'nearby'}[tab];}
- if(id==='journeys'){if(travelUI.tab==='explore'){const focus=document.activeElement;if(focus?.closest?.('#step-counter'))return 'steps';}if(travelUI.tab!=='journeys')return {explore:'exploration',milestones:'milestones',badges:'badges'}[travelUI.tab];if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
+ if(id==='journeys'){if(travelUI.tab==='explore'){const focus=document.activeElement;if(focus?.closest?.('.health-connect'))return 'health';if(focus?.closest?.('#step-counter'))return 'steps';}if(travelUI.tab!=='journeys')return {explore:'exploration',milestones:'milestones',badges:'badges'}[travelUI.tab];if($('journey-form').inert||$('journey-create-form').inert)return null;return $('journey-editor').hidden?'trips':'trip-detail';}
  if(id==='batch-import'){if($('batch-import').classList.contains('batch-transfer-active'))return null;return !$('batch-review').hidden?'import-review':'import';}
  if(id==='memory-export'&&$('export-controls').inert)return null;
  return id?({'details':'visits','pin-picker':'picker','backup':'backup','settings':'preferences','offline-maps':'offline','memory-export':'export','place-preview':'preview','photo-lightbox':'lightbox'}[id]??null):({journal:'journal',favorites:'journal',map:'map',places:'places'}[view]);

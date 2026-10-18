@@ -27,12 +27,34 @@ object HealthSteps {
     @JvmStatic fun queue(c:Context,start:Long,end:Long,delta:Long){if(prefs(c).getBoolean("share",false)&&start>=prefs(c).getLong("shareSince",Long.MAX_VALUE))HealthStepQueue.get(c).record(start,end,delta)}
     @JvmStatic fun publish(c:Context){if(prefs(c).getBoolean("share",false))scope.launch{try{sync(c,false)}catch(e:Exception){prefs(c).edit().putString("error",friendly(e)).apply()}}}
     fun friendly(e:Exception)=if(e is SecurityException)"Health Connect access changed. Reconnect or review permissions." else "Health Connect could not sync. Your steps are saved; tap Sync now to retry."
+    private suspend fun inspectUnlocked(c:Context):Set<String>{
+        val p=prefs(c)
+        if(!available(c))return emptySet()
+        val permissions=HealthConnectClient.getOrCreate(c).permissionController.getGrantedPermissions()
+        val edit=p.edit().putBoolean("readGranted",READ in permissions).putBoolean("writeGranted",WRITE in permissions)
+        if(WRITE !in permissions&&p.getBoolean("share",false)){edit.putBoolean("share",false);HealthStepQueue.get(c).clear()}
+        check(edit.commit());return permissions
+    }
+    suspend fun inspect(c:Context):JSObject=mutex.withLock{inspectUnlocked(c);state(c)}
+    suspend fun configure(c:Context,source:String?,share:Boolean?):JSObject{
+        val p=prefs(c)
+        // Turning sharing off must not flush exports or require a working provider first.
+        if(share==false)check(p.edit().putBoolean("share",false).commit())
+        mutex.withLock{
+            if(share==false)HealthStepQueue.get(c).clear()
+            if(source!=null)require(source=="phone"||source=="health")
+            if(source=="health"||share==true){val grants=inspectUnlocked(c);if(source=="health"&&READ !in grants||share==true&&WRITE !in grants)throw SecurityException()}
+            val edit=p.edit();if(source!=null)edit.putString("source",source)
+            if(share!=null){if(share&&!p.getBoolean("share",false))edit.putLong("shareSince",System.currentTimeMillis());edit.putBoolean("share",share)}
+            check(edit.commit())
+        }
+        return if(share==false&&source==null)state(c) else sync(c,true)
+    }
     suspend fun sync(c:Context,read:Boolean):JSObject=mutex.withLock {
         val p=prefs(c)
         if(!available(c))return@withLock state(c)
+        val permissions=inspectUnlocked(c)
         val client=HealthConnectClient.getOrCreate(c)
-        val permissions=client.permissionController.getGrantedPermissions()
-        p.edit().putBoolean("readGranted",READ in permissions).putBoolean("writeGranted",WRITE in permissions).apply()
         if(p.getBoolean("share",false)&&WRITE in permissions){
             var rows=HealthStepQueue.get(c).pending()
             // Bound each foreground/background run. Remaining durable rows retry on the next sync.
